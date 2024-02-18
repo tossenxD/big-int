@@ -56,6 +56,9 @@ run-16:
 clean:
 	rm -f $(EXE_CGBN) $(EXE_OUR)
 
-patch-cgbn-makefiles:
+cgbn-prep:
+	# Download / update CGBN
+	git clone git@github.com:NVlabs/CGBN.git "CGBN" || true
+	# Patch outdated Makefile
 	sed -i 's/master/main/g' CGBN/Makefile
 	sed -i 's/ -std=c++11 / -std=c++14 /' CGBN/unit_tests/Makefile
