@@ -56,3 +56,6 @@ run-16:
 clean:
 	rm -f $(EXE_CGBN) $(EXE_OUR)
 
+patch-cgbn-makefiles:
+	sed -i 's/master/main/g' CGBN/Makefile
+	sed -i 's/ -std=c++11 / -std=c++14 /' CGBN/unit_tests/Makefile
