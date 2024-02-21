@@ -9,7 +9,7 @@ compile:
 	$(CXX) $(SRC) -o $(EXE) -lgmp
 
 run:
-	./$(EXE) 2 3
+	./$(EXE) 1 3
 
 clean:
 	rm -f $(EXE)

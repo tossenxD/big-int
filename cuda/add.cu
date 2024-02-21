@@ -6,9 +6,14 @@
 
 template<class T>
 void print_bigint(bigint_t<T>& bn) {
-    printf("[");
+    printf("len: %d\nnum: [", bn.len);
     for (int i=0; i<bn.len; i++) {
 	printf("%d", bn.num[i]);
+	if (i != bn.len-1) { printf(", "); }
+    }
+    printf("]\ninfo: [");
+    for (int i=0; i<bn.len; i++) {
+	printf("%d", bn.info[i]);
 	if (i != bn.len-1) { printf(", "); }
     }
     printf("]\n");
@@ -39,9 +44,10 @@ int main(int argc, char * argv[]) {
     h_bigints_in2 = (bigint_t<uint32_t>*) malloc(mem_size);
     h_bigints_out = (bigint_t<uint32_t>*) malloc(mem_size);
     for (int i=0; i<num_instances; i++) {
-	bigint_init<uint32_t> (h_bigints_in1[i], (uint64_t)num_size, 21);
-	bigint_init<uint32_t> (h_bigints_in2[i], (uint64_t)num_size, 21);
+	bigint_init<uint32_t> (h_bigints_in1[i], (uint8_t)num_size, (uint32_t)-1);
+	bigint_init<uint32_t> (h_bigints_in2[i], (uint8_t)num_size, 1);
     }
+    h_bigints_in1[0].num[1] = (uint32_t)-1;
 
     // allocate and initialize device memory
     CUDA_CHECK(cudaSetDevice(0));
@@ -51,7 +57,7 @@ int main(int argc, char * argv[]) {
     CUDA_CHECK(cudaMemcpy(d_bigints_in1, h_bigints_in1, mem_size, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_bigints_in2, h_bigints_in2, mem_size, cudaMemcpyHostToDevice));
     bigint_t<uint32_t>* tmp = (bigint_t<uint32_t>*) malloc(mem_size);
-    for (int i=0; i<num_instances; i++) { bigint_init<uint32_t> (tmp[i], (uint64_t)num_size); }
+    for (int i=0; i<num_instances; i++) { bigint_init<uint32_t> (tmp[i], (uint8_t)num_size); }
     CUDA_CHECK(cudaMemcpy(d_bigints_out, tmp, mem_size, cudaMemcpyHostToDevice));
     free(tmp);
 
