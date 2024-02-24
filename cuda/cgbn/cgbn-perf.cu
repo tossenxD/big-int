@@ -1,4 +1,4 @@
-#include "../helper.h"
+#include "../helpers.h"
 #include <cuda.h>
 #include "include/cgbn/cgbn.h"
 

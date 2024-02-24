@@ -1,16 +1,11 @@
 CXX = nvcc -O3 -arch=sm_70
-#-arch=sm_80
 
-#-arch=sm_60
-
-HELPERS  = ../helper.h
 SRC_CGBN = cgbn-perf.cu
-EXE_CGBN = big-num-cgbn
+EXE_CGBN = big-int-cgbn
 
 default: run-1024
 
-#.cu.o: $(SRC) $(HELPERS)
-#	$(CXX) -c $@ $<
+all: run-8192 run-4096 run-2048 run-1024 run-512 run-256 run-128 run-64 run-32 run-16
 
 run-8192:
 	$(CXX) -ICGBN -DNUM_BITS=262144 -DTHD_PER_INST=32 $(SRC_CGBN) -o $(EXE_CGBN) -lgmp
@@ -51,7 +46,6 @@ run-32:
 run-16:
 	$(CXX) -ICGBN -DNUM_BITS=512  -DTHD_PER_INST=2 $(SRC_CGBN) -o $(EXE_CGBN) -lgmp
 	./$(EXE_CGBN) 8388608
-
 
 clean:
 	rm -f $(EXE_CGBN) $(EXE_OUR)

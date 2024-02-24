@@ -1,5 +1,5 @@
-#ifndef HELPER
-#define HELPER
+#ifndef HELPERS
+#define HELPERS
 
 #include <math.h>
 #include <stdio.h>
@@ -18,8 +18,7 @@ int gpuAssert(cudaError_t code) {
   return 0;
 }
 
-int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval *t1)
-{
+int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval *t1) {
     unsigned int resolution=1000000;
     long int diff = (t2->tv_usec + resolution * t2->tv_sec) - (t1->tv_usec + resolution * t1->tv_sec);
     result->tv_sec = diff / resolution;
@@ -60,7 +59,7 @@ bool validate(T* A, T* B, const uint64_t sizeAB, const T ERR){
 }
 
 template<class T>
-bool validateExact(T* A, T* B, uint64_t sizeAB){
+bool validateExact(T* A, T* B, uint64_t sizeAB) {
     for(uint64_t i = 0; i < sizeAB; i++) {
         if ( A[i] != B[i] ) {
             printf("INVALID RESULT at flat index %lu: %u vs %u\n", i, A[i], B[i]);
@@ -79,7 +78,6 @@ void printInstance(uint32_t q, T* as) {
     }
     printf("] \n");
 }
-
 
 /**
  * Creates `num_instances` big integers:
@@ -134,6 +132,23 @@ void gmpMkRandom(uint32_t num_instances, uint32_t* as, gmp_randstate_t rnd) {
     }
 }
 
+template<int m, int nz>
+void mkRandArrays ( int num_instances
+                  , uint64_t** h_as
+                  , uint64_t** h_bs
+                  , uint64_t** h_rs_gmp
+                  , uint64_t** h_rs_our
+                  ) {
+
+    *h_as     = (uint64_t*) malloc( num_instances * m * sizeof(uint32_t) );
+    *h_bs     = (uint64_t*) malloc( num_instances * m * sizeof(uint32_t) );
+    *h_rs_gmp = (uint64_t*) malloc( num_instances * m * sizeof(uint32_t) );
+    *h_rs_our = (uint64_t*) malloc( num_instances * m * sizeof(uint32_t) );
+        
+    ourMkRandom<m, nz>(num_instances, (uint32_t*)*h_as);
+    ourMkRandom<m, nz>(num_instances, (uint32_t*)*h_bs);
+}
+
 template<uint32_t m>
 void gmpAddMulOnce(bool is_add, uint32_t* inst_as, uint32_t* inst_bs, uint32_t* inst_rs) {
     uint32_t buff[4*m];
@@ -176,4 +191,4 @@ void cuda_check(cudaError_t status, const char *action=NULL, const char *file=NU
 
 #define CUDA_CHECK(action) cuda_check(action, #action, __FILE__, __LINE__)
 
-#endif // HELPER
+#endif // HELPERS

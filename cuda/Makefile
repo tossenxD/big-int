@@ -1,7 +1,6 @@
 CXX      = nvcc -O3 -arch=sm_70
-SRC      = add.cu
-EXE      = big-num-add
-HELPERS  = helper.h
+SRC      = main.cu
+EXE      = big-int-tests
 
 default: compile run
 
@@ -9,7 +8,7 @@ compile:
 	$(CXX) $(SRC) -o $(EXE) -lgmp
 
 run:
-	./$(EXE) 1 3
+	./$(EXE) 2048
 
 clean:
 	rm -f $(EXE)

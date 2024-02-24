@@ -1,0 +1,7 @@
+*
+!*.cu.h
+!*.cu
+!*.h
+!Makefile
+!.gitignore
+cgbn/CGBN

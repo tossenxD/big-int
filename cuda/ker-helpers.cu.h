@@ -1,0 +1,148 @@
+#ifndef KERNEL_HELPERS
+#define KERNEL_HELPERS
+
+#define WARP   (32)
+#define lgWARP  (5)
+
+#define HIGHEST32 ( 0xFFFFFFFF )
+#define HIGHEST64 ( 0xFFFFFFFFFFFFFFFF )
+
+/***********************/
+/*** Data Structures ***/
+/***********************/
+
+typedef unsigned __int128 uint128_t;
+
+struct U64bits {
+    using uint_t = uint64_t;
+    using sint_t = int64_t;
+    using ubig_t = uint128_t;
+    using carry_t= uint32_t;
+    static const int32_t  bits = 64;
+    static const uint_t HIGHEST = HIGHEST64;
+};
+
+struct U32bits {
+    using uint_t = uint32_t;
+    using sint_t = int32_t;
+    using ubig_t = uint64_t;
+    using carry_t= uint32_t;
+    static const int32_t  bits = 32;
+    static const uint_t HIGHEST = HIGHEST32;
+};
+
+struct CarryProp {
+    static const bool commutative = true;
+    static __device__ __host__ inline uint32_t identInp()                 { return 0;  }
+    static __device__ __host__ inline uint32_t mapFun(const uint32_t& el) { return el; }
+    static __device__ __host__ inline uint32_t identity()                 { return 0;  }
+    static __device__ __host__ inline uint32_t apply(const uint32_t c1, const uint32_t c2) {
+        return (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1);
+    }
+    static __device__ __host__ inline bool equals(const uint32_t c1, const uint32_t c2) {
+        return (c1 == c2);
+    }
+    static __device__ __host__ inline uint32_t remVolatile(volatile uint32_t& c) {
+        uint32_t res = c;
+        return res;
+    }
+};
+
+/***********************************************************/
+/*** Remapping to/from Gobal, Shared and Register Memory ***/
+/***********************************************************/
+
+template<class S, uint32_t IPB, uint32_t M, uint32_t Q>
+__device__ inline
+void cpGlb2Sh ( S* ass, S* bss
+              , S* Ash, S* Bsh 
+) { 
+    // 1. read from global to shared memory
+    uint64_t glb_offs = blockIdx.x * (IPB * M);
+
+    for(int i=0; i<Q; i++) {
+        uint32_t loc_pos = i*(IPB*M/Q) + threadIdx.x;
+        S tmp_a = 0, tmp_b = 0;
+        //if(loc_pos < IPB*M) 
+        {
+            tmp_a = ass[glb_offs + loc_pos];
+            tmp_b = bss[glb_offs + loc_pos];
+        }
+        Ash[loc_pos] = tmp_a;
+        Bsh[loc_pos] = tmp_b;
+    }
+}
+
+template<class S, uint32_t IPB, uint32_t M, uint32_t Q>
+__device__ inline
+void cpSh2Glb(S* Hsh, S* rss) { 
+    // 3. write from shared to global memory
+    uint64_t glb_offs = blockIdx.x * (IPB * M);
+
+    for(int i=0; i<Q; i++) {
+        uint32_t loc_pos = i*(IPB*M/Q) + threadIdx.x;
+        //if(loc_pos < IPB*M) 
+        {
+            rss[glb_offs + loc_pos] = Hsh[loc_pos];
+        }
+    }
+}
+
+template<class S, uint32_t IPB, uint32_t M, uint32_t Q>
+__device__ inline
+void cpGlb2Reg ( volatile S* shmem, S* ass, S Arg[Q] ) { 
+    // 1. read from global to shared memory
+    uint64_t glb_offs = blockIdx.x * (IPB * M);
+
+    for(int i=0; i<Q; i++) {
+        uint32_t loc_pos = i*(IPB*M/Q) + threadIdx.x;
+        S tmp_a = 0;
+        //if(loc_pos < IPB*M) 
+        {
+            tmp_a = ass[glb_offs + loc_pos];
+        }
+        shmem[loc_pos] = tmp_a;
+    }
+    __syncthreads();
+    // 2. read from shmem to regs
+    for(int i=0; i<Q; i++) {
+        Arg[i] = shmem[Q*threadIdx.x + i];
+    }
+}
+
+template<class S, uint32_t IPB, uint32_t M, uint32_t Q>
+__device__ inline
+void cpReg2Glb ( volatile S* shmem , S Rrg[Q], S* rss ) { 
+    // 1. write from regs to shared memory
+    for(int i=0; i<Q; i++) {
+        shmem[Q*threadIdx.x + i] = Rrg[i];
+    }
+    __syncthreads();
+    // 2. write from shmem to global
+    uint64_t glb_offs = blockIdx.x * (IPB * M);
+    for(int i=0; i<Q; i++) {
+        uint32_t loc_pos = i*(IPB*M/Q) + threadIdx.x;
+        //if(loc_pos < IPB*M) 
+        {
+            rss[glb_offs + loc_pos] = shmem[loc_pos];
+        }
+    }
+}
+
+template<class S, uint32_t Q>
+__device__ inline
+void cpReg2Shm ( S Rrg[Q], volatile S* shmem ) { 
+    for(int i=0; i<Q; i++) {
+        shmem[Q*threadIdx.x + i] = Rrg[i];
+    }
+}
+
+template<class S, uint32_t Q>
+__device__ inline
+void cpShm2Reg ( volatile S* shmem, S Rrg[Q] ) { 
+    for(int i=0; i<Q; i++) {
+        Rrg[i] = shmem[Q*threadIdx.x + i];
+    }
+}
+
+#endif //KERNEL_HELPERS
