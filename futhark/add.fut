@@ -7,11 +7,11 @@ def add_op (ov1: bool, mx1: bool) (ov2: bool, mx2: bool) : (bool, bool) =
   ((ov1 && mx2) || ov2, mx1 && mx2)
 
 def add32 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
-  let (res, cs) = imap2 as bs (\ a b -> let s = a + b
-					in (s, (s < a, s == u32.highest))
+  let (res, cs) = imap2 as bs (\ a b -> let r = a + b
+					in (r, (r < a, r == u32.highest))
 			      ) |> unzip
   let (carries, _) = scan_exc add_op (false, true) cs |> unzip
-  in imap2 res carries (\ x c -> x + u32.bool c)
+  in imap2 res carries (\ r c -> r + u32.bool c)
 
 -------------------------------------------------
 -- optimized version 1 outlined in cambridge talk
@@ -21,10 +21,10 @@ def carry_prop (c1: u32) (c2: u32) : u32 =
    (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1)
 
 def badd [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
-  let (res, cs) = imap2 as bs (\ a b -> let s = a + b
-				        let b = u32.bool (s < a)
-					let b = b | ((u32.bool (s == u32.highest)) << 1)
-					in (s, b)
+  let (res, cs) = imap2 as bs (\ a b -> let r = a + b
+				        let b = u32.bool (r < a)
+					let b = b | ((u32.bool (r == u32.highest)) << 1)
+					in (r, b)
 			       ) |> unzip
   let carries = scan_exc carry_prop 2 cs
   in imap2 res carries (\ r c -> r + (c & 1))
