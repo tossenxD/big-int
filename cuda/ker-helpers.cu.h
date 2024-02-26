@@ -32,10 +32,12 @@ struct U32bits {
 };
 
 struct CarryProp {
+    typedef uint32_t InpElTp;
+    typedef uint32_t RedElTp;
     static const bool commutative = true;
-    static __device__ __host__ inline uint32_t identInp()                 { return 0;  }
+    static __device__ __host__ inline uint32_t identInp()                 { return 2;  }
     static __device__ __host__ inline uint32_t mapFun(const uint32_t& el) { return el; }
-    static __device__ __host__ inline uint32_t identity()                 { return 0;  }
+    static __device__ __host__ inline uint32_t identity()                 { return 2;  }
     static __device__ __host__ inline uint32_t apply(const uint32_t c1, const uint32_t c2) {
         return (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1);
     }
@@ -47,6 +49,62 @@ struct CarryProp {
         return res;
     }
 };
+
+/***********************/
+/*** Building Blocks ***/
+/***********************/
+
+template<class OP>
+__device__ inline typename OP::RedElTp
+scanIncWarp( volatile typename OP::RedElTp* ptr, const unsigned int idx ) {
+#pragma unroll
+    for(int d=0; d<lgWARP; d++) {
+        int h = 1 << d;
+        if ((idx & (WARP-1)) >= h) ptr[idx] = OP::apply(ptr[idx-h], ptr[idx]);
+    }
+    return OP::remVolatile(ptr[idx]);
+}
+
+template<class OP>
+__device__ inline typename OP::RedElTp
+scanIncBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
+    const unsigned int lane   = idx & (WARP-1);
+    const unsigned int warpid = idx >> lgWARP;
+
+    // 1. perform scan at warp level
+    typename OP::RedElTp res = scanIncWarp<OP>(ptr,idx);
+    __syncthreads();
+
+    // 2. place the end-of-warp results in
+    //   the first warp. This works because
+    //   warp size = 32, and 
+    //   max block size = 32^2 = 1024
+    typename OP::RedElTp tmp = OP::remVolatile(ptr[idx]);
+    __syncthreads();
+    if (lane == (WARP-1)) ptr[warpid] = tmp;
+    __syncthreads();
+
+    // 3. scan again the first warp
+    if (warpid == 0) scanIncWarp<OP>(ptr, idx);
+    __syncthreads();
+
+    // 4. accumulate results from previous step;
+    if (warpid > 0) res = OP::apply(ptr[warpid-1], res);
+    return res;
+}
+
+template<class OP>
+__device__ inline typename OP::RedElTp
+scanExcBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
+    typename OP::RedElTp res = scanIncBlock<OP>(ptr,idx);
+    __syncthreads();
+    ptr[idx] = res;
+    res = OP::identity();
+    __syncthreads();
+    if (idx > 0) res = ptr[idx-1];
+    return res;
+}
+    
 
 /***********************************************************/
 /*** Remapping to/from Gobal, Shared and Register Memory ***/
