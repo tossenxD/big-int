@@ -31,21 +31,24 @@ struct U32bits {
     static const uint_t HIGHEST = HIGHEST32;
 };
 
-struct CarryProp {
-    typedef uint32_t InpElTp;
-    typedef uint32_t RedElTp;
+template<class Base>
+class CarryProp {
+    using uint_t = typename Base::uint_t;
+public:
+    typedef uint_t InpElTp;
+    typedef uint_t RedElTp;
     static const bool commutative = true;
-    static __device__ __host__ inline uint32_t identInp()                 { return 2;  }
-    static __device__ __host__ inline uint32_t mapFun(const uint32_t& el) { return el; }
-    static __device__ __host__ inline uint32_t identity()                 { return 2;  }
-    static __device__ __host__ inline uint32_t apply(const uint32_t c1, const uint32_t c2) {
+    static __device__ __host__ inline uint_t identInp()               { return 2;  }
+    static __device__ __host__ inline uint_t mapFun(const uint_t& el) { return el; }
+    static __device__ __host__ inline uint_t identity()               { return 2;  }
+    static __device__ __host__ inline uint_t apply(const uint_t c1, const uint_t c2) {
         return (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1);
     }
-    static __device__ __host__ inline bool equals(const uint32_t c1, const uint32_t c2) {
+    static __device__ __host__ inline bool equals(const uint_t c1, const uint_t c2) {
         return (c1 == c2);
     }
-    static __device__ __host__ inline uint32_t remVolatile(volatile uint32_t& c) {
-        uint32_t res = c;
+    static __device__ __host__ inline uint_t remVolatile(volatile uint_t& c) {
+        uint_t res = c;
         return res;
     }
 };
@@ -104,7 +107,38 @@ scanExcBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
     if (idx > 0) res = ptr[idx-1];
     return res;
 }
+
+/* Performs a blockwide exclusive scan in shared memory with sequentialization; */
+/* `m` is blocksize and `q` is sequentialization factor. */
+template<class OP, uint32_t m, uint32_t q>
+__device__ inline typename OP::RedElTp
+scanExcBlockBlelloch(volatile typename OP::RedElTp* ptr) {
+    // upsweep
+    for(int d=1; d<m; d*=2) {
+        for(int i=0; i<q; i++) {
+            uint32_t idx = i*(m/q) + threadIdx.x;
+            if (idx%(2*d) == (2*d-1))
+                ptr[idx] = OP::apply(ptr[idx-d], ptr[idx]);
+        }
+        __syncthreads();
+    }
     
+    // insert neutral element
+    if (threadIdx.x == 0) ptr[m-1] = OP::identity();
+
+    // downsweep
+    for(int d=m/2; d>0; d/=2){
+        for(int i=0; i<q; i++) {
+            uint32_t idx = i*(m/q) + threadIdx.x;
+            typename OP::RedElTp tmp = OP::identity();
+            if (idx%(2*d) == (2*d-1)) tmp = ptr[idx-d];
+            __syncthreads();
+            if (idx%(2*d) == (2*d-1)) ptr[idx-d] = ptr[idx];
+            ptr[idx] = OP::apply(ptr[idx],tmp);
+        }
+        __syncthreads();
+    }
+}
 
 /***********************************************************/
 /*** Remapping to/from Gobal, Shared and Register Memory ***/
@@ -146,16 +180,15 @@ void cpSh2Glb(S* Hsh, S* rss) {
     }
 }
 
-template<class S, uint32_t IPB, uint32_t M, uint32_t Q>
+template<class S, uint32_t M, uint32_t Q>
 __device__ inline
 void cpGlb2Reg ( volatile S* shmem, S* ass, S Arg[Q] ) { 
     // 1. read from global to shared memory
-    uint64_t glb_offs = blockIdx.x * (IPB * M);
+    uint64_t glb_offs = blockIdx.x * M;
 
     for(int i=0; i<Q; i++) {
-        uint32_t loc_pos = i*(IPB*M/Q) + threadIdx.x;
+        uint32_t loc_pos = i*(M/Q) + threadIdx.x;
         S tmp_a = 0;
-        //if(loc_pos < IPB*M) 
         {
             tmp_a = ass[glb_offs + loc_pos];
         }
@@ -168,7 +201,7 @@ void cpGlb2Reg ( volatile S* shmem, S* ass, S Arg[Q] ) {
     }
 }
 
-template<class S, uint32_t IPB, uint32_t M, uint32_t Q>
+template<class S, uint32_t M, uint32_t Q>
 __device__ inline
 void cpReg2Glb ( volatile S* shmem , S Rrg[Q], S* rss ) { 
     // 1. write from regs to shared memory
@@ -177,9 +210,9 @@ void cpReg2Glb ( volatile S* shmem , S Rrg[Q], S* rss ) {
     }
     __syncthreads();
     // 2. write from shmem to global
-    uint64_t glb_offs = blockIdx.x * (IPB * M);
+    uint64_t glb_offs = blockIdx.x * M;
     for(int i=0; i<Q; i++) {
-        uint32_t loc_pos = i*(IPB*M/Q) + threadIdx.x;
+        uint32_t loc_pos = i*(M/Q) + threadIdx.x;
         //if(loc_pos < IPB*M) 
         {
             rss[glb_offs + loc_pos] = shmem[loc_pos];

@@ -31,14 +31,13 @@ void gpuAdd (int num_instances, typename Base::uint_t* h_as,
     cudaMemcpy(d_bs, h_bs, mem_size_nums, cudaMemcpyHostToDevice);
 
     // 3. kernel dimensions
-    //const uint32_t q = 4;
-    //assert(m%q == 0 && m >= q);
-    //dim3 block(m/q, 1, 1);
-    dim3 block(m, 1, 1);
+    const uint32_t q = 4;
+    assert(m%q == 0 && m >= q);
+    dim3 block(m/q, 1, 1);
     dim3 grid (num_instances, 1, 1);
 
     // 4. dry run
-    baddKer<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
+    baddKer<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
     cudaDeviceSynchronize();
     gpuAssert( cudaPeekAtLastError() );
 
@@ -49,7 +48,7 @@ void gpuAdd (int num_instances, typename Base::uint_t* h_as,
         gettimeofday(&t_start, NULL); 
 
         for(int i=0; i<GPU_RUNS_ADD; i++)
-            baddKer<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
+            baddKer<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
 
         cudaDeviceSynchronize();
 

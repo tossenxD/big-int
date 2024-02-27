@@ -7,25 +7,36 @@
 /*** Big-Integer Addition ***/
 /****************************/
 
-template<class Base, int m>
+template<class Base, uint32_t m, uint32_t q> // m is the size in Base::uint_t units and q the seq-factor
 __global__ void baddKer(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
-    const unsigned int tid = threadIdx.x;
-    const unsigned int gid = blockIdx.x * blockDim.x + tid;
     using uint_t = typename Base::uint_t;
+    __shared__ uint_t sh_mem[m];
+    uint_t ass[q];
+    uint_t bss[q];
+    uint_t rss[q];
+    uint_t css[q];
 
-    // compute r and c
-    uint_t a   = as[gid];
-    uint_t b   = bs[gid];
-    uint_t r   = a + b;
-    uint32_t c = ((uint32_t) (r < a)) | (((uint32_t) (r == Base::HIGHEST)) << 1);
+    // copy from global memory to registers
+    cpGlb2Reg<uint_t,m,q>(sh_mem, as, ass);
+    cpGlb2Reg<uint_t,m,q>(sh_mem, bs, bss);
+    __syncthreads();
+
+    // compute result and carry for each unit
+    for(int i=0; i<q; i++) {
+        rss[i] = ass[i] + bss[i];
+        css[i] = ((uint_t) (rss[i] < ass[i])) | (((uint_t) (rss[i] == Base::HIGHEST)) << 1);
+    }
+    __syncthreads();
 
     // scan carries
-    __shared__ uint32_t sh_mem[m];
-    sh_mem[tid] = c;
+    cpReg2Shm<uint_t,q>(css, sh_mem);
     __syncthreads();
-    c = scanExcBlock<CarryProp>(sh_mem, tid);
-    
-    rs[gid] = r + (c & 1);
+    scanExcBlockBlelloch<CarryProp<Base>,m,q>(sh_mem);
+    cpShm2Reg<uint_t,q>(sh_mem, css);
+
+    // update result from the propagated carries
+    for(int i=0; i<q; i++) rss[i] += (css[i] & 1);
+    cpReg2Glb<uint_t,m,q>(sh_mem, rss, rs);
 }
 
 #endif // BIG_INT_KERNELS
