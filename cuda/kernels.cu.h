@@ -21,14 +21,34 @@ __global__ void baddKer(typename Base::uint_t* as, typename Base::uint_t* bs, ty
 
     // copy from global memory to registers
     cpGlb2Reg<uint_t,m,q,ipb>(sh_mem, as, ass); // TODO add ipb to all copy functions
+    __syncthreads();
     cpGlb2Reg<uint_t,m,q,ipb>(sh_mem, bs, bss);
+    __syncthreads();
+    
+    { // this code is morally correct but does not validate
+    
+        // compute result and carry for each unit
+        uint_t acc = SegCarryProp<Base>::identity();
+        for(int i=0; i<q; i++) {
+            rss[i] = ass[i] + bss[i];
+            css[i] = ((uint_t) (rss[i] < ass[i])) | (((uint_t) (rss[i] == Base::HIGHEST)) << 1);
+            acc = SegCarryProp<Base>::apply(acc, css[i]);
+        }
+        
+        uint_t last_carry = (threadIdx.x % (m/q) == 0) ? (acc | 4) : acc;
+        sh_mem[threadIdx.x] = last_carry;
+        __syncthreads();
+        scanIncBlock< SegCarryProp<Base> >(sh_mem, threadIdx.x);
+        uint_t carry_prefix = (threadIdx.x % (m/q) == 0) ? SegCarryProp<Base>::identity() : sh_mem[threadIdx.x-1];
+        __syncthreads();
+        
+        for(int i=0; i<q; i++) {
+            rss[i] += (carry_prefix & 1);
+            carry_prefix = SegCarryProp<Base>::apply(carry_prefix, css[i]);
+        }
 
-    // compute result and carry for each unit
-    for(int i=0; i<q; i++) {
-        rss[i] = ass[i] + bss[i];
-        css[i] = ((uint_t) (rss[i] < ass[i])) | (((uint_t) (rss[i] == Base::HIGHEST)) << 1);
     }
-
+#if 0
     // scan carries
     if (threadIdx.x % (m/q) == 0) css[q-1] += 4; // use third bit as flag
     cpReg2Shm<uint_t,q>(css, sh_mem);
@@ -38,6 +58,7 @@ __global__ void baddKer(typename Base::uint_t* as, typename Base::uint_t* bs, ty
 
     // update result from the propagated carries
     for(int i=0; i<q; i++) rss[i] += (css[i] & 1);
+#endif
     cpReg2Glb<uint_t,m,q,ipb>(sh_mem, rss, rs);
 }
 
