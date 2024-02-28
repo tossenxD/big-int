@@ -32,12 +32,14 @@ void gpuAdd (int num_instances, typename Base::uint_t* h_as,
 
     // 3. kernel dimensions
     const uint32_t q = 4;
-    assert(m%q == 0 && m >= q);
-    dim3 block(m/q, 1, 1);
-    dim3 grid (num_instances, 1, 1);
+    assert(m%q == 0 && m >= q && m/q <= 1024);
+    const uint32_t ipb = (128 + m/q - 1) / (m/q); // ceil(128/(m/q))
+    dim3 block(ipb*(m/q), 1, 1);
+    dim3 grid (num_instances/ipb, 1, 1);
+    printf("\n[debug] ipb: %d, num_instances: %d, q: %d\n", ipb, num_instances, q);
 
     // 4. dry run
-    baddKer<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
+    baddKer<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
     cudaDeviceSynchronize();
     gpuAssert( cudaPeekAtLastError() );
 
@@ -48,7 +50,7 @@ void gpuAdd (int num_instances, typename Base::uint_t* h_as,
         gettimeofday(&t_start, NULL); 
 
         for(int i=0; i<GPU_RUNS_ADD; i++)
-            baddKer<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
+            baddKer<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
 
         cudaDeviceSynchronize();
 
@@ -104,18 +106,6 @@ void testAddition(int num_instances, uint64_t* h_as_64, uint64_t* h_bs_64,
         gmpAdd<m>(num_instances, (uint32_t*)h_as, (uint32_t*)h_bs, h_rs_gmp_32);
         validateExact(h_rs_gmp_32, (uint32_t*)h_rs_our, num_instances*m);
     }
-
-#if 0
-    uint32_t querry_instance = 0;
-    printf("as[%d]: ", querry_instance);
-    printInstance<m>(querry_instance, h_as);
-    printf("bs[%d]: ", querry_instance);
-    printInstance<m>(querry_instance, h_bs);
-    printf("rs_gmp[%d]: ", querry_instance);
-    printInstance<m>(querry_instance, h_rs_gmp);
-    printf("rs_our[%d]: ", querry_instance);
-    printInstance<m>(querry_instance, h_rs_our);
-#endif
 }
 
 /*****************************************/
@@ -128,7 +118,7 @@ void runAdditions(uint64_t total_work) {
     mkRandArrays<32,32>( total_work/32, &h_as, &h_bs, &h_rs_gmp, &h_rs_our );
 
     testAddition<Base, 2048>( total_work/2048, h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
-#if 0
+#if 1
     testAddition<Base, 1024>( total_work/1024, h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
     testAddition<Base, 512> ( total_work/512,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
     testAddition<Base, 256> ( total_work/256,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
