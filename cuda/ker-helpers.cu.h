@@ -31,64 +31,19 @@ struct U32bits {
     static const uint_t HIGHEST = HIGHEST32;
 };
 
-template<class Base>
-class CarryProp {
-    using uint_t = typename Base::uint_t;
-public:
-    typedef uint_t InpElTp;
-    typedef uint_t RedElTp;
-    static const bool commutative = true;
-    static __device__ __host__ inline uint_t identInp()               { return 2;  }
-    static __device__ __host__ inline uint_t mapFun(const uint_t& el) { return el; }
-    static __device__ __host__ inline uint_t identity()               { return 2;  }
-    static __device__ __host__ inline uint_t apply(const uint_t c1, const uint_t c2) {
-        return (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1);
-    }
-    static __device__ __host__ inline bool equals(const uint_t c1, const uint_t c2) {
-        return (c1 == c2);
-    }
-    static __device__ __host__ inline uint_t remVolatile(volatile uint_t& c) {
-        uint_t res = c;
-        return res;
-    }
-};
-
-template<class Base>
-class SegCarryProp {
-    using uint_t = typename Base::uint_t;
-public:
-    typedef uint_t InpElTp;
-    typedef uint_t RedElTp;
-    static const bool commutative = true;
-    static __device__ __host__ inline uint_t identInp()               { return 2;  }
-    static __device__ __host__ inline uint_t mapFun(const uint_t& el) { return el; }
-    static __device__ __host__ inline uint_t identity()               { return 2;  }
-    static __device__ __host__ inline uint_t apply(const uint_t c1, const uint_t c2) {
-        uint_t v1 = c1 & 3;
-        uint_t v2 = c2 & 3;
-        uint_t vr = (c1 & 4) ? v2 : ((v1 & v2 & 2) | (((v1 & (v2 >> 1)) | v2) & 1));
-        return ((c1 & 4) || (c2 & 4)) | vr;
-    }
-    static __device__ __host__ inline bool equals(const uint_t c1, const uint_t c2) {
-        return (c1 == c2);
-    }
-    static __device__ __host__ inline uint_t remVolatile(volatile uint_t& c) {
-        uint_t res = c;
-        return res;
-    }
-};
-
 /***********************/
 /*** Building Blocks ***/
 /***********************/
 
 template<class OP>
 __device__ inline typename OP::RedElTp
-scanIncWarp( volatile typename OP::RedElTp* ptr, const unsigned int idx ) {
-#pragma unroll
+scanIncWarp(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
+    const unsigned int lane = idx & (WARP-1);
+    #pragma unroll
     for(int d=0; d<lgWARP; d++) {
         int h = 1 << d;
-        if ((idx & (WARP-1)) >= h) ptr[idx] = OP::apply(ptr[idx-h], ptr[idx]);
+        if (lane >= h)
+            ptr[idx] = OP::apply(ptr[idx-h], ptr[idx]);
     }
     return OP::remVolatile(ptr[idx]);
 }
@@ -109,7 +64,8 @@ scanIncBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
     //   max block size = 32^2 = 1024
     typename OP::RedElTp tmp = OP::remVolatile(ptr[idx]);
     __syncthreads();
-    if (lane == (WARP-1)) ptr[warpid] = tmp;
+    if (lane == (WARP-1))
+        ptr[warpid] = tmp;
     __syncthreads();
 
     // 3. scan again the first warp
@@ -117,147 +73,78 @@ scanIncBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
     __syncthreads();
 
     // 4. accumulate results from previous step;
-    if (warpid > 0) res = OP::apply(ptr[warpid-1], res);
-    return res;
-}
-
-template<class OP>
-__device__ inline typename OP::RedElTp
-scanExcBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
-    typename OP::RedElTp res = scanIncBlock<OP>(ptr,idx);
-    __syncthreads();
-    ptr[idx] = res;
-    res = OP::identity();
-    __syncthreads();
-    if (idx > 0) res = ptr[idx-1];
-    return res;
-}
-
-//* Performs a blockwide exclusive scan in shared memory with sequentialization;
-//* `m` is blocksize and `q` is sequentialization factor.
-template<class OP, uint32_t m, uint32_t q>
-__device__ inline typename OP::RedElTp
-scanExcBlockBlelloch(volatile typename OP::RedElTp* ptr) {
-    // upsweep
-    for(int d=1; d<m; d*=2) {
-        for(int i=0; i<q; i++) {
-            uint32_t idx = i*(m/q) + threadIdx.x;
-            if (idx%(2*d) == (2*d-1))
-                ptr[idx] = OP::apply(ptr[idx-d], ptr[idx]);
-        }
-        __syncthreads();
-    }
+    if (warpid > 0)
+        res = OP::apply(ptr[warpid-1], res);
     
-    // insert neutral element
-    if (threadIdx.x == 0) ptr[m-1] = OP::identity();
-
-    // downsweep
-    for(int d=m/2; d>0; d/=2){
-        for(int i=0; i<q; i++) {
-            uint32_t idx = i*(m/q) + threadIdx.x;
-            typename OP::RedElTp tmp = OP::identity();
-            if (idx%(2*d) == (2*d-1)) tmp = ptr[idx-d];
-            __syncthreads();
-            if (idx%(2*d) == (2*d-1)) ptr[idx-d] = ptr[idx];
-            ptr[idx] = OP::apply(ptr[idx],tmp);
-        }
-        __syncthreads();
-    }
+    return res;
 }
 
 /***********************************************************/
 /*** Remapping to/from Gobal, Shared and Register Memory ***/
 /***********************************************************/
 
-template<class S, uint32_t IPB, uint32_t M, uint32_t Q>
-__device__ inline
-void cpGlb2Sh ( S* ass, S* bss
-              , S* Ash, S* Bsh 
-) { 
-    // 1. read from global to shared memory
-    uint64_t glb_offs = blockIdx.x * (IPB * M);
-
-    for(int i=0; i<Q; i++) {
-        uint32_t loc_pos = i*(IPB*M/Q) + threadIdx.x;
-        S tmp_a = 0, tmp_b = 0;
-        //if(loc_pos < IPB*M) 
-        {
-            tmp_a = ass[glb_offs + loc_pos];
-            tmp_b = bss[glb_offs + loc_pos];
-        }
-        Ash[loc_pos] = tmp_a;
-        Bsh[loc_pos] = tmp_b;
-    }
-}
-
-template<class S, uint32_t IPB, uint32_t M, uint32_t Q>
-__device__ inline
-void cpSh2Glb(S* Hsh, S* rss) { 
-    // 3. write from shared to global memory
-    uint64_t glb_offs = blockIdx.x * (IPB * M);
-
-    for(int i=0; i<Q; i++) {
-        uint32_t loc_pos = i*(IPB*M/Q) + threadIdx.x;
-        //if(loc_pos < IPB*M) 
-        {
-            rss[glb_offs + loc_pos] = Hsh[loc_pos];
-        }
-    }
-}
-
 template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
-void cpGlb2Reg ( volatile S* shmem, S* ass, S Arg[q] ) { 
-    // 1. read from global to shared memory
+void cpGlb2Shm2Reg (S* glb, volatile S* shm, S reg[q]) {
+    // write from global to shared memory
     uint64_t glb_offs = blockIdx.x * (m * ipb);
-
     for(int i=0; i<q; i++) {
         uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
-        S tmp_a = 0;
-        {
-            tmp_a = ass[glb_offs + loc_pos];
-        }
-        shmem[loc_pos] = tmp_a;
+        shm[loc_pos] = glb[glb_offs + loc_pos];
     }
     __syncthreads();
-    // 2. read from shmem to regs
-    for(int i=0; i<q; i++) {
-        Arg[i] = shmem[q*threadIdx.x + i];
-    }
+    // write form shared to register memory
+    for(int i=0; i<q; i++)
+        reg[i] = shm[q*threadIdx.x + i];
 }
 
 template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
-void cpReg2Glb ( volatile S* shmem , S Rrg[q], S* rss ) { 
-    // 1. write from regs to shared memory
-    for(int i=0; i<q; i++) {
-        shmem[q*threadIdx.x + i] = Rrg[i];
-    }
+void cpReg2Shm2Glb (S reg[q], volatile S* shm, S* glb) { 
+    // write from register to shared memory
+    for(int i=0; i<q; i++)
+        shm[q*threadIdx.x + i] = reg[i];
     __syncthreads();
-    // 2. write from shmem to global
-    uint64_t glb_offs = blockIdx.x * m;
+    // write from shared to global memory
+    uint64_t glb_offs = blockIdx.x * (ipb * m);
     for(int i=0; i<q; i++) {
         uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
-        {
-            rss[glb_offs + loc_pos] = shmem[loc_pos];
-        }
+        glb[glb_offs + loc_pos] = shm[loc_pos];
     }
 }
 
-template<class S, uint32_t Q>
+template<class S, uint32_t q>
 __device__ inline
-void cpReg2Shm ( S Rrg[Q], volatile S* shmem ) { 
-    for(int i=0; i<Q; i++) {
-        shmem[Q*threadIdx.x + i] = Rrg[i];
-    }
+void cpReg2Shm (S reg[q], volatile S* shm) {
+    // write from register to shared memory
+    for(int i=0; i<q; i++)
+        shm[q*threadIdx.x + i] = reg[i];
 }
 
-template<class S, uint32_t Q>
+template<class S, uint32_t q>
 __device__ inline
-void cpShm2Reg ( volatile S* shmem, S Rrg[Q] ) { 
-    for(int i=0; i<Q; i++) {
-        Rrg[i] = shmem[Q*threadIdx.x + i];
-    }
+void cpShm2Reg (volatile S* shm, S reg[q]) {
+    // write from shared to register memory
+    for(int i=0; i<q; i++)
+        reg[i] = shm[q*threadIdx.x + i];
+}
+
+template<class S, uint32_t m, uint32_t q, uint32_t ipb>
+__device__ inline
+void cpGlb2Reg (S* glb, S reg[q]) {
+    // write from global to register memory
+    uint64_t glb_offs = blockIdx.x * (m * ipb);
+    for(int i=0; i<q; i++)
+        reg[i] = glb[glb_offs + (i*(ipb*m/q) + threadIdx.x)];
+}
+
+template<class S, uint32_t m, uint32_t q, uint32_t ipb>
+__device__ inline
+void cpReg2Glb (S reg[q], S* glb) { 
+    // write from register to global memory
+    uint64_t glb_offs = blockIdx.x * (ipb * m);
+    for(int i=0; i<q; i++)
+        glb[glb_offs + (i*(ipb*m/q) + threadIdx.x)] = reg[i];
 }
 
 #endif //KERNEL_HELPERS

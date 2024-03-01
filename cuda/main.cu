@@ -5,6 +5,7 @@ using namespace std;
 
 #define GPU_RUNS_ADD    300
 #define WITH_VALIDATION 1
+#define DEBUG           1
 
 /****************************/
 /*** Big-Integer Addition ***/
@@ -14,8 +15,9 @@ template<class Base, int m>  // m is the size of the big word in Base::uint_t un
 void gpuAdd (int num_instances, typename Base::uint_t* h_as,
              typename Base::uint_t* h_bs, typename Base::uint_t* h_rs) {
 
-    using uint_t = typename Base::uint_t;
     assert((Base::bits >= 32) && (Base::bits % 32 == 0));
+
+    using uint_t = typename Base::uint_t;
     uint_t* d_as;
     uint_t* d_bs;
     uint_t* d_rs;
@@ -31,15 +33,22 @@ void gpuAdd (int num_instances, typename Base::uint_t* h_as,
     cudaMemcpy(d_bs, h_bs, mem_size_nums, cudaMemcpyHostToDevice);
 
     // 3. kernel dimensions
-    const uint32_t q = 4;
+    const uint32_t q = 1;
+    //const uint32_t q = 4;
     assert(m%q == 0 && m >= q && m/q <= 1024);
-    const uint32_t ipb = (128 + m/q - 1) / (m/q); // ceil(128/(m/q))
+    const uint32_t ipb = 1;
+    //const uint32_t ipb = (128 + m/q - 1) / (m/q); // ceil(128/(m/q))
     dim3 block(ipb*(m/q), 1, 1);
     dim3 grid (num_instances/ipb, 1, 1);
-    printf("\n[debug] ipb: %d, num_instances: %d, q: %d\n", ipb, num_instances, q);
+    
+#if DEBUG
+    printf("\n[debug] ipb: %d, num_instances: %d, q: %d, m: %d\n", ipb, num_instances, q, m);
+#endif
 
     // 4. dry run
-    baddKer<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
+    //baddKer<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
+    //baddKer1<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
+    baddKer2<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
     cudaDeviceSynchronize();
     gpuAssert( cudaPeekAtLastError() );
 
@@ -50,7 +59,9 @@ void gpuAdd (int num_instances, typename Base::uint_t* h_as,
         gettimeofday(&t_start, NULL); 
 
         for(int i=0; i<GPU_RUNS_ADD; i++)
-            baddKer<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
+            //baddKer<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
+            //baddKer1<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
+            baddKer2<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
 
         cudaDeviceSynchronize();
 
@@ -93,8 +104,9 @@ template<class Base, int m> // m is the size of the big word in u32 units
 void testAddition(int num_instances, uint64_t* h_as_64, uint64_t* h_bs_64,
                   uint64_t* h_rs_gmp_64, uint64_t* h_rs_our_64, uint32_t with_validation) {
     
-    using uint_t = typename Base::uint_t;
     assert((Base::bits >= 32) && (Base::bits % 32 == 0));
+    
+    using uint_t = typename Base::uint_t;
     uint_t *h_as = (uint_t*) h_as_64;
     uint_t *h_bs = (uint_t*) h_bs_64;
     uint_t *h_rs_our = (uint_t*) h_rs_our_64;
