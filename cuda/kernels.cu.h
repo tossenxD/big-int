@@ -40,10 +40,10 @@ public:
     static __device__ __host__ inline carry_t mapFun(const carry_t& c) { return c; }
     static __device__ __host__ inline carry_t identity()               { return 2; }
     static __device__ __host__ inline carry_t apply(const carry_t c1, const carry_t c2) {
-        carry_t v1 = c1 & 3;
-        carry_t v2 = c2 & 3;
-        carry_t vr = (c1 & 4) ? v2 : ((v1 & v2 & 2) | (((v1 & (v2 >> 1)) | v2) & 1));
-        return vr;//(c1 & c2 & 4) | vr;
+        carry_t v1 = c1 & 3; carry_t f1 = c1 & 4;
+        carry_t v2 = c2 & 3; carry_t f2 = c2 & 4;
+        carry_t vr = f2 ? v2 : CarryProp<Base>::apply(v1, v2);
+        return vr | f1 | f2;
     }
     static __device__ __host__ inline bool equals(const carry_t c1, const carry_t c2) {
         return (c1 == c2);
@@ -58,7 +58,7 @@ public:
 /*** Big Integer Addition v1 ***/
 /*******************************/
 
-// Each block adds one instance of big integers of and each thread adds one unit
+// Each block adds one instance of big integers and each thread adds one unit
 template<class Base, uint32_t m>
 __global__ void baddKer1(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
@@ -80,6 +80,7 @@ __global__ void baddKer1(typename Base::uint_t* as, typename Base::uint_t* bs, t
     c = scanIncBlock< CarryProp<Base> >(shmem, threadIdx.x);
     __syncthreads();
     shmem[threadIdx.x] = CarryProp<Base>::identity();
+    __syncthreads();
     if(threadIdx.x < m-1)
         shmem[threadIdx.x+1] = c;
     __syncthreads();
@@ -93,7 +94,7 @@ __global__ void baddKer1(typename Base::uint_t* as, typename Base::uint_t* bs, t
 /*** Big Integer Addition v2 ***/
 /*******************************/
 
-// Each block adds one instance of big integers of and each thread adds one unit
+// Each block adds one instance of big integers and each thread adds multiple units
 template<class Base, uint32_t m, uint32_t q>
 __global__ void baddKer2(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
@@ -141,9 +142,7 @@ __global__ void baddKer2(typename Base::uint_t* as, typename Base::uint_t* bs, t
 /*** Big Integer Addition v3 ***/
 /*******************************/
 
-//* Performs parallel addition of big integers;
-//* `m` is size of the big integers in Base::uint_t units; `q` is the sequentialization factor;
-//* `ipb` is number of instances of big integers per block.
+// Each block adds multiple instances of big integers and each thread adds multiple units
 template<class Base, uint32_t m, uint32_t q, uint32_t ipb>
 __global__ void baddKer3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t = typename Base::uint_t;
@@ -154,46 +153,36 @@ __global__ void baddKer3(typename Base::uint_t* as, typename Base::uint_t* bs, t
     uint_t rss[q];
     uint_t css[q];
 
-    // copy from global memory to registers
+    // 1. copy from global memory to registers
     cpGlb2Reg<uint_t,m,q,ipb>(as, ass);
     __syncthreads();
     cpGlb2Reg<uint_t,m,q,ipb>(bs, bss);
     __syncthreads();
     
-    { // this code is morally correct but does not validate
-    
-        // compute result and carry for each unit
-        carry_t acc = SegCarryProp<Base>::identity();
-        for(int i=0; i<q; i++) {
-            rss[i] = ass[i] + bss[i];
-            css[i] = ((carry_t) (rss[i] < ass[i])) | (((carry_t) (rss[i] == Base::HIGHEST)) << 1);
-            acc = SegCarryProp<Base>::apply(acc, css[i]);
-        }
-        
-        carry_t last_carry = (threadIdx.x % (m/q) == 0) ? (acc | 4) : acc;
-        shmem[threadIdx.x] = last_carry;
-        __syncthreads();
-        scanIncBlock< SegCarryProp<Base> >(shmem, threadIdx.x);
-        carry_t carry_prefix = (threadIdx.x % (m/q) == 0) ? SegCarryProp<Base>::identity() : shmem[threadIdx.x-1];
-        __syncthreads();
-        
-        for(int i=0; i<q; i++) {
-            rss[i] += (carry_prefix & 1);
-            carry_prefix = SegCarryProp<Base>::apply(carry_prefix, css[i]);
-        }
-
+    // 2. compute result, carry and thread-level scan
+    carry_t acc = SegCarryProp<Base>::identity();
+    for(int i=0; i<q; i++) {
+        rss[i] = ass[i] + bss[i];
+        css[i] = ((carry_t) (rss[i] < ass[i])) | (((carry_t) (rss[i] == Base::HIGHEST)) << 1);
+        acc = SegCarryProp<Base>::apply(acc, css[i]);
     }
-#if 0
-    // scan carries
-    if (threadIdx.x % (m/q) == 0) css[q-1] += 4; // use third bit as flag
-    cpReg2Shm<uint_t,q>(css, shmem);
+    acc += (threadIdx.x % (m/q) == 0) ? 4 : 0;
+    shmem[threadIdx.x] = acc;
     __syncthreads();
-    scanExcBlockBlelloch<SegCarryProp<Base>,m,q>(shmem);
-    cpShm2Reg<uint_t,q>(sh_mem, css);
 
-    // update result from the propagated carries
-    for(int i=0; i<q; i++) rss[i] += (css[i] & 1);
-#endif
+    // 3. propagate carries and write them to shared memory
+    acc = scanIncBlock< SegCarryProp<Base> >(shmem, threadIdx.x);
+    __syncthreads();
+    shmem[threadIdx.x] = acc;
+    __syncthreads();
+    acc = (threadIdx.x % (m/q) == 0) ? SegCarryProp<Base>::identity() : shmem[threadIdx.x-1];
+    __syncthreads();
+
+    // 4. write results to global memory
+    for(int i=0; i<q; i++) {
+        rss[i] += (acc & 1);
+        acc = SegCarryProp<Base>::apply(acc, css[i]);
+    }
     cpReg2Glb<uint_t,m,q,ipb>(rss, rs);
 }
 

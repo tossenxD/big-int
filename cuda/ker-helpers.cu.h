@@ -31,9 +31,9 @@ struct U32bits {
     static const uint_t HIGHEST = HIGHEST32;
 };
 
-/***********************/
-/*** Building Blocks ***/
-/***********************/
+/********************************/
+/*** Parallel Building Blocks ***/
+/********************************/
 
 template<class OP>
 __device__ inline typename OP::RedElTp
@@ -85,28 +85,20 @@ scanIncBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
 
 template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
-void cpGlb2Shm2Reg (S* glb, volatile S* shm, S reg[q]) {
-    // write from global to shared memory
+void cpGlb2Shm (S* glb, volatile S* shm, S reg[q]) {
     uint64_t glb_offs = blockIdx.x * (m * ipb);
+    #pragma unroll
     for(int i=0; i<q; i++) {
         uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
         shm[loc_pos] = glb[glb_offs + loc_pos];
     }
-    __syncthreads();
-    // write form shared to register memory
-    for(int i=0; i<q; i++)
-        reg[i] = shm[q*threadIdx.x + i];
 }
 
 template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
-void cpReg2Shm2Glb (S reg[q], volatile S* shm, S* glb) { 
-    // write from register to shared memory
-    for(int i=0; i<q; i++)
-        shm[q*threadIdx.x + i] = reg[i];
-    __syncthreads();
-    // write from shared to global memory
+void cpShm2Glb (S reg[q], volatile S* shm, S* glb) { 
     uint64_t glb_offs = blockIdx.x * (ipb * m);
+    #pragma unroll
     for(int i=0; i<q; i++) {
         uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
         glb[glb_offs + loc_pos] = shm[loc_pos];
@@ -116,7 +108,7 @@ void cpReg2Shm2Glb (S reg[q], volatile S* shm, S* glb) {
 template<class S, uint32_t q>
 __device__ inline
 void cpReg2Shm (S reg[q], volatile S* shm) {
-    // write from register to shared memory
+    #pragma unroll
     for(int i=0; i<q; i++)
         shm[q*threadIdx.x + i] = reg[i];
 }
@@ -124,27 +116,43 @@ void cpReg2Shm (S reg[q], volatile S* shm) {
 template<class S, uint32_t q>
 __device__ inline
 void cpShm2Reg (volatile S* shm, S reg[q]) {
-    // write from shared to register memory
+    #pragma unroll
     for(int i=0; i<q; i++)
         reg[i] = shm[q*threadIdx.x + i];
 }
 
 template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
+void cpGlb2Shm2Reg (S* glb, volatile S* shm, S reg[q]) {
+    cpGlb2Shm<S,m,q,ipb>(glb, shm);
+    __syncthreads();
+    cpShm2Reg<S,m,q,ipb>(shm, reg);
+}
+
+template<class S, uint32_t m, uint32_t q, uint32_t ipb>
+__device__ inline
+void cpReg2Shm2Glb (S reg[q], volatile S* shm, S* glb) {
+    cpReg2Shm<S,m,q,ipb>(reg, shm);
+    __syncthreads();
+    cpShm2Glb<S,m,q,ipb>(shm, glb);
+}
+
+template<class S, uint32_t m, uint32_t q, uint32_t ipb>
+__device__ inline
 void cpGlb2Reg (S* glb, S reg[q]) {
-    // write from global to register memory
     uint64_t glb_offs = blockIdx.x * (m * ipb);
+    #pragma unroll
     for(int i=0; i<q; i++)
-        reg[i] = glb[glb_offs + threadIdx.x*ipb*q + i];
+        reg[i] = glb[glb_offs + threadIdx.x*q + i];
 }
 
 template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
 void cpReg2Glb (S reg[q], S* glb) { 
-    // write from register to global memory
     uint64_t glb_offs = blockIdx.x * (ipb * m);
+    #pragma unroll
     for(int i=0; i<q; i++)
-        glb[glb_offs + threadIdx.x*ipb*q + i] = reg[i];
+        glb[glb_offs + threadIdx.x*q + i] = reg[i];
 }
 
 #endif //KERNEL_HELPERS
