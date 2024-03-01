@@ -14,9 +14,9 @@ public:
     typedef carry_t InpElTp;
     typedef carry_t RedElTp;
     static const bool commutative = true;
-    static __device__ __host__ inline carry_t identInp()                { return 2;  }
-    static __device__ __host__ inline carry_t mapFun(const carry_t& el) { return el; }
-    static __device__ __host__ inline carry_t identity()                { return 2;  }
+    static __device__ __host__ inline carry_t identInp()               { return 2; }
+    static __device__ __host__ inline carry_t mapFun(const carry_t& c) { return c; }
+    static __device__ __host__ inline carry_t identity()               { return 2; }
     static __device__ __host__ inline carry_t apply(const carry_t c1, const carry_t c2) {
         return (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1);
     }
@@ -31,14 +31,14 @@ public:
 
 template<class Base>
 class SegCarryProp {
-    using carry_t = typename Base::carry_t; // TODO
+    using carry_t = typename Base::carry_t;
 public:
     typedef carry_t InpElTp;
     typedef carry_t RedElTp;
     static const bool commutative = true;
-    static __device__ __host__ inline carry_t identInp()                { return 2;  }
-    static __device__ __host__ inline carry_t mapFun(const carry_t& el) { return el; }
-    static __device__ __host__ inline carry_t identity()                { return 2;  }
+    static __device__ __host__ inline carry_t identInp()               { return 2; }
+    static __device__ __host__ inline carry_t mapFun(const carry_t& c) { return c; }
+    static __device__ __host__ inline carry_t identity()               { return 2; }
     static __device__ __host__ inline carry_t apply(const carry_t c1, const carry_t c2) {
         carry_t v1 = c1 & 3;
         carry_t v2 = c2 & 3;
@@ -145,9 +145,10 @@ __global__ void baddKer2(typename Base::uint_t* as, typename Base::uint_t* bs, t
 //* `m` is size of the big integers in Base::uint_t units; `q` is the sequentialization factor;
 //* `ipb` is number of instances of big integers per block.
 template<class Base, uint32_t m, uint32_t q, uint32_t ipb>
-__global__ void baddKer(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+__global__ void baddKer3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t = typename Base::uint_t;
-    __shared__ uint_t shmem[m*ipb];
+    using carry_t = typename Base::carry_t;
+    __shared__ carry_t shmem[m*ipb];
     uint_t ass[q];
     uint_t bss[q];
     uint_t rss[q];
@@ -162,18 +163,18 @@ __global__ void baddKer(typename Base::uint_t* as, typename Base::uint_t* bs, ty
     { // this code is morally correct but does not validate
     
         // compute result and carry for each unit
-        uint_t acc = SegCarryProp<Base>::identity();
+        carry_t acc = SegCarryProp<Base>::identity();
         for(int i=0; i<q; i++) {
             rss[i] = ass[i] + bss[i];
-            css[i] = ((uint_t) (rss[i] < ass[i])) | (((uint_t) (rss[i] == Base::HIGHEST)) << 1);
+            css[i] = ((carry_t) (rss[i] < ass[i])) | (((carry_t) (rss[i] == Base::HIGHEST)) << 1);
             acc = SegCarryProp<Base>::apply(acc, css[i]);
         }
         
-        uint_t last_carry = (threadIdx.x % (m/q) == 0) ? (acc | 4) : acc;
+        carry_t last_carry = (threadIdx.x % (m/q) == 0) ? (acc | 4) : acc;
         shmem[threadIdx.x] = last_carry;
         __syncthreads();
         scanIncBlock< SegCarryProp<Base> >(shmem, threadIdx.x);
-        uint_t carry_prefix = (threadIdx.x % (m/q) == 0) ? SegCarryProp<Base>::identity() : shmem[threadIdx.x-1];
+        carry_t carry_prefix = (threadIdx.x % (m/q) == 0) ? SegCarryProp<Base>::identity() : shmem[threadIdx.x-1];
         __syncthreads();
         
         for(int i=0; i<q; i++) {

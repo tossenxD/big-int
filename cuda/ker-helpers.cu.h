@@ -135,7 +135,7 @@ void cpGlb2Reg (S* glb, S reg[q]) {
     // write from global to register memory
     uint64_t glb_offs = blockIdx.x * (m * ipb);
     for(int i=0; i<q; i++)
-        reg[i] = glb[glb_offs + (i*(ipb*m/q) + threadIdx.x)];
+        reg[i] = glb[glb_offs + threadIdx.x*ipb*q + i];
 }
 
 template<class S, uint32_t m, uint32_t q, uint32_t ipb>
@@ -144,7 +144,7 @@ void cpReg2Glb (S reg[q], S* glb) {
     // write from register to global memory
     uint64_t glb_offs = blockIdx.x * (ipb * m);
     for(int i=0; i<q; i++)
-        glb[glb_offs + (i*(ipb*m/q) + threadIdx.x)] = reg[i];
+        glb[glb_offs + threadIdx.x*ipb*q + i] = reg[i];
 }
 
 #endif //KERNEL_HELPERS
