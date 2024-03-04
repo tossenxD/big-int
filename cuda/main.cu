@@ -47,13 +47,12 @@ void gpuAdd (uint32_t num_instances, typename Base::uint_t* h_as,
     // 4. one addition
     {
         // dry run
-        #if v == 1
-        baddKer1<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
-        #elif v == 2
-        baddKer2<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
-        #else
-        baddKer3<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
-        #endif
+        if (v == 1)
+            baddKer1<Base,m>      <<< grid, block >>>(d_as, d_bs, d_rs);
+        else if (v == 2)
+            baddKer2<Base,m,q>    <<< grid, block >>>(d_as, d_bs, d_rs);
+        else // v == 3
+            baddKer3<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
     
         cudaDeviceSynchronize();
         gpuAssert( cudaPeekAtLastError() );
@@ -63,15 +62,15 @@ void gpuAdd (uint32_t num_instances, typename Base::uint_t* h_as,
         struct timeval t_start, t_end, t_diff;
         gettimeofday(&t_start, NULL); 
 
-        for(int i=0; i<GPU_RUNS_ADD; i++) {
-            #if v == 1
-            baddKer1<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
-            #elif v == 2
-            baddKer2<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
-            #else
-            baddKer3<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
-            #endif
-        }
+        if (v == 1)
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                baddKer1<Base,m>      <<< grid, block >>>(d_as, d_bs, d_rs);
+        else if (v == 2)
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                baddKer2<Base,m,q>    <<< grid, block >>>(d_as, d_bs, d_rs);
+        else // v == 3
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                baddKer3<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
 
         cudaDeviceSynchronize();
 
@@ -93,17 +92,16 @@ in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", v, m*Base::bits, B
         cudaMemcpy(h_rs, d_rs, mem_size_nums, cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
     }
-    
+
     // 5. ten additions
     {
         // dry run
-        #if v == 1
-        baddKer1Ten<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
-        #elif v == 2
-        baddKer2Ten<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
-        #else
-        baddKer3Ten<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
-        #endif
+        if      (v == 1)
+            baddKer1Bench<Base,m,10>      <<< grid, block >>>(d_as, d_bs, d_rs);
+        else if (v == 2)
+            baddKer2Bench<Base,m,q,10>    <<< grid, block >>>(d_as, d_bs, d_rs);
+        else // (v == 3)
+            baddKer3Bench<Base,m,q,ipb,10><<< grid, block >>>(d_as, d_bs, d_rs);
     
         cudaDeviceSynchronize();
         gpuAssert( cudaPeekAtLastError() );
@@ -113,15 +111,15 @@ in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", v, m*Base::bits, B
         struct timeval t_start, t_end, t_diff;
         gettimeofday(&t_start, NULL); 
 
-        for(int i=0; i<GPU_RUNS_ADD; i++) {
-            #if v == 1
-            baddKer1Ten<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
-            #elif v == 2
-            baddKer2Ten<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
-            #else
-            baddKer3Ten<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
-            #endif
-        }
+        if      (v == 1)
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                baddKer1Bench<Base,m,10>      <<< grid, block >>>(d_as, d_bs, d_rs);
+        else if (v == 2)
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                baddKer2Bench<Base,m,q,10>    <<< grid, block >>>(d_as, d_bs, d_rs);
+        else // (v == 3)
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                baddKer3Bench<Base,m,q,ipb,10><<< grid, block >>>(d_as, d_bs, d_rs);
 
         cudaDeviceSynchronize();
 

@@ -31,6 +31,7 @@ struct U32bits {
     static const uint_t HIGHEST = HIGHEST32;
 };
 
+
 /********************************/
 /*** Parallel Building Blocks ***/
 /********************************/
@@ -75,9 +76,23 @@ scanIncBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
     // 4. accumulate results from previous step;
     if (warpid > 0)
         res = OP::apply(ptr[warpid-1], res);
-    
+
     return res;
 }
+
+template<class OP>
+__device__ inline typename OP::RedElTp
+scanExcBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
+    // 1. perform inclusive scan of block
+    typename OP::RedElTp tmp = scanIncBlock<OP>(ptr, idx);
+    __syncthreads();
+
+    // 2. return result of predecessor thread
+    ptr[idx] = tmp;
+    __syncthreads();
+    return (idx == 0) ? OP::identity() : ptr[idx-1];
+}
+
 
 /***********************************************************/
 /*** Remapping to/from Gobal, Shared and Register Memory ***/

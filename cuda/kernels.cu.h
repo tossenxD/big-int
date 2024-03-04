@@ -55,10 +55,11 @@ public:
 };
 
 
-
 /*******************************/
 /*** Big Integer Addition v1 ***/
 /*******************************/
+
+/** Each block adds one instance of big integers and each thread adds one unit **/
 
 template<class Base, uint32_t m>
 __device__ inline typename Base::uint_t
@@ -72,21 +73,13 @@ baddKer1Run(typename Base::uint_t a, typename Base::uint_t b, typename Base::car
     shmem[threadIdx.x] = c;
     __syncthreads();
 
-    // 2. propagate carries by exclusive scan
-    c = scanIncBlock< CarryProp<Base> >(shmem, threadIdx.x);
-    __syncthreads();
-    shmem[threadIdx.x] = CarryProp<Base>::identity();
-    __syncthreads();
-    if(threadIdx.x < m-1)
-        shmem[threadIdx.x+1] = c;
-    __syncthreads();
-    c = shmem[threadIdx.x];
+    // 2. propagate carries
+    c = scanExcBlock< CarryProp<Base> >(shmem, threadIdx.x);
 
     // 3. add carries to result and return
     return r + (c & 1);
 }
 
-// Each block adds one instance of big integers and each thread adds one unit
 template<class Base, uint32_t m>
 __global__ void
 baddKer1(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
@@ -106,10 +99,9 @@ baddKer1(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::ui
     rs[gid] = r;    
 }
 
-// Computes ten additions as above - for benchmarking
-template<class Base, uint32_t m>
+template<class Base, uint32_t m, uint32_t p> // runs p additions
 __global__ void
-baddKer1Ten(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+baddKer1Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -118,10 +110,10 @@ baddKer1Ten(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base:
     uint_t a = as[gid];
     uint_t b = bs[gid];
 
-    // 2. compute results with carry propagation tenfold
+    // 2. compute results with carry propagation p times
     __shared__ carry_t shmem[m];
     uint_t r = b;
-    for(int i=0; i<10; i++) {
+    for(int i=0; i<p; i++) {
         r = baddKer1Run<Base,m>(a, r, shmem);
         __syncthreads();
     }
@@ -131,10 +123,11 @@ baddKer1Ten(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base:
 }
 
 
-
 /*******************************/
 /*** Big Integer Addition v2 ***/
 /*******************************/
+
+/** Each block adds one instance of big integers and each thread adds multiple units **/
 
 template<class Base, uint32_t m, uint32_t q>
 __device__ void
@@ -143,7 +136,7 @@ baddKer2Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
     
-    // 1. compute result, carry and thread-level scan
+    // 1. compute result, carry and thread-level (register) scan
     carry_t css[q];
     carry_t acc = CarryProp<Base>::identity();
     for(int i=0; i<q; i++) {
@@ -154,23 +147,18 @@ baddKer2Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
     shmem[threadIdx.x] = acc;
     __syncthreads();
 
-    // 2. propagate carries and write them to shared memory
-    acc = scanIncBlock< CarryProp<Base> >(shmem, threadIdx.x);
-    __syncthreads();
-    shmem[threadIdx.x] = CarryProp<Base>::identity();
-    if(threadIdx.x < m-1)
-        shmem[threadIdx.x+1] = acc;
+    // 2. propagate carries
+    acc = scanExcBlock< CarryProp<Base> >(shmem, threadIdx.x);
     __syncthreads();
 
     // 3. add carries to results
-    acc = shmem[threadIdx.x];
     for(int i=0; i<q; i++) {
         rss[i] += acc & 1;
         acc = CarryProp<Base>::apply(acc, css[i]);
     }
 }
 
-// Each block adds one instance of big integers and each thread adds multiple units
+
 template<class Base, uint32_t m, uint32_t q>
 __global__ void
 baddKer2(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
@@ -193,10 +181,10 @@ baddKer2(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::ui
     cpReg2Glb<uint_t,m,q,1>(rss, rs);
 }
 
-// Computes ten additions as above - for benchmarking
-template<class Base, uint32_t m, uint32_t q>
+
+template<class Base, uint32_t m, uint32_t q, uint32_t p> // runs p additions
 __global__ void
-baddKer2Ten(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+baddKer2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -207,10 +195,10 @@ baddKer2Ten(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base:
     cpGlb2Reg<uint_t,m,q,1>(bs, bss);
     __syncthreads();
 
-    // 2. compute results with carry propagation tenfold
+    // 2. compute results with carry propagation p times
     uint_t* rss = bss;
     __shared__ carry_t shmem[m];
-    for(int i=0; i<10; i++) {
+    for(int i=0; i<p; i++) {
         baddKer2Run<Base,m,q>(ass, rss, rss, shmem);
         __syncthreads();
     }
@@ -220,10 +208,11 @@ baddKer2Ten(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base:
 }
 
 
-
 /*******************************/
 /*** Big Integer Addition v3 ***/
 /*******************************/
+
+/** Each block adds multiple instances of big integers and each thread adds multiple units **/
 
 template<class Base, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ void
@@ -232,7 +221,7 @@ baddKer3Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
-    // 1. compute result, carry and thread-level scan
+    // 1. compute result, carry, thread-level (register) scan and segment flags
     uint_t css[q];
     carry_t acc = SegCarryProp<Base>::identity();
     for(int i=0; i<q; i++) {
@@ -240,16 +229,12 @@ baddKer3Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
         css[i] = ((carry_t) (rss[i] < ass[i])) | (((carry_t) (rss[i] == Base::HIGHEST)) << 1);
         acc = SegCarryProp<Base>::apply(acc, css[i]);
     }
-    acc += (threadIdx.x % (m/q) == 0) ? 4 : 0;
+    acc |= (threadIdx.x % (m/q) == 0) ? 4 : 0;
     shmem[threadIdx.x] = acc;
     __syncthreads();
 
-    // 2. propagate carries and write them to shared memory
-    acc = scanIncBlock< SegCarryProp<Base> >(shmem, threadIdx.x);
-    __syncthreads();
-    shmem[threadIdx.x] = acc;
-    __syncthreads();
-    acc = (threadIdx.x % (m/q) == 0) ? SegCarryProp<Base>::identity() : shmem[threadIdx.x-1];
+    // 2. propagate carries
+    acc = scanExcBlock< SegCarryProp<Base> >(shmem, threadIdx.x);
     __syncthreads();
 
     // 3. add carries to results
@@ -259,7 +244,7 @@ baddKer3Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
     }
 }
 
-// Each block adds multiple instances of big integers and each thread adds multiple units
+
 template<class Base, uint32_t m, uint32_t q, uint32_t ipb>
 __global__ void
 baddKer3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
@@ -282,10 +267,9 @@ baddKer3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::ui
     cpReg2Glb<uint_t,m,q,ipb>(rss, rs);
 }
 
-// Computes ten additions as above - for benchmarking
-template<class Base, uint32_t m, uint32_t q, uint32_t ipb>
+template<class Base, uint32_t m, uint32_t q, uint32_t ipb, uint32_t p> // runs p additions
 __global__ void
-baddKer3Ten(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+baddKer3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -296,10 +280,10 @@ baddKer3Ten(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base:
     cpGlb2Reg<uint_t,m,q,ipb>(bs, bss);
     __syncthreads();
 
-    // 2. compute results with carry propagation
+    // 2. compute results with carry propagation p times
     uint_t* rss = bss;
     __shared__ carry_t shmem[m*ipb];
-    for(int i=0; i<10; i++) {
+    for(int i=0; i<p; i++) {
         baddKer3Run<Base,m,q,ipb>(ass, rss, rss, shmem);
         __syncthreads();
     }
