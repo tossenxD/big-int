@@ -8,7 +8,7 @@ compile:
 	$(CXX) $(SRC) -o $(EXE) -lgmp
 
 run:
-	./$(EXE) 2048
+	./$(EXE) 8388608
 
 clean:
 	rm -f $(EXE)
