@@ -35,13 +35,13 @@ void gpuAdd (uint32_t num_instances, typename Base::uint_t* h_as,
     cudaMemcpy(d_bs, h_bs, mem_size_nums, cudaMemcpyHostToDevice);
 
     // 3. kernel dimensions
-    const uint32_t q = (v > 1) ? 4 : 1;
+    const uint32_t q = (v <= 1) ? 1 : (m <= 1024) ? 4 : (m+1024-1) / 1024; // ceil(m/1024)
     assert(m%q == 0 && m >= q && m/q <= 1024);
     const uint32_t ipb = (v > 2) ? (128 + m/q - 1) / (m/q) : 1; // ceil(128/(m/q))
     dim3 block(ipb*(m/q), 1, 1);
     dim3 grid (num_instances/ipb, 1, 1);
     #if DEBUG
-    printf("\n[debug] ipb: %d, num_instances: %d, q: %d, m: %d\n", ipb, num_instances, q, m);
+    printf("[DEBUG] ipb: %d, num_instances: %d, q: %d, m: %d\n", ipb, num_instances, q, m);
     #endif
 
     // 4. one addition
@@ -85,7 +85,7 @@ void gpuAdd (uint32_t num_instances, typename Base::uint_t* h_as,
         double bytes_accesses = 3.0 * num_instances * m * sizeof(uint_t);  
         double gigabytes = bytes_accesses / (runtime_microsecs * 1000);
 
-        printf("One v%d addition  of %d-bit big integers (base u%d) runs %d instances \
+        printf("ONE V%d Addition  of %d-bit big integers (base u%d) runs %d instances \
 in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", v, m*Base::bits, Base::bits,
                num_instances, elapsed, gigabytes, num_instances/runtime_microsecs);
         
@@ -134,7 +134,7 @@ in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", v, m*Base::bits, B
         double bytes_accesses = 3.0 * num_instances * m * sizeof(uint_t);  
         double gigabytes = bytes_accesses / (runtime_microsecs * 1000);
 
-        printf("Ten v%d additions of %d-bit big integers (base u%d) runs %d instances \
+        printf("TEN V%d Additions of %d-bit big integers (base u%d) runs %d instances \
 in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", v, m*Base::bits, Base::bits,
                num_instances, elapsed, gigabytes, num_instances/runtime_microsecs);
     }
@@ -172,20 +172,25 @@ void testAddition(int num_instances, uint64_t* h_as_64, uint64_t* h_bs_64,
     uint_t *h_bs = (uint_t*) h_bs_64;
     uint_t *h_rs_our = (uint_t*) h_rs_our_64;
     uint32_t *h_rs_gmp_32 = (uint32_t*) h_rs_gmp_64;
+    const uint32_t mb = m/(Base::bits/32);
 
-    if(with_validation)
+    if (with_validation)
         gmpAdd<m>(num_instances, (uint32_t*)h_as, (uint32_t*)h_bs, h_rs_gmp_32);
 
-    gpuAdd<Base,m/(Base::bits/32),1>(num_instances, h_as, h_bs, h_rs_our);
-    if(with_validation)
+    if (mb <= 1024) {
+        gpuAdd<Base,mb,1>(num_instances, h_as, h_bs, h_rs_our);
+        if (with_validation)
+            validateExact(h_rs_gmp_32, (uint32_t*)h_rs_our, num_instances*m);
+    } else
+        printf("SKIPS V1 - big int size (%d instances of u%d) exceeds CUDA block limit (1024)\n",
+               mb, Base::bits);
+
+    gpuAdd<Base,mb,2>(num_instances, h_as, h_bs, h_rs_our);
+    if (with_validation)
         validateExact(h_rs_gmp_32, (uint32_t*)h_rs_our, num_instances*m);
 
-    gpuAdd<Base,m/(Base::bits/32),2>(num_instances, h_as, h_bs, h_rs_our);
-    if(with_validation)
-        validateExact(h_rs_gmp_32, (uint32_t*)h_rs_our, num_instances*m);
-
-    gpuAdd<Base,m/(Base::bits/32),3>(num_instances, h_as, h_bs, h_rs_our);
-    if(with_validation)
+    gpuAdd<Base,mb,3>(num_instances, h_as, h_bs, h_rs_our);
+    if (with_validation)
         validateExact(h_rs_gmp_32, (uint32_t*)h_rs_our, num_instances*m);
 }
 
@@ -199,14 +204,21 @@ void runAdditions(uint64_t total_work) {
     uint64_t *h_as, *h_bs, *h_rs_gmp, *h_rs_our;
     mkRandArrays<32,32>( total_work/32, &h_as, &h_bs, &h_rs_gmp, &h_rs_our );
 
-    testAddition<Base, 2048>( total_work/2048, h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
-    testAddition<Base, 1024>( total_work/1024, h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
-    testAddition<Base, 512> ( total_work/512,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
-    testAddition<Base, 256> ( total_work/256,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
-    testAddition<Base, 128> ( total_work/128,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
-    testAddition<Base, 64>  ( total_work/64,   h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
-    testAddition<Base, 32>  ( total_work/32,   h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
-    testAddition<Base, 16>  ( total_work/16,   h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+#if 0
+    testAddition<Base, 16384>( total_work/16384, h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+    testAddition<Base, 8192> ( total_work/8192,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+    testAddition<Base, 4096> ( total_work/4096,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+#endif
+    testAddition<Base, 2048> ( total_work/2048,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+#if 1
+    testAddition<Base, 1024> ( total_work/1024,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+    testAddition<Base, 512>  ( total_work/512,   h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+    testAddition<Base, 256>  ( total_work/256,   h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+    testAddition<Base, 128>  ( total_work/128,   h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+    testAddition<Base, 64>   ( total_work/64,    h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+    testAddition<Base, 32>   ( total_work/32,    h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+    testAddition<Base, 16>   ( total_work/16,    h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
+#endif
 
     free(h_as);
     free(h_bs);
