@@ -11,17 +11,10 @@ template<class Base>
 class CarryProp {
     using carry_t = typename Base::carry_t;
 public:
-    typedef carry_t InpElTp;
     typedef carry_t RedElTp;
-    static const bool commutative = true;
-    static __device__ __host__ inline carry_t identInp()               { return 2; }
-    static __device__ __host__ inline carry_t mapFun(const carry_t& c) { return c; }
-    static __device__ __host__ inline carry_t identity()               { return 2; }
+    static __device__ __host__ inline carry_t identity() { return 2; }
     static __device__ __host__ inline carry_t apply(const carry_t c1, const carry_t c2) {
         return (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1);
-    }
-    static __device__ __host__ inline bool equals(const carry_t c1, const carry_t c2) {
-        return (c1 == c2);
     }
     static __device__ __host__ inline carry_t remVolatile(volatile carry_t& c) {
         carry_t res = c;
@@ -33,24 +26,17 @@ template<class Base>
 class SegCarryProp {
     using carry_t = typename Base::carry_t;
 public:
-    typedef carry_t InpElTp;
-    typedef carry_t RedElTp;
-    static const bool commutative = true;
-    static __device__ __host__ inline carry_t identInp()               { return 2; }
-    static __device__ __host__ inline carry_t mapFun(const carry_t& c) { return c; }
-    static __device__ __host__ inline carry_t identity()               { return 2; }
+    typedef typename CarryProp<Base>::RedElTp RedElTp;
+    static __device__ __host__ inline carry_t identity() { return CarryProp<Base>::identity(); }
+    static __device__ __host__ inline carry_t setFlag(const carry_t c) { return c | 4; }
     static __device__ __host__ inline carry_t apply(const carry_t c1, const carry_t c2) {
         carry_t v1 = c1 & 3; carry_t f1 = c1 & 4;
         carry_t v2 = c2 & 3; carry_t f2 = c2 & 4;
         carry_t vr = f2 ? v2 : CarryProp<Base>::apply(v1, v2);
         return vr | f1 | f2;
     }
-    static __device__ __host__ inline bool equals(const carry_t c1, const carry_t c2) {
-        return (c1 == c2);
-    }
     static __device__ __host__ inline carry_t remVolatile(volatile carry_t& c) {
-        carry_t res = c;
-        return res;
+        return CarryProp<Base>::remVolatile(c);
     }
 };
 
@@ -149,7 +135,6 @@ baddKer2Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
 
     // 2. propagate carries
     acc = scanExcBlock< CarryProp<Base> >(shmem, threadIdx.x);
-    __syncthreads();
 
     // 3. add carries to results
     for(int i=0; i<q; i++) {
@@ -220,22 +205,23 @@ baddKer3Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
             typename Base::uint_t* rss, typename Base::carry_t* shmem) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
+    const bool new_segm = threadIdx.x % (m/q) == 0;
 
     // 1. compute result, carry, thread-level (register) scan and segment flags
     uint_t css[q];
-    carry_t acc = SegCarryProp<Base>::identity();
+    carry_t acc = new_segm ? SegCarryProp<Base>::setFlag( SegCarryProp<Base>::identity() )
+                           : SegCarryProp<Base>::identity();
     for(int i=0; i<q; i++) {
         rss[i] = ass[i] + bss[i];
         css[i] = ((carry_t) (rss[i] < ass[i])) | (((carry_t) (rss[i] == Base::HIGHEST)) << 1);
         acc = SegCarryProp<Base>::apply(acc, css[i]);
     }
-    acc |= (threadIdx.x % (m/q) == 0) ? 4 : 0;
     shmem[threadIdx.x] = acc;
     __syncthreads();
 
     // 2. propagate carries
     acc = scanExcBlock< SegCarryProp<Base> >(shmem, threadIdx.x);
-    __syncthreads();
+    acc = new_segm ? SegCarryProp<Base>::identity() : acc;
 
     // 3. add carries to results
     for(int i=0; i<q; i++) {
@@ -263,7 +249,7 @@ baddKer3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::ui
     __shared__ carry_t shmem[m*ipb];
     baddKer3Run<Base,m,q,ipb>(ass, bss, rss, shmem);
 
-    // 4. write results to global memory
+    // 3. write results to global memory
     cpReg2Glb<uint_t,m,q,ipb>(rss, rs);
 }
 
@@ -288,7 +274,7 @@ baddKer3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Bas
         __syncthreads();
     }
 
-    // 4. write results to global memory
+    // 3. write results to global memory
     cpReg2Glb<uint_t,m,q,ipb>(rss, rs);
 }
 
