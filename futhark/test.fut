@@ -16,4 +16,4 @@ entry oneAdd0 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
 -- input { [4294967295u32, 0u32] [1u32, 0u32] }
 -- output { [0u32, 1u32] }
 entry oneAdd1 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
-  badd as bs
+  badd1 as bs
