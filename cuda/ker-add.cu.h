@@ -1,5 +1,5 @@
-#ifndef KERNELS
-#define KERNELS
+#ifndef KERNEL_ADDITION
+#define KERNEL_ADDITION
 
 #include "ker-helpers.cu.h"
 
@@ -278,4 +278,4 @@ baddKer3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Bas
     cpReg2Glb<uint_t,m,q,ipb>(rss, rs);
 }
 
-#endif // BIG_INT_KERNELS
+#endif // KERNEL_ADDITION

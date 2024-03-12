@@ -98,26 +98,6 @@ scanExcBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
 /*** Remapping to/from Gobal, Shared and Register Memory ***/
 /***********************************************************/
 
-template<class S, uint32_t m, uint32_t q, uint32_t ipb>
-__device__ inline
-void cpGlb2Shm (S* glb, volatile S* shm, S reg[q]) {
-    uint64_t glb_offs = blockIdx.x * (m * ipb);
-    for(int i=0; i<q; i++) {
-        uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
-        shm[loc_pos] = glb[glb_offs + loc_pos];
-    }
-}
-
-template<class S, uint32_t m, uint32_t q, uint32_t ipb>
-__device__ inline
-void cpShm2Glb (S reg[q], volatile S* shm, S* glb) { 
-    uint64_t glb_offs = blockIdx.x * (ipb * m);
-    for(int i=0; i<q; i++) {
-        uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
-        glb[glb_offs + loc_pos] = shm[loc_pos];
-    }
-}
-
 template<class S, uint32_t q>
 __device__ inline
 void cpReg2Shm (S reg[q], volatile S* shm) {
@@ -134,16 +114,36 @@ void cpShm2Reg (volatile S* shm, S reg[q]) {
 
 template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
+void cpGlb2Shm (S* glb, volatile S* shm) {
+    uint64_t glb_offs = blockIdx.x * (m * ipb);
+    for(int i=0; i<q; i++) {
+        uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
+        shm[loc_pos] = glb[glb_offs + loc_pos];
+    }
+}
+
+template<class S, uint32_t m, uint32_t q, uint32_t ipb>
+__device__ inline
+void cpShm2Glb (volatile S* shm, S* glb) {
+    uint64_t glb_offs = blockIdx.x * (m * ipb);
+    for(int i=0; i<q; i++) {
+        uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
+        glb[glb_offs + loc_pos] = shm[loc_pos];
+    }
+}
+
+template<class S, uint32_t m, uint32_t q, uint32_t ipb>
+__device__ inline
 void cpGlb2Shm2Reg (S* glb, volatile S* shm, S reg[q]) {
     cpGlb2Shm<S,m,q,ipb>(glb, shm);
     __syncthreads();
-    cpShm2Reg<S,m,q,ipb>(shm, reg);
+    cpShm2Reg<S,q>(shm, reg);
 }
 
 template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
 void cpReg2Shm2Glb (S reg[q], volatile S* shm, S* glb) {
-    cpReg2Shm<S,m,q,ipb>(reg, shm);
+    cpReg2Shm<S,q>(reg, shm);
     __syncthreads();
     cpShm2Glb<S,m,q,ipb>(shm, glb);
 }

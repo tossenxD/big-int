@@ -1,5 +1,5 @@
 #include "helpers.h"
-#include "kernels.cu.h"
+#include "ker-add.cu.h"
 
 using namespace std;
 
