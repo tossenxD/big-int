@@ -4,13 +4,18 @@ EXE      = big-int-tests
 BIG      = 134217728
 SML      = 4194304
 
-default: compile run
+default: compile run-big
+
+small: compile run-small
 
 compile:
 	$(CXX) $(SRC) -o $(EXE) -lgmp
 
-run:
+run-big:
 	./$(EXE) $(BIG)
+
+run-small:
+	./$(EXE) $(SML)
 
 clean:
 	rm -f $(EXE)
