@@ -1,11 +1,14 @@
 #include "helpers.h"
 #include "ker-add.cu.h"
+#include "ker-mult.cu.h"
 
 using namespace std;
 
-#define GPU_RUNS_ADD    300
-#define WITH_VALIDATION 1
-#define DEBUG           0
+#define GPU_RUNS_ADD      300
+#define WITH_VALIDATION   1
+#define PRINT_DEBUG_INFO  0
+#define FULL_TEST_SUITE   0
+#define FULLER_TEST_SUITE 0
 
 /****************************/
 /*** Big-Integer Addition ***/
@@ -40,7 +43,7 @@ void gpuAdd (uint32_t num_instances, typename Base::uint_t* h_as,
     const uint32_t ipb = (v > 2) ? (128 + m/q - 1) / (m/q) : 1; // ceil(128/(m/q))
     dim3 block(ipb*(m/q), 1, 1);
     dim3 grid (num_instances/ipb, 1, 1);
-    #if DEBUG
+    #if PRINT_DEBUG_INFO
     printf("[DEBUG] ipb: %d, num_instances: %d, q: %d, m: %d\n", ipb, num_instances, q, m);
     #endif
 
@@ -204,13 +207,20 @@ void runAdditions(uint64_t total_work) {
     uint64_t *h_as, *h_bs, *h_rs_gmp, *h_rs_our;
     mkRandArrays<32,32>( total_work/32, &h_as, &h_bs, &h_rs_gmp, &h_rs_our );
 
-#if 0
+    printf("--------------------------------------------------------------------------------\n");
+    printf("BADD KERNEL TESTS AND BENCHMARKS\n");
+    printf("--------------------------------------------------------------------------------\n");
+    printf("V1                   | V2                  | V3\n");
+    printf("Basic implementation | + sequentialization | + multiple instances per CUDA block\n");
+    printf("--------------------------------------------------------------------------------\n");
+
+#if FULLER_TEST_SUITE
     testAddition<Base, 16384>( total_work/16384, h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
     testAddition<Base, 8192> ( total_work/8192,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
     testAddition<Base, 4096> ( total_work/4096,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
 #endif
     testAddition<Base, 2048> ( total_work/2048,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
-#if 1
+#if FULL_TEST_SUITE
     testAddition<Base, 1024> ( total_work/1024,  h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
     testAddition<Base, 512>  ( total_work/512,   h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
     testAddition<Base, 256>  ( total_work/256,   h_as, h_bs, h_rs_gmp, h_rs_our, WITH_VALIDATION );
@@ -230,7 +240,7 @@ int main(int argc, char * argv[]) {
     if (argc != 2) {
         printf("Usage: %s <batch-size>\n", argv[0]);
         exit(1);
-    }
+    }   printf("\n");
     const int total_work = atoi(argv[1]);
 
     runAdditions<U64bits>(total_work);
