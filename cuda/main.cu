@@ -7,7 +7,7 @@ using namespace std;
 #define GPU_RUNS_ADD      300
 #define WITH_VALIDATION   1
 #define PRINT_DEBUG_INFO  0
-#define FULL_TEST_SUITE   0
+#define FULL_TEST_SUITE   1
 #define FULLER_TEST_SUITE 0
 
 /****************************/
@@ -202,8 +202,8 @@ void testAddition(int num_instances, uint64_t* h_as_64, uint64_t* h_bs_64,
 /**********************************/
 
 // wrapper that invokes and times the big int multiplication GPU kernels;
-// m is the size in Base::uint_t units.
-template<class Base, uint32_t m>
+// m is the size in Base::uint_t units and v is the kernel version.
+template<class Base, uint32_t m, uint32_t v>
 void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
                   typename Base::uint_t* h_bs, typename Base::uint_t* h_rs) {
 
@@ -225,7 +225,7 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
     cudaMemcpy(d_bs, h_bs, mem_size_nums, cudaMemcpyHostToDevice);
 
     // 3. kernel dimensions
-    const uint32_t q = 2;
+    const uint32_t q = (v <= 1) ? 2 : (m/2 <= 1024) ? 4 : (m+1024-1) / 1024; // ceil(m/1024)
     assert(m%q == 0 && m >= q && m/q <= 1024);
     const uint32_t ipb = 1;
     dim3 block(ipb*(m/q), 1, 1);
@@ -237,7 +237,13 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
     // 4. one multiplication
     {
         // dry run
-        convMult<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
+        if (v == 1)
+            convMult1<Base,m>  <<< grid, block >>>(d_as, d_bs, d_rs);
+        else if (v == 2)
+            convMult2<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
+        //else // v == 3
+        //    convMult3<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
+        
         cudaDeviceSynchronize();
         gpuAssert( cudaPeekAtLastError() );
 
@@ -246,8 +252,15 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
         struct timeval t_start, t_end, t_diff;
         gettimeofday(&t_start, NULL); 
 
-        for(int i=0; i<GPU_RUNS_ADD; i++)
-            convMult<Base,m><<< grid, block >>>(d_as, d_bs, d_rs);
+        if (v == 1)
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                convMult1<Base,m>  <<< grid, block >>>(d_as, d_bs, d_rs);
+        else if (v == 2)
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                convMult2<Base,m,q><<< grid, block >>>(d_as, d_bs, d_rs);
+        //else // v == 3
+        //      for(int i=0; i<GPU_RUNS_ADD; i++)
+        //          convMult3<Base,m,q,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
 
         cudaDeviceSynchronize();
 
@@ -262,8 +275,8 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
         double bytes_accesses = 3.0 * num_instances * m * sizeof(uint_t);  
         double gigabytes = bytes_accesses / (runtime_microsecs * 1000);
 
-        printf("ONE Multiplication  of %d-bit big integers (base u%d) runs %d instances \
-in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", m*Base::bits, Base::bits,
+        printf("ONE V%d Multiplication  of %d-bit big integers (base u%d) runs %d instances \
+in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", v, m*Base::bits, Base::bits,
                num_instances, elapsed, gigabytes, num_instances/runtime_microsecs);
         
         cudaMemcpy(h_rs, d_rs, mem_size_nums, cudaMemcpyDeviceToHost);
@@ -271,10 +284,14 @@ in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", m*Base::bits, Base
     }
 
     // 5. ten multiplications
-    /*
     {
         // dry run
-        convMultBench<Base,m,10><<< grid, block >>>(d_as, d_bs, d_rs);
+        if (v == 1)
+            convMult1Bench<Base,m,10>  <<< grid, block >>>(d_as, d_bs, d_rs);
+        else if (v == 2)
+            convMult2Bench<Base,m,q,10><<< grid, block >>>(d_as, d_bs, d_rs);
+        //else // v == 3
+        //    convMult3Bench<Base,m,q,ipb,10><<< grid, block >>>(d_as, d_bs, d_rs);
     
         cudaDeviceSynchronize();
         gpuAssert( cudaPeekAtLastError() );
@@ -282,10 +299,17 @@ in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", m*Base::bits, Base
         // timing instrumentation
         uint64_t elapsed;
         struct timeval t_start, t_end, t_diff;
-        gettimeofday(&t_start, NULL); 
+        gettimeofday(&t_start, NULL);
 
-        for(int i=0; i<GPU_RUNS_ADD; i++)
-            convMultBench<Base,m,10><<< grid, block >>>(d_as, d_bs, d_rs);
+        if (v == 1)
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                convMult1Bench<Base,m,10>  <<< grid, block >>>(d_as, d_bs, d_rs);
+        else if (v == 2)
+            for(int i=0; i<GPU_RUNS_ADD; i++)
+                convMult2Bench<Base,m,q,10><<< grid, block >>>(d_as, d_bs, d_rs);
+        //else // v == 3
+        //      for(int i=0; i<GPU_RUNS_ADD; i++)
+        //          convMult3Bench<Base,m,q,ipb,10><<< grid, block >>>(d_as, d_bs, d_rs);
 
         cudaDeviceSynchronize();
 
@@ -300,11 +324,10 @@ in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", m*Base::bits, Base
         double bytes_accesses = 3.0 * num_instances * m * sizeof(uint_t);  
         double gigabytes = bytes_accesses / (runtime_microsecs * 1000);
 
-        printf("TEN Multiplications of %d-bit big integers (base u%d) runs %d instances \
+        printf("TEN V%d Multiplications of %d-bit big integers (base u%d) runs %d instances \
 in:\t%lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n", v, m*Base::bits, Base::bits,
                num_instances, elapsed, gigabytes, num_instances/runtime_microsecs);
     }
-    */
 
     // 6. cleanup
     cudaFree(d_as);
@@ -338,13 +361,24 @@ void testMul(int num_instances, uint64_t* h_as_64, uint64_t* h_bs_64,
     uint32_t *h_rs_gmp_32 = (uint32_t*)h_rs_gmp_64;
     const uint32_t mb = m/(Base::bits/32);
 
-    if(with_validation)
+    if (with_validation)
         gmpMultiply<m>(num_instances, (uint32_t*)h_as, (uint32_t*)h_bs, h_rs_gmp_32);
-        
-    gpuMultiply<Base, mb>(num_instances, h_as, h_bs, h_rs_our);
 
-    if(with_validation)
-        validateExact<uint32_t>(h_rs_gmp_32, (uint32_t*)h_rs_our, num_instances*m);
+    if (mb/2 <= 1024) {
+        gpuMultiply<Base,mb,1>(num_instances, h_as, h_bs, h_rs_our);
+        if (with_validation)
+            validateExact(h_rs_gmp_32, (uint32_t*)h_rs_our, num_instances*m);
+    } else
+        printf("SKIPS V1 - big int size (%d instances of u%d) exceeds CUDA block limit (1024)\n",
+               mb, Base::bits);
+
+    gpuMultiply<Base,mb,2>(num_instances, h_as, h_bs, h_rs_our);
+    if (with_validation)
+        validateExact(h_rs_gmp_32, (uint32_t*)h_rs_our, num_instances*m);
+
+    // gpuMultiply<Base,mb,3>(num_instances, h_as, h_bs, h_rs_our);
+    // if (with_validation)
+        // validateExact(h_rs_gmp_32, (uint32_t*)h_rs_our, num_instances*m);
 }
 
 /*****************************************/
@@ -394,6 +428,9 @@ void runMultiplications(uint64_t total_work) {
 
     printf("--------------------------------------------------------------------------------\n");
     printf("CONVMULT KERNEL TESTS AND BENCHMARKS\n");
+    printf("--------------------------------------------------------------------------------\n");
+    printf("V1                   | V2                  | V3\n");
+    printf("Basic implementation | + sequentialization | + multiple instances per CUDA block\n");
     printf("--------------------------------------------------------------------------------\n");
 
 #if FULLER_TEST_SUITE
