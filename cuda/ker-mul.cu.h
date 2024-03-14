@@ -236,4 +236,128 @@ convMult2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
     cpReg2Glb<uint_t,m,q,1>(rss, rs);
 }
 
+/****************************************************/
+/*** Big Integer Multiplication By Convolution v3 ***/
+/****************************************************/
+
+/** Each block multiplies ipb instances of big integers and each thread handle q units **/
+
+template<class Base, uint32_t m, uint32_t q, uint32_t ipb>
+__device__ void
+convMult3Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
+             typename Base::uint_t* shmem_ls, typename Base::uint_t* shmem_hs,
+             typename Base::uint_t* shmem_cs, typename Base::carry_t* shmem_add,
+             typename Base::uint_t* rss) {
+    using uint_t  = typename Base::uint_t;
+    using ubig_t  = typename Base::ubig_t;
+    using carry_t = typename Base::carry_t;
+
+    // 1. compute low, high and carry (high overflow) for k1 and k2 (thread elements)
+    uint_t lss[q]; uint_t hss[q]; uint_t css[q];
+    for (int i=0; i<q; i++) {
+        lss[i] = 0; hss[i] = 0; css[i] = 0;
+    }
+
+    for (int s=0; s<q/2; s++) {
+        uint64_t k1 = threadIdx.x*(q/2) + s;
+        uint64_t k2 = m*ipb-1 - k1;
+        uint64_t k1_start = (k1/m)*m;
+        uint64_t k2_start = (k2/m)*m;
+
+        for (int i=k1_start; i<=k1; i++) {
+            // compute high and low part of result
+            int j  = k1 - i + k1_start;
+            ubig_t r  = ((ubig_t) shmem_as[i]) * ((ubig_t) shmem_bs[j]);
+            uint_t lr = (uint_t) r;
+            uint_t hr = (uint_t) (r >> Base::bits);
+            // update l, h and c
+            lss[s*2] += lr;
+            hss[s*2] += hr + (lss[s*2] < lr);
+            css[s*2] += (hss[s*2] < (hr + (lss[s*2] < lr)));
+        }
+        for (int i=(k2/m)*m; i<=k2; i++) {
+            // compute high and low part of result
+            int j  = k2 - i + k2_start;
+            ubig_t r  = ((ubig_t) shmem_as[i]) * ((ubig_t) shmem_bs[j]);
+            uint_t lr = (uint_t) r;
+            uint_t hr = (uint_t) (r >> Base::bits);
+            // update l, h, and c
+            lss[s*2+1] += lr;
+            hss[s*2+1] += hr + (lss[s*2+1] < lr);
+            css[s*2+1] += (hss[s*2+1] < (hr + (lss[s*2+1] < lr)));
+        }
+    }
+    __syncthreads();
+
+    // 2. write low part, high part and carry part to shared memory
+    for (int s=0; s<q/2; s++) {
+        uint64_t k1 = threadIdx.x*(q/2) + s;
+        uint64_t k2 = m*ipb-1 - k1;
+
+        shmem_ls[k1] = lss[s*2]; shmem_hs[k1] = hss[s*2]; shmem_cs[k1] = css[s*2];
+        shmem_ls[k2] = lss[s*2+1]; shmem_hs[k2] = hss[s*2+1]; shmem_cs[k2] = css[s*2+1];
+    }
+    __syncthreads();
+
+    // 3. fetch low, high and carry from shared memory to registers
+    for (int i=0; i<q; i++) {
+        uint64_t off = threadIdx.x*q + i;
+        uint64_t inst_off = off % m;
+        lss[i] = shmem_ls[off];
+        hss[i] = (inst_off)     ? shmem_hs[off-1] : 0;
+        css[i] = (inst_off > 1) ? shmem_cs[off-2] : 0;
+    }
+    __syncthreads();
+
+    // 4. add low, high and carry
+    baddKer3Run<Base,m,q,ipb>(lss, hss, rss, shmem_add);
+    __syncthreads();
+    baddKer3Run<Base,m,q,ipb>(css, rss, rss, shmem_add);
+}
+
+template<class Base, uint32_t m, uint32_t q, uint32_t ipb>
+__global__ void
+convMult3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+    using uint_t  = typename Base::uint_t;
+    using carry_t = typename Base::carry_t;
+
+    // 1. copy as and bs into shared memory
+    __shared__ uint_t shmem[ipb*m*3];
+    cpGlb2Shm<uint_t,m,q,ipb>(as, shmem);
+    cpGlb2Shm<uint_t,m,q,ipb>(bs, shmem+ipb*m);
+    __syncthreads();
+
+    // 2. multiply as and bs
+    uint_t rss[q];
+    convMult3Run<Base,m,q,ipb>(shmem,shmem+ipb*m,shmem,shmem+ipb*m,shmem+2*ipb*m,(carry_t*)shmem,rss);
+    __syncthreads();
+
+    // 3. write result to global memory
+    cpReg2Glb<uint_t,m,q,ipb>(rss, rs);
+}
+
+template<class Base, uint32_t m, uint32_t q, uint32_t ipb, uint32_t p> // runs p multiplications
+__global__ void
+convMult3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+    using uint_t  = typename Base::uint_t;
+    using carry_t = typename Base::carry_t;
+
+    // 1. copy as and bs into shared memory
+    __shared__ uint_t shmem[ipb*m*5];
+    cpGlb2Shm<uint_t,m,q,ipb>(as, shmem);
+    cpGlb2Shm<uint_t,m,q,ipb>(bs, shmem+ipb*m);
+    __syncthreads();
+
+    // 2. multiply as and bs p times
+    uint_t rss[q];
+    for(int i=0; i<p; i++) {
+        convMult3Run<Base,m,q,ipb>(shmem, shmem+ipb*m, shmem+2*ipb*m, shmem+3*ipb*m,
+                                   shmem+4*ipb*m, (carry_t*)shmem+2*ipb*m, rss);
+        __syncthreads();
+    }
+
+    // 3. write result to global memory
+    cpReg2Glb<uint_t,m,q,ipb>(rss, rs);
+}
+
 #endif // KERNEL_MULTIPLICATION
