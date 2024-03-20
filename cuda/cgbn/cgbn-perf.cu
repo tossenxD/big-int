@@ -191,7 +191,7 @@ void runMul ( const uint32_t num_instances, const uint32_t cuda_block
     double gigaopsu32 = num_u32_ops / (runtime_microsecs * 1000);
 
     printf( "CGBN Multiply (num-instances = %d, num-word-len = %d, total-size: %d), \
-averaged over %d runs: %lu microsecs, Gopsu32/sec: %.2f, Mil-Instances/sec: %.2f\n"
+averaged over %d runs: %lu microsecs, Gu32ops/sec: %.2f, Mil-Instances/sec: %.2f\n"
           , num_instances, m, num_instances * m, GPU_RUNS_CMUL
           , elapsed, gigaopsu32, num_instances / runtime_microsecs
           );
@@ -242,7 +242,7 @@ void runPoly( const uint32_t num_instances, const uint32_t cuda_block
     double gigaopsu32 = num_u32_ops / (runtime_microsecs * 1000);
 
     printf( "CGBN Polynomial (num-instances = %d, num-word-len = %d, total-size: %d), \
-averaged over %d runs: %lu microsecs, Gopsu32/sec: %.2f, Mil-Instances/sec: %.2f\n"
+averaged over %d runs: %lu microsecs, Gu32ops/sec: %.2f, Mil-Instances/sec: %.2f\n"
           , num_instances, m, num_instances * m, GPU_RUNS_POLY
           , elapsed, gigaopsu32, num_instances / runtime_microsecs
           );

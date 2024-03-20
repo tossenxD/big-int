@@ -7,10 +7,10 @@ using namespace std;
 #define GPU_RUNS_ADD      100
 #define GPU_RUNS_MUL      30
 #define WITH_VALIDATION   1
-#define PRINT_DEBUG_INFO  0
+#define PRINT_DEBUG_INFO  1
 #define FULL_TEST_SUITE   1
 #define FULLER_TEST_SUITE 0
-#define BENCH_TEN         1
+#define BENCH_TEN         0
 
 /****************************/
 /*** Big-Integer Addition ***/
@@ -274,10 +274,12 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
         gpuAssert( cudaPeekAtLastError() );
 
         double runtime_microsecs = elapsed;
+        double num_u32_ops = 4.0 * num_instances * (m * Base::bits / 32) * (m * Base::bits / 32);
+        double gigaopsu32 = num_u32_ops / (runtime_microsecs * 1000);
 
         printf("ONE V%d Multiplication  of %d-bit big integers (base u%d) runs %d instances \
-in:\t%lu microsecs, microsecs/instance: %.4f\n", v, m*Base::bits, Base::bits,
-               num_instances, elapsed, runtime_microsecs/num_instances);
+in:\t%lu microsecs, Gu32ops/sec: %.2f, microsecs/instance: %.4f\n", v, m*Base::bits, Base::bits,
+               num_instances, elapsed, gigaopsu32, runtime_microsecs/num_instances);
 
         cudaMemcpy(h_rs, d_rs, mem_size_nums, cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
@@ -322,10 +324,12 @@ in:\t%lu microsecs, microsecs/instance: %.4f\n", v, m*Base::bits, Base::bits,
         gpuAssert( cudaPeekAtLastError() );
 
         double runtime_microsecs = elapsed;
+        double num_u32_ops = 4.0 * num_instances * (m * Base::bits / 32) * (m * Base::bits / 32);
+        double gigaopsu32 = num_u32_ops / (runtime_microsecs * 1000);
 
         printf("TEN V%d Multiplications of %d-bit big integers (base u%d) runs %d instances \
-in:\t%lu microsecs, microsecs/instance: %.4f\n", v, m*Base::bits, Base::bits,
-               num_instances, elapsed, runtime_microsecs/num_instances);
+in:\t%lu microsecs, Gu32ops/sec: %.2f, microsecs/instance: %.4f\n", v, m*Base::bits, Base::bits,
+               num_instances, elapsed, gigaopsu32, runtime_microsecs/num_instances);
     }
     #endif
 
