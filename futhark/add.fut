@@ -122,7 +122,7 @@ entry badd32v2 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
     in (badd32v2Run0 n ash bsh) :> [4*n]u32
 
   -- ADD PADDING AND CALL THE ABOVE FUNCTIONS
-  let p = 4 - (n % 4)
+  let p = (4 - (n % 4)) % 4
   let pz = map (\_ -> 0) (0..<p)
   let as = as ++ pz :> [4*((n + p) / 4)]u32
   let bs = bs ++ pz :> [4*((n + p) / 4)]u32
@@ -166,7 +166,7 @@ entry badd64v2 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
     in (badd64v2Run0 n ash bsh) :> [4*n]u64
 
   -- ADD PADDING AND CALL THE ABOVE FUNCTIONS
-  let p = 4 - (n % 4)
+  let p = (4 - (n % 4)) % 4
   let pz = map (\_ -> 0) (0..<p)
   let as = as ++ pz :> [4*((n + p) / 4)]u64
   let bs = bs ++ pz :> [4*((n + p) / 4)]u64
@@ -202,7 +202,8 @@ entry badd32v3 [m] (ipb: i64) (as: [m]u32) (bs: [m]u32) : [m]u32 =
          in [r1 + (acc1 & 1), r2 + (acc2 & 1), r3 + (acc3 & 1), r4 + (acc4 & 1)])
 
   -- COPY TO SHARED MEMORY
-  let badd32v3Run [ipb][n] (as: [ipb*(4*n)]u32) (bs: [ipb*(4*n)]u32) : [ipb*(4*n)]u32 =
+  let badd32v3Run [ipb][n]
+                  (as: [ipb*(4*n)]u32) (bs: [ipb*(4*n)]u32) : [ipb*(4*n)]u32 =
     let cp2sh (i : i32) =
       let g = i32.i64 (n*ipb) in
       ((as[i], as[g+i], as[2*g + i], as[3*g + i])
@@ -217,10 +218,9 @@ entry badd32v3 [m] (ipb: i64) (as: [m]u32) (bs: [m]u32) : [m]u32 =
     in (badd32v3Run0 n ipb ash bsh) :> [ipb*(4*n)]u32
 
   -- ADD PADDING AND CALL THE ABOVE FUNCTIONS
-  let p  = 4 - (m % 4)
+  let p  = (4 - (m % 4)) % 4
   let pz = map (\_ -> 0) (0..<p)
   let mp = m + p
-  --let ipb= (128 + (mp/4) - 1) / (mp/4) -- ceil(128/(mp/4))
   let n  = mp / ipb
   let as = as ++ pz :> [ipb * (4*(n / 4))]u32
   let bs = bs ++ pz :> [ipb * (4*(n / 4))]u32
@@ -250,7 +250,8 @@ entry badd64v3 [m] (ipb: i64) (as: [m]u64) (bs: [m]u64) : [m]u64 =
          in [r1 + (acc1 & 1), r2 + (acc2 & 1), r3 + (acc3 & 1), r4 + (acc4 & 1)])
 
   -- COPY TO SHARED MEMORY
-  let badd64v3Run [ipb][n] (as: [ipb*(4*n)]u64) (bs: [ipb*(4*n)]u64) : [ipb*(4*n)]u64 =
+  let badd64v3Run [ipb][n]
+                  (as: [ipb*(4*n)]u64) (bs: [ipb*(4*n)]u64) : [ipb*(4*n)]u64 =
     let cp2sh (i : i32) =
       let g = i32.i64 (n*ipb) in
       ((as[i], as[g+i], as[2*g + i], as[3*g + i])
@@ -265,10 +266,9 @@ entry badd64v3 [m] (ipb: i64) (as: [m]u64) (bs: [m]u64) : [m]u64 =
     in (badd64v3Run0 n ipb ash bsh) :> [ipb*(4*n)]u64
 
   -- ADD PADDING AND CALL THE ABOVE FUNCTIONS
-  let p  = 4 - (m % 4)
+  let p  = (4 - (m % 4)) % 4
   let pz = map (\_ -> 0) (0..<p)
   let mp = m + p
-  --let ipb= (128 + (mp/4) - 1) / (mp/4) -- ceil(128/(mp/4))
   let n  = mp / ipb
   let as = as ++ pz :> [ipb * (4*(n / 4))]u64
   let bs = bs ++ pz :> [ipb * (4*(n / 4))]u64
@@ -281,13 +281,15 @@ entry badd64v3 [m] (ipb: i64) (as: [m]u64) (bs: [m]u64) : [m]u64 =
 entry badd32v3Wrapper [n][m] (as: [n][m]u32) (bs: [n][m]u32) : [n][m]u32 =
   let ipb = if m > 4 then (128 + (m/4) - 1) / (m/4) else 1 -- ceil(128/(m/4))
   let ipb = if ipb > n || (n % ipb) > 0 then 1 else ipb
-  let as  = flatten as |> unflatten :> [n/ipb][ipb*m]u32
-  let bs  = flatten bs |> unflatten :> [n/ipb][ipb*m]u32
-  in map2 (badd32v3 ipb) as bs |> flatten |> unflatten :> [n][m]u32
+  let as  = (flatten as :> [(n/ipb)*(ipb*m)]u32) |> unflatten
+  let bs  = (flatten bs :> [(n/ipb)*(ipb*m)]u32) |> unflatten
+  let rs  = map2 (badd32v3 ipb) as bs
+  in (flatten rs :> [n*m]u32) |> unflatten
 
 entry badd64v3Wrapper [n][m] (as: [n][m]u64) (bs: [n][m]u64) : [n][m]u64 =
   let ipb = if m > 4 then (128 + (m/4) - 1) / (m/4) else 1 -- ceil(128/(m/4))
   let ipb = if ipb > n || (n % ipb) > 0 then 1 else ipb
-  let as  = flatten as |> unflatten :> [n/ipb][ipb*m]u64
-  let bs  = flatten bs |> unflatten :> [n/ipb][ipb*m]u64
-  in map2 (badd64v3 ipb) as bs |> flatten |> unflatten :> [n][m]u64
+  let as  = (flatten as :> [(n/ipb)*(ipb*m)]u64) |> unflatten
+  let bs  = (flatten bs :> [(n/ipb)*(ipb*m)]u64) |> unflatten
+  let rs  = map2 (badd64v3 ipb) as bs
+  in (flatten rs :> [n*m]u64) |> unflatten
