@@ -52,7 +52,7 @@ def convMult32 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
   let cs = cs1 ++ cs2
   let cs = map (\ i -> if i <= 1 then 0 else cs[i-2]) (iota n)
   -- add the low, high and carry parts
-  in badd32 ls hs |> badd32 cs
+  in badd32v1 ls hs |> badd32v1 cs
 
 def convMult64 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
   -- function that computes a low, high and carry part of multiplication
@@ -75,4 +75,4 @@ def convMult64 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
   let cs = cs1 ++ cs2
   let cs = map (\ i -> if i <= 1 then 0 else cs[i-2]) (iota n)
   -- add the low, high and carry parts
-  in badd64 ls hs |> badd64 cs
+  in badd64v1 ls hs |> badd64v1 cs
