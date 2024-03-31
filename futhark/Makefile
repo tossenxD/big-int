@@ -1,14 +1,24 @@
 TFLGS = --backend=opencl 
 BFLGS = --backend=opencl
-BDIR  = $(CURDIR)/bench/
-TDIR  = $(CURDIR)/test/
+BDIR  = bench/
+TDIR  = test/
 
 
+
+.PHONY: test test-add test-mul
 
 test:
-	futhark test $(TFLGS) test.fut
+	futhark test $(TFLGS) $(TDIR)test-add.fut $(TDIR)test-mul.fut
+
+test-add:
+	futhark test $(TFLGS) $(TDIR)test-add.fut
+
+test-mul:
+	futhark test $(TFLGS) $(TDIR)test-mul.fut
 
 
+
+.PHONY: add
 
 add: add32 add64
 
@@ -29,6 +39,8 @@ ten-add64:
 	futhark bench $(BFLGS) $(BDIR)ten-add64.fut
 
 
+
+.PHONY: mul
 
 mul: mul32 mul64
 
@@ -51,4 +63,4 @@ ten-mul64:
 
 
 clean:
-	find $(CURDIR) -type f -not -name '*.fut' -not -name '.gitignore' -not -name 'Makefile' -delete
+	find . -not -name '.' -not -name 'bench' -not -name 'test' -not -name '*.fut' -not -name '.gitignore' -not -name 'Makefile' -delete
