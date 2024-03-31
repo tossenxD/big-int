@@ -1,25 +1,54 @@
-EXES  = bench-one-add bench-ten-add bench-one-mul bench-ten-mul test
 TFLGS = --backend=opencl 
-BFLGS = --backend=opencl 
+BFLGS = --backend=opencl
+BDIR  = $(CURDIR)/bench/
+TDIR  = $(CURDIR)/test/
+
+
 
 test:
 	futhark test $(TFLGS) test.fut
 
-add: one-add ten-add
 
-one-add:
-	futhark bench $(BFLGS) bench-one-add.fut
 
-ten-add:
-	futhark bench $(BFLGS) bench-ten-add.fut
+add: add32 add64
 
-mul: one-mul ten-mul
+add32: one-add32 ten-add32
 
-one-mul:
-	futhark bench $(BFLGS) bench-one-mul.fut
+add64: one-add64 ten-add64
 
-ten-mul:
-	futhark bench $(BFLGS) bench-ten-mul.fut
+one-add32:
+	futhark bench $(BFLGS) $(BDIR)one-add32.fut
+
+ten-add32:
+	futhark bench $(BFLGS) $(BDIR)ten-add32.fut
+
+one-add64:
+	futhark bench $(BFLGS) $(BDIR)one-add64.fut
+
+ten-add64:
+	futhark bench $(BFLGS) $(BDIR)ten-add64.fut
+
+
+
+mul: mul32 mul64
+
+mul32: one-mul32 ten-mul32
+
+mul64: one-mul64 ten-mul64
+
+one-mul32:
+	futhark bench $(BFLGS) $(BDIR)one-mul32.fut
+
+ten-mul32:
+	futhark bench $(BFLGS) $(BDIR)ten-mul32.fut
+
+one-mul64:
+	futhark bench $(BFLGS) $(BDIR)one-mul64.fut
+
+ten-mul64:
+	futhark bench $(BFLGS) $(BDIR)ten-mul64.fut
+
+
 
 clean:
-	rm -rf $(EXES) *.c *.expected *.actual data/
+	find $(CURDIR) -type f -not -name '*.fut' -not -name '.gitignore' -not -name 'Makefile' -delete

@@ -1,4 +1,6 @@
 *
-!*.fut
 !.gitignore
 !Makefile
+!bench/
+!test/
+!*.fut
