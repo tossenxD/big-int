@@ -15,3 +15,6 @@ def seg_scan_exc [n] 'a (g: a -> a -> a) (ne: a) (fs: [n]bool) (xs: [n]a) : [n]a
                           in (v,f)
                       ) (ne, false) (zip xs fs) |> unzip
   in map2 (\ i f -> if f then ne else res[i-1]) (0..<n) fs
+
+def rev [n] 'a (as: [n]a) : [n]a =
+  map (\ i -> as[n-1 - i]) (0..<n)
