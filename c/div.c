@@ -28,6 +28,15 @@ int ilog(int B, int u) {
     return (int) (log((double) u) / log((double) B));
 }
 
+int findK(int v) { // assumes unsigned int with B=2
+    int k = 0;
+    while (v > 0) {
+        k++;
+        v >>= 1;
+    }
+    return k;
+}
+
 
 /** PRIMARY **/
 
@@ -56,8 +65,8 @@ int multmod(int a, int b, int d, int B) {
     return rem(a * b, ipow(B, d));
 }
 
-int powerdiff(v, w, h, l, B) {
-    int L = prec(B, v) + prev(B, w) - l + 1;
+int powerdiff(int v, int w, int h, int l, int B) {
+    int L = prec(B, v) + prec(B, w) - l + 1;
     if (v == 0 || w == 0 || L >= h) {
         return ipow(B, h) - mult(v, w);
     } else {
@@ -79,8 +88,8 @@ int step(int h, int v, int w, int m, int l, int g, int B) {
 
 int refine1(int v, int h, int k, int w, int l, int B) {
     int g = 1;
-    int h = h + g;
-    int w = shift(h - k - l, B, w); // Scale initial value to full length
+    h += g;
+    w = shift(h - k - l, B, w); // Scale initial value to full length
     while (h - k > l) {
         w = step(h, v, w, 0, l, 0, B);
         l = min(2*l - 1, h - k); // Number of correct digits
@@ -88,32 +97,49 @@ int refine1(int v, int h, int k, int w, int l, int B) {
     return shift(-g, B, w);
 }
 
-int refine2(int v, int h, int k, int w, int l) {
-    return 1;
+int refine2(int v, int h, int k, int w, int l, int B) {
+    int g = 2; // 2 guard digits
+    w = shift(g, B, w);
+    while (h - k > l) {
+        int m = min(h - k + 1 - l, l); // How much to grow
+        w = shift(-1, B, step(k + l + m + g, v, w, m, l, g, B));
+        l += m - 1;
+    }
+    return shift(-g, B, w);
 }
 
-int refine3(int v, int h, int k, int w, int l) {
-    return 1;
+int refine3(int v, int h, int k, int w, int l, int B) {
+    int g = 2; // 2 guard digits
+    w = shift(g, B, w);
+    while (h - k > l) {
+        int m = min(h - k + 1 - l, l);
+        int s = max(0, k - (2*l) + 1 - g); // How to scale v
+        w = shift(-1, B, step(k + l + m - s + g, shift(-s, B, v), w, m, l, g, B));
+        l += m - 1;
+    }
+    return shift(-g, B, w);
 }
 
-// TODO find k?
 int shinv(int v, int h, int B) {
     // Group digits if base is small
     if (B < 16) {
         int p = max(6 - B, 2);
-        return shift(h * rem(p) - p, B, shinv(v, quo(h, p + 1), pow(B, p)));
+        return shift(rem(h, p) - p, B, shinv(v, quo(h, p + 1), pow(B, p)));
     }
+
+    // compute k
+    int k = findK(v);
 
     // Special cases guarantee B < v <= B^h / 2
     if (v < B) { return quo(ipow(B, h), v); } // Divide by 1 digit
     if (v > ipow(B, h)) { return 0; }
     if (2*v > ipow(B,h)) { return 1; }
-    if (v == ipow(B, k)) { return ipow(B, h-k); }
+    if (v == ipow(B, k)) { return ipow(B, h - k); }
 
     // Form initial approximation, returning it if sufficient
     int l = min(k, 2);
     int V = 0;
-    for (int i=0; i<l; i++) { V += v(k-l+i) * ipow(B, i); } // TODO what is v_()?
+    for (int i=0; i<l; i++) { V += v(k-l+i) * ipow(B, i); } // TODO which v?
     int w = quo(ipow(B, 2*l) - V, V+1); // Divide 4 digits by 2 digits
     if (h - k <= l) { return shift(h - k - l, B, w); }
 
