@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
+#include <gmp.h>
 
 /* This file assumes big integers as of type `uint32_t*`.
 
@@ -78,6 +79,13 @@ void set(bigint_t u, digit_t d, prec_t m) {
     u[0] = d;
 }
 
+// prints a string `s` followed big-int `u` to stdout
+void prnt(char* s, bigint_t u, prec_t m) {
+    printf("%s: [", s);
+    for (int i=0; i < m; i++) { printf("%u,", u[i]); }
+    printf("]\n");
+}
+
 /** PRIMARY **/
 
 // computes how many digits are "used" (i.e. size without front zeroes)
@@ -91,14 +99,14 @@ prec_t findk(bigint_t u, prec_t m) {
 // and writes result to big-int `v` (note that `u` and `v` can be the same)
 void shift(int n, bigint_t u, bigint_t v, prec_t m) {
     if (n >= 0) { // right shift
-        for (int i=0; i<m; i++) {
-            int off = i + n;
-            v[i] = (off < m) ? u[off] : 0;
+        for (int i=m-1; i>=0; i--) {
+            int off = i - n;
+            v[i] = (off >= 0) ? u[off] : 0;
         }
     } else { // left shift
-        for (int i=m-1; i>=0; i--) {
-            int off = i + n;
-            v[i] = (off >= 0) ? u[off] : 0;
+        for (int i=0; i<m; i++) {
+            int off = i - n;
+            v[i] = (off < m) ? u[off] : 0;
         }
     }
 }
@@ -114,12 +122,38 @@ bigint_t bpow(int n, prec_t m) {
 
 // adds the two big-ints `u` and `v`, and write the result to `w`
 void add(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
-    ;  // TODO this should be badd
+    /* This is supposed to be badd, but GMP is used for simplicity
+       since this C implementation is not the focus of this thesis.
+    */
+    mpz_t a; mpz_t b; mpz_t r;
+    mpz_init(a); mpz_init(b); mpz_init(r);
+
+    mpz_import(a, m, -1, sizeof(digit_t), 0, 0, u);
+    mpz_import(b, m, -1, sizeof(digit_t), 0, 0, v);
+    mpz_add(r, a, b);
+
+    set(w, 0, m);
+    mpz_export(w, NULL, -1, sizeof(digit_t), 0, 0, r);
+
+    mpz_clear(a); mpz_clear(b); mpz_clear(r);
 }
 
 // subtract the big-int `v` from the big-int `u`, and write the result to `w`
 void sub(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
-    ;  // TODO this should be badd
+    /* This is supposed to be badd, but GMP is used for simplicity
+       since this C implementation is not the focus of this thesis.
+    */
+    mpz_t a; mpz_t b; mpz_t r;
+    mpz_init(a); mpz_init(b); mpz_init(r);
+
+    mpz_import(a, m, -1, sizeof(digit_t), 0, 0, u);
+    mpz_import(b, m, -1, sizeof(digit_t), 0, 0, v);
+    mpz_sub(r, a, b);
+
+    set(w, 0, m);
+    mpz_export(w, NULL, -1, sizeof(digit_t), 0, 0, r);
+
+    mpz_clear(a); mpz_clear(b); mpz_clear(r);
 }
 
 // divides a big-int `u` by one digit `d` and write the result to `w`
@@ -129,7 +163,7 @@ void quod(bigint_t u, digit_t d, bigint_t w, prec_t m) {
     */
     uint64_t d0 = (uint64_t) d;
     uint64_t r = 0;
-    for (int i=m-1; i >= 0; i++) {
+    for (int i=m-1; i >= 0; i--) {
         r = (r << 32) + (uint64_t) u[i];
         if (r >= d0) {
             uint64_t q = r / d0;
@@ -143,7 +177,20 @@ void quod(bigint_t u, digit_t d, bigint_t w, prec_t m) {
 
 // multiplies the two big-ints `u` and `v`, and write the result to `w`
 void mult(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
-    ;  // TODO this should be convmult
+    /* This is supposed to be convmult or FTT, but GMP is used for simplicity
+       since this C implementation is not the focus of this thesis.
+    */
+    mpz_t a; mpz_t b; mpz_t r;
+    mpz_init(a); mpz_init(b); mpz_init(r);
+
+    mpz_import(a, m, -1, sizeof(digit_t), 0, 0, u);
+    mpz_import(b, m, -1, sizeof(digit_t), 0, 0, v);
+    mpz_mul(r, a, b);
+
+    set(w, 0, m);
+    mpz_export(w, NULL, -1, sizeof(digit_t), 0, 0, r);
+
+    mpz_clear(a); mpz_clear(b); mpz_clear(r);
 }
 
 // multiplies a big-int `u` with one digit `d` and write the result to `w`
@@ -281,11 +328,7 @@ void refine3(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
     free(v0);
 }
 
-/* `v` is the input big-int
-   `h` is the number to be inverse-shifted
-   `w` is the where the result is written
-   `m` is the precision of the big-ints
-*/
+// whole-shifted inverse of big-int `v` by `h`; result is written to big-int `w`
 void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
     /* In the paper, we group digits if the base is too small. However,
        that is not an issue here since we use a sufficiently large fixed base.
@@ -296,8 +339,8 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
 
     // 2. handle special cases to guarantee `B < v <= B^h / 2`
     {
-        // exit predicate
-        bool ep = 0;
+        // return predicate
+        bool rp = 0;
 
         // compute base-powers
         bigint_t b  = bpow(1, m);
@@ -306,14 +349,14 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
         bigint_t v2 = init(m);
         multd(v, 2, v2, m);
 
-        if      ( lt(v, b, m)   ) { quod(bh, v[0], w, m); ep = 1; }
-        else if ( lt(bh, v, m)  ) { set(w, 0, m);         ep = 1; }
-        else if ( lt(bh, v2, m) ) { set(w, 1, m);         ep = 1; }
+        if      ( lt(v, b, m)   ) { quod(bh, v[0], w, m); rp = 1; }
+        else if ( lt(bh, v, m)  ) { set(w, 0, m);         rp = 1; }
+        else if ( lt(bh, v2, m) ) { set(w, 1, m);         rp = 1; }
         else if ( eq(v, bk, m)  ) {
-            bigint_t bhk = bpow(h - k, m);
-            cpy(w, bhk, m);
-            free(bhk);
-            ep = 1;
+            set(w, 0, m);
+            w[0] = 1;
+            shift(h-k, w, w, m);
+            rp = 1;
         }
 
         // cleanup and exit if a special case is met
@@ -321,7 +364,7 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
         free(bh);
         free(bk);
         free(v2);
-        if (ep) { exit(0); }
+        if (rp) { return; }
     }
 
     // 3. form initial approximation
@@ -359,6 +402,36 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
     else            { refine1(v, h, k, w, l, m); }
 }
 
+// divides big-int `u` by `v` and write result to `w` using method from the paper
+void div_shinv(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
+    // requires padding since if `h=m` then `B^h > (B^m)-1`
+    bigint_t a = init(m+1); cpy(a, u, m);
+    bigint_t b = init(m+1); cpy(b, v, m);
+    bigint_t r = init(m+1);
+
+    // TODO size doubling is probably required for mult and how to handle delta?
+    int h = findk(u, m) + 1;
+    shinv(b, h, r, m+1);  // w = shinv_m v
+    mult(u, r, b, m+1);   // v = u * w
+    shift(-h, b, r, m+1); // w = shift_(-h) v
+
+    cpy(w, r, m);
+    free(a); free(b); free(r);
+}
+
+// divides big-int `u` by `v` and write result to `w` using gmp
+void div_gmp(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
+    mpz_t a; mpz_init(a); mpz_import(a, m, -1, sizeof(digit_t), 0, 0, u);
+    mpz_t b; mpz_init(b); mpz_import(b, m, -1, sizeof(digit_t), 0, 0, v);
+    mpz_t r; mpz_init(r);
+
+    mpz_div(r, a, b);
+
+    set(w, 0, m);
+    mpz_export(w, NULL, -1, sizeof(digit_t), 0, 0, r);
+    mpz_clear(a); mpz_clear(b); mpz_clear(r);
+}
+
 /** MAIN **/
 
 int main(int argc, char* argv[]) {
@@ -370,7 +443,7 @@ int main(int argc, char* argv[]) {
     int m = atoi(argv[1]);
 
     if (argc - 2 != m * 2) {
-        printf("Dimensions does not match\n", argv[0]);
+        printf("Dimensions does not match\n");
         exit(1);
     }
 
@@ -384,18 +457,22 @@ int main(int argc, char* argv[]) {
         w[i] = 0;
     }
 
-    shinv(v, m, w, m);  // w = shinv_m v
-    mult(u, w, v, m);   // v = u * w
-    shift(-m, v, w, m); // w = shift_(-h) v
+    printf("Inputs:\n");
+    prnt(" u", u, m);
+    prnt(" v", v, m);
 
-    printf("s");
-    for (int i=0; i < m; i++) {
-        printf("%u ", w[i]);
-    }   printf("\n");
+    div_shinv(u, v, w, m);
+
+    printf("\nOutput:\n");
+    prnt(" w", w, m);
+
+    div_gmp(u, v, w, m);
+
+    printf("\nGMP:\n");
+    prnt(" w", w, m);
 
     free(u);
     free(v);
     free(w);
-
     return 0;
 }
