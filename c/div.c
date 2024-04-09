@@ -387,11 +387,12 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
         V +=                ((__uint128_t) v[k-l+1]) << 32;
         V += (l == 1) ? 0 : ((__uint128_t) v[k]    ) << 64;
 
+        // compute `B^(2*l) - V` within 128-bits
         __uint128_t b2lV = (l == 1) ? (((__uint128_t) 1) << 64) - V :
             (((((__uint128_t) 1) << 96) - (V >> 32)) << 32)
             - (V & ((__uint128_t) 4294967295));
 
-        __uint128_t r = (b2lV / V) + 1;
+        __uint128_t r = b2lV / (V+1);
 
         set(w, (uint32_t) r, m);     w[1] = (uint32_t) (r >> 32);
         w[2] = (uint32_t) (r >> 64); w[3] = (uint32_t) (r >> 96);
@@ -404,16 +405,17 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
 
 // divides big-int `u` by `v` and write result to `w` using method from the paper
 void div_shinv(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
-    // requires padding since if `h=m` then `B^h > (B^m)-1`
-    bigint_t a = init(m+1); cpy(a, u, m);
-    bigint_t b = init(m+1); cpy(b, v, m);
-    bigint_t r = init(m+1);
+    // requires padding of at least one since if `h=m` then `B^h > (B^m)-1`
+    prec_t   p = m*2; // `m` padding because of multiplication (inefficient)
+    bigint_t a = init(p); cpy(a, u, m); // `a = u`
+    bigint_t b = init(p); cpy(b, v, m); // `b = v`
+    bigint_t r = init(p);               // `r = w`
 
-    // TODO size doubling is probably required for mult and how to handle delta?
+    // TODO, how to handle delta?
     int h = findk(u, m) + 1;
-    shinv(b, h, r, m+1);  // w = shinv_m v
-    mult(u, r, b, m+1);   // v = u * w
-    shift(-h, b, r, m+1); // w = shift_(-h) v
+    shinv(b, h, r, p);  // `r = shinv_h b`
+    mult(a, r, b, p);   // `b = a * r`
+    shift(-h, b, r, p); // `r = shift_(-h) b`
 
     cpy(w, r, m);
     free(a); free(b); free(r);
