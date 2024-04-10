@@ -6,11 +6,13 @@ using namespace std;
 
 #define GPU_RUNS_ADD      100
 #define GPU_RUNS_MUL      30
-#define WITH_VALIDATION   1
-#define PRINT_DEBUG_INFO  1
+#define WITH_VALIDATION   0
+#define PRINT_DEBUG_INFO  0
 #define FULL_TEST_SUITE   1
 #define FULLER_TEST_SUITE 0
 #define BENCH_TEN         0
+#define ADD               1
+#define MUL               1
 
 /****************************/
 /*** Big-Integer Addition ***/
@@ -50,6 +52,7 @@ void gpuAdd (uint32_t num_instances, typename Base::uint_t* h_as,
     #endif
 
     // 4. one addition
+    #if !BENCH_TEN
     {
         // dry run
         if (v == 1)
@@ -96,6 +99,7 @@ in:\t%lu microsecs, GB/sec: %.2f\n", v, m*Base::bits, Base::bits,num_instances, 
         cudaMemcpy(h_rs, d_rs, mem_size_nums, cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
     }
+    #endif
 
     // 5. ten additions
     #if BENCH_TEN
@@ -237,6 +241,7 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
     #endif
 
     // 4. one multiplication
+    #if !BENCH_TEN
     {
         // dry run
         if (v == 1)
@@ -284,6 +289,7 @@ in:\t%lu microsecs, Gu32ops/sec: %.2f, microsecs/instance: %.4f\n", v, m*Base::b
         cudaMemcpy(h_rs, d_rs, mem_size_nums, cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
     }
+    #endif
 
     // 5. ten multiplications
     #if BENCH_TEN
@@ -466,7 +472,11 @@ int main(int argc, char * argv[]) {
     }   printf("\n");
     const int total_work = atoi(argv[1]);
 
+#if ADD
     runAdditions<U64bits>(total_work);
     printf("\n");
+#endif
+#if MUL
     runMultiplications<U64bits>(total_work);
+#endif
 }

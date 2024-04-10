@@ -129,6 +129,7 @@ void gmpMkRandom(uint32_t num_instances, uint32_t* as, gmp_randstate_t rnd) {
         
         //if(i==0) { std::cout << a->toString() << std::endl; }
         if(i==0) gmp_printf ("%s is an mpz %Zd\n", "here", a);
+        mpz_clear(a);
     }
 }
 
@@ -152,7 +153,7 @@ void mkRandArrays ( int num_instances
 template<uint32_t m>
 void gmpAddMulOnce(bool is_add, uint32_t* inst_as, uint32_t* inst_bs, uint32_t* inst_rs) {
     uint32_t buff[4*m];
-    mpz_t a; mpz_t b; mpz_t r;        
+    mpz_t a; mpz_t b; mpz_t r;
     mpz_init(a); mpz_init(b); mpz_init(r);
 
     mpz_import(a, m, GMP_ORDER, sizeof(uint32_t), 0, 0, inst_as);
@@ -173,6 +174,8 @@ void gmpAddMulOnce(bool is_add, uint32_t* inst_as, uint32_t* inst_bs, uint32_t* 
     for(int j=countp; j < m; j++) {
         inst_rs[j] = 0;
     }
+
+    mpz_clear(a); mpz_clear(b); mpz_clear(r);
 }
 
 /****************************/
