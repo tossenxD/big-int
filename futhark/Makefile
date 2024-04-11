@@ -2,6 +2,7 @@ TFLGS = --backend=opencl
 BFLGS = --backend=opencl
 BDIR  = bench/
 TDIR  = test/
+FORM  = | awk -f form-tool.awk -
 
 
 
@@ -27,16 +28,16 @@ add32: one-add32 ten-add32
 add64: one-add64 ten-add64
 
 one-add32:
-	futhark bench $(BFLGS) $(BDIR)one-add32.fut
+	futhark bench $(BFLGS) $(BDIR)one-add32.fut $(FORM)
 
 ten-add32:
-	futhark bench $(BFLGS) $(BDIR)ten-add32.fut
+	futhark bench $(BFLGS) $(BDIR)ten-add32.fut $(FORM)
 
 one-add64:
-	futhark bench $(BFLGS) $(BDIR)one-add64.fut
+	futhark bench $(BFLGS) $(BDIR)one-add64.fut $(FORM)
 
 ten-add64:
-	futhark bench $(BFLGS) $(BDIR)ten-add64.fut
+	futhark bench $(BFLGS) $(BDIR)ten-add64.fut $(FORM)
 
 
 
@@ -49,18 +50,18 @@ mul32: one-mul32 ten-mul32
 mul64: one-mul64 ten-mul64
 
 one-mul32:
-	futhark bench $(BFLGS) $(BDIR)one-mul32.fut
+	futhark bench $(BFLGS) $(BDIR)one-mul32.fut $(FORM)
 
 ten-mul32:
-	futhark bench $(BFLGS) $(BDIR)ten-mul32.fut
+	futhark bench $(BFLGS) $(BDIR)ten-mul32.fut $(FORM)
 
 one-mul64:
-	futhark bench $(BFLGS) $(BDIR)one-mul64.fut
+	futhark bench $(BFLGS) $(BDIR)one-mul64.fut $(FORM)
 
 ten-mul64:
-	futhark bench $(BFLGS) $(BDIR)ten-mul64.fut
+	futhark bench $(BFLGS) $(BDIR)ten-mul64.fut $(FORM)
 
 
 
 clean:
-	find . -not -name '.' -not -name 'bench' -not -name 'test' -not -name '*.fut' -not -name '.gitignore' -not -name 'Makefile' -delete
+	find . -not -name '.' -not -name 'bench' -not -name 'test' -not -name '*.fut' -not -name '*.awk' -not -name '.gitignore' -not -name 'Makefile' -delete

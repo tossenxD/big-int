@@ -4,3 +4,4 @@
 !bench/
 !test/
 !*.fut
+!*.awk
