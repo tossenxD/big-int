@@ -45,8 +45,8 @@ BEGIN {
           m = info[2]
           base = info[3]
           bits = m * base
-          num_u32_ops = 4 * num_instances * (m * bits / 32) * (m * bits / 32)
-          gigaopsu32 = num_32_ops / (runtime * 1000)
+          num_u32_ops = 4 * num_instances * (bits / 32) * (bits / 32)
+          gigaopsu32 = num_u32_ops / (runtime * 1000)
           time_insts = runtime / num_instances
           printf "%s of %d-bit integers (base u%d) runs %d instances in:\t", name, bits, base, num_instances
           printf "%d microsecs, Gu32ops/sec: %.2f, microsecs/instance: %.4f", runtime, gigaopsu32, time_insts
