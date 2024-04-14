@@ -21,9 +21,9 @@ convMult1Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
     using carry_t = typename Base::carry_t;
 
     // 1. compute low, high and carry (high overflow) for k1 and k2 (thread elements)
-    uint_t lss[2]; uint_t hss[2]; uint_t css[2];
-    lss[0] = 0; hss[0] = 0; css[0] = 0;
-    lss[1] = 0; hss[1] = 0; css[1] = 0;
+    uint_t lss[2]; lss[0] = 0; lss[1] = 0;
+    uint_t hss[2]; hss[0] = 0; hss[1] = 0;
+    uint_t css[2]; css[0] = 0; css[1] = 0;
 
     uint64_t k1 = threadIdx.x;
     uint64_t k2 = m-1 - k1;
@@ -358,6 +358,193 @@ convMult3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 
     // 3. write result to global memory
     cpReg2Glb<uint_t,m,q,ipb>(rss, rs);
+}
+
+
+
+/****************************************************/
+/*** Big Integer Multiplication By Convolution v4 ***/
+/****************************************************/
+
+/** Each block multiplies one instance of big integers and each thread handle 4 units **/
+
+template<class Base, uint32_t m>
+__device__ void
+convMult4Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
+             typename Base::uint_t* shmem_buff, typename Base::uint_t* rss) {
+    using uint_t  = typename Base::uint_t;
+    using ubig_t  = typename Base::ubig_t;
+    using carry_t = typename Base::carry_t;
+
+    // 1. compute low, high and carry (high overflow) for k1 and k2 (thread elements)
+    uint_t lhck1[4];
+    uint_t lhck2[4];
+    {
+        // 1.1. compute two consecutive sums over `k1`
+        ubig_t lhc0[2]; lhc0[0] = 0; lhc0[1] = 0;
+        ubig_t lhc1[2]; lhc1[0] = 0; lhc1[1] = 0;
+        int k1 = threadIdx.x*2;
+
+        for (int i=0; i<=k1; i++) {
+            // fetch memory
+            int j = k1 - i;
+            ubig_t a = (ubig_t) shmem_as[i];
+            ubig_t ab0 = a * ((ubig_t) shmem_bs[j]);
+            ubig_t ab1 = a * ((ubig_t) shmem_bs[j+1]);
+
+            // compute high and low parts of result
+            lhc0[0] += ab0 & ((ubig_t) Base::HIGHEST);
+            lhc0[1] += ab0 >> Base::bits;
+            lhc1[0] += ab1 & ((ubig_t) Base::HIGHEST);
+            lhc1[1] += ab1 >> Base::bits;
+        }
+        {   // do the remaining computation (i.e. `i=k1+1`)
+            ubig_t ab = ((ubig_t) shmem_as[k1+1]) * ((ubig_t) shmem_bs[0]);
+            lhc1[0] += ab & ((ubig_t) Base::HIGHEST);
+            lhc1[1] += ab >> Base::bits;
+        }
+
+        // 1.2. combine results associated with `k1` (i.e. compute `lhck1`)
+        {
+            uint_t h0t = (uint_t) lhc0[1];
+            uint_t h0  = h0t + ((uint_t) (lhc0[0] >> Base::bits));
+            uint_t c0  = ((uint_t) (lhc0[1] >> Base::bits)) + (h0 < h0t);
+
+            uint_t h1t = (uint_t) lhc1[1];
+            uint_t h1  = h1t + ((uint_t) (lhc1[0] >> Base::bits));
+            uint_t c1  = ((uint_t) (lhc1[1] >> Base::bits)) + (h1 < h1t);
+
+            lhck1[0] = (uint_t) lhc0[0];
+            lhck1[1] = h0 + ((uint_t) lhc1[0]);
+            lhck1[2] = c0 + h1 + (lhck1[1] < h0);
+            lhck1[3] = c1 + (lhck1[2] < h1);
+        }
+
+        // 1.3. compute two consecutive sums over `k2`
+        lhc0[0] = 0; lhc0[1] = 0;
+        lhc1[0] = 0; lhc1[1] = 0;
+        int k2 = m-1 - k1;
+
+        for (int i=0; i<=k2-1; i++) {
+            // fetch memory
+            int j = k2-1 - i;
+            ubig_t a = (ubig_t) shmem_as[i];
+            ubig_t ab0 = a * ((ubig_t) shmem_bs[j]);
+            ubig_t ab1 = a * ((ubig_t) shmem_bs[j+1]);
+
+            // compute high and low parts of result
+            lhc0[0] += ab0 & ((ubig_t) Base::HIGHEST);
+            lhc0[1] += ab0 >> Base::bits;
+            lhc1[0] += ab1 & ((ubig_t) Base::HIGHEST);
+            lhc1[1] += ab1 >> Base::bits;
+        }
+        {   // do the remaining computation (i.e. `i=k2`)
+            ubig_t ab = ((ubig_t) shmem_as[k2]) * ((ubig_t) shmem_bs[0]);
+            lhc1[0] += ab & ((ubig_t) Base::HIGHEST);
+            lhc1[1] += ab >> Base::bits;
+        }
+
+        // 1.4. combine results associated with `k2` (i.e. compute `lhck2`)
+        uint_t h0t = (uint_t) lhc0[1];
+        uint_t h0  = h0t + ((uint_t) (lhc0[0] >> Base::bits));
+        uint_t c0  = ((uint_t) (lhc0[1] >> Base::bits)) + (h0 < h0t);
+
+        uint_t h1t = (uint_t) lhc1[1];
+        uint_t h1  = h1t + ((uint_t) (lhc1[0] >> Base::bits));
+        uint_t c1  = ((uint_t) (lhc1[1] >> Base::bits)) + (h1 < h1t);
+
+        lhck2[0] = (uint_t) lhc0[0];
+        lhck2[1] = h0 + ((uint_t) lhc1[0]);
+        lhck2[2] = c0 + h1 + (lhck2[1] < h0);
+        lhck2[3] = c1 + (lhck2[2] < h1);
+    }
+    __syncthreads();
+
+    // 2. write low, high and carry parts to shared memory
+    {
+        /* Memory associated with `k1` (i.e. `lhck1`) is written in a straightforward coalesced
+           fashion with stride `s`. However, for `k2` (i.e. `lhck2`) consecutive threads
+           still access consecutive memory cells, but does so in reversed order.
+           Hopefully, this also results in wrap-level memory hits.
+        */
+        int off = threadIdx.x;
+        int s = m / 2;
+
+        shmem_buff[off] = lhck1[0];     shmem_buff[off+s] = lhck1[1];
+        shmem_buff[off+2*s] = lhck1[2]; shmem_buff[off+3*s] = lhck1[3];
+
+        shmem_buff[s-off-1] = lhck2[0]; shmem_buff[s*2-off-1] = lhck2[1];
+        shmem_buff[s*3-off-1] = lhck2[2]; shmem_buff[s*4-off-1] = lhck2[3];
+    }
+    __syncthreads();
+
+    // 3. fetch low, high and carry parts from shared memory to registers
+    {
+        /* Memory cells are read in groups of two, where each group is fetched coalesced.
+        */
+        int off = threadIdx.x*2;
+        int s = m / 2;
+
+        lhck1[0] = shmem_buff[off];
+        lhck2[2] = shmem_buff[off+1];
+
+        lhck1[1] = shmem_buff[off+s];
+        lhck2[3] = shmem_buff[off+s+1];
+
+        lhck2[0] = (off) ? shmem_buff[off+2*s-1] : 0;
+        lhck1[2] = shmem_buff[off+2*s];
+
+        lhck2[1] = (off) ? shmem_buff[off+3*s-1] : 0;
+        lhck1[3] = shmem_buff[off+3*s];
+    }
+    __syncthreads();
+
+    // 4. add the (remaining) low, high and carry parts
+    baddKer2Run<Base,m,4>(lhck1, lhck2, rss, (carry_t*) shmem_buff);
+}
+
+template<class Base, uint32_t m>
+__global__ void
+convMult4(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+    using uint_t  = typename Base::uint_t;
+    using carry_t = typename Base::carry_t;
+
+    // 1. copy as and bs into shared memory
+    __shared__ uint_t shmem[m*2];
+    cpGlb2Shm<uint_t,m,4,1>(as, shmem);
+    cpGlb2Shm<uint_t,m,4,1>(bs, shmem+m);
+    __syncthreads();
+
+    // 2. multiply as and bs
+    uint_t rss[4];
+    convMult4Run<Base,m>(shmem, shmem+m, shmem, rss);
+    __syncthreads();
+
+    // 3. write result to global memory
+    cpReg2Shm2Glb<uint_t,m,4,1>(rss, shmem, rs);
+}
+
+template<class Base, uint32_t m, uint32_t p> // runs p multiplications
+__global__ void
+convMult4Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+    using uint_t  = typename Base::uint_t;
+    using carry_t = typename Base::carry_t;
+
+    // 1. copy as and bs into shared memory
+    __shared__ uint_t shmem[m*4];
+    cpGlb2Shm<uint_t,m,4,1>(as, shmem);
+    cpGlb2Shm<uint_t,m,4,1>(bs, shmem+m);
+    __syncthreads();
+
+    // 2. multiply as and bs p times
+    uint_t rss[4];
+    for(int i=0; i<p; i++) {
+        convMult4Run<Base,m>(shmem,shmem+m,shmem+2*m,rss);
+        __syncthreads();
+    }
+
+    // 3. write result to global memory
+    cpReg2Shm2Glb<uint_t,m,4,1>(rss, shmem, rs);
 }
 
 #endif // KERNEL_MULTIPLICATION
