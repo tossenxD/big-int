@@ -8,9 +8,8 @@
 
 #include "cgbn-kers.cu.h"
 
-#define GPU_RUNS_ADD  10
+#define GPU_RUNS_ADD  100
 #define GPU_RUNS_CMUL 25
-#define GPU_RUNS_POLY 25
 
 /****************************/
 /***  support routines    ***/
@@ -50,8 +49,6 @@ instance_t *generate_instances(uint32_t count) {
   for(int index=0;index<count;index++) {  
     ourMkRandom<BITS/32, BITS/32>(1, instances[index].a._limbs);
     ourMkRandom<BITS/32, BITS/32>(1, instances[index].b._limbs);
-    //random_words(instances[index].a._limbs, BITS/32);
-    //random_words(instances[index].b._limbs, BITS/32);
   }
   return instances;
 }
@@ -76,8 +73,6 @@ void runAdd ( const uint32_t num_instances, const uint32_t cuda_block
             , cgbn_error_report_t *report,  instance_t  *gpuInstances
             , instance_t  *instances
 ) {
-    //printf("Running GPU kernel ...\n");
-
     const uint32_t ipb = cuda_block/TPI;
 
 	// start timer
@@ -95,8 +90,6 @@ void runAdd ( const uint32_t num_instances, const uint32_t cuda_block
 	timeval_subtract(&t_diff, &t_end, &t_start);
 	elapsed = (t_diff.tv_sec*1e6+t_diff.tv_usec) / GPU_RUNS_ADD;
 	
-	//printf("Average of %d runs: %ld\n", GPU_RUNS_ADD, elapsed);
-	
 	gpuAssert( cudaPeekAtLastError() );
 
     const uint32_t m = BITS / 32;
@@ -105,9 +98,9 @@ void runAdd ( const uint32_t num_instances, const uint32_t cuda_block
     double gigabytes = bytes_accesses / (runtime_microsecs * 1000);
 
     printf( "CGBN Addition (num-instances = %d, num-word-len = %d, total-size: %d) \
-runs in: %lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n"
+runs in: %lu microsecs, GB/sec: %.2f\n"
           , num_instances, m, num_instances * m, elapsed
-          , gigabytes, num_instances / runtime_microsecs
+          , gigabytes
           );
 	
     // error report uses managed memory, so we sync the device (or stream) and check for cgbn errors
@@ -115,41 +108,36 @@ runs in: %lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n"
 	CGBN_CHECK(report);
 
 	// copy the instances back from gpuMemory
-	//printf("Copying results back to CPU ...\n");
 	CUDA_CHECK(cudaMemcpy(instances, gpuInstances, sizeof(instance_t)*num_instances, cudaMemcpyDeviceToHost));
 
-	//printf("Verifying the results ...\n");
-	//verify_results(instances, num_instances);
 	verifyResults(true, num_instances, instances);
 	
-	{ // testing 6 additions // kernel_6adds
+	{ // testing 10 additions // kernel_10adds
 	    unsigned long int elapsed = 0;
 	    struct timeval t_start, t_end, t_diff;
 	    gettimeofday(&t_start, NULL);
 
 	    // launch with 32 threads per instance, 128 threads (4 instances) per block
 	    for(int i = 0; i < GPU_RUNS_ADD; i++)
-		    kernel_add<<<(num_instances+ipb-1)/ipb, cuda_block>>>(report, gpuInstances, num_instances);
+		    kernel_10adds<<<(num_instances+ipb-1)/ipb, cuda_block>>>(report, gpuInstances, num_instances);
 	    cudaDeviceSynchronize();
 	    
 	    //end timer
 	    gettimeofday(&t_end, NULL);
 	    timeval_subtract(&t_diff, &t_end, &t_start);
 	    elapsed = (t_diff.tv_sec*1e6+t_diff.tv_usec) / GPU_RUNS_ADD;
-	    
-	    //printf("Average of %d runs: %ld\n", GPU_RUNS_ADD, elapsed);
-	    
+
 	    gpuAssert( cudaPeekAtLastError() );
 
         const uint32_t m = BITS / 32;
         double runtime_microsecs = elapsed; 
-        double bytes_accesses = 3.0 * 6.0 * num_instances * m * sizeof(uint32_t);  
+        double bytes_accesses = 3.0 * num_instances * m * sizeof(uint32_t);  
         double gigabytes = bytes_accesses / (runtime_microsecs * 1000);
 
-        printf( "CGBN SIX Additions (num-instances = %d, num-word-len = %d, total-size: %d) \
-runs in: %lu microsecs, GB/sec: %.2f, Mil-Instances/sec: %.2f\n"
+        printf( "CGBN TEN Additions (num-instances = %d, num-word-len = %d, total-size: %d) \
+runs in: %lu microsecs, GB/sec: %.2f\n"
               , num_instances, m, num_instances * m, elapsed
-              , gigabytes, num_instances / runtime_microsecs
+              , gigabytes
               );
 	    
         // error report uses managed memory, so we sync the device (or stream) and check for cgbn errors
@@ -162,8 +150,6 @@ void runMul ( const uint32_t num_instances, const uint32_t cuda_block
             , cgbn_error_report_t *report,  instance_t  *gpuInstances
             , instance_t  *instances
 ) {
-    //printf("Running GPU kernel ...\n");
-
     const uint32_t ipb = cuda_block/TPI;
 
 	// start timer
@@ -180,9 +166,7 @@ void runMul ( const uint32_t num_instances, const uint32_t cuda_block
 	gettimeofday(&t_end, NULL);
 	timeval_subtract(&t_diff, &t_end, &t_start);
 	elapsed = (t_diff.tv_sec*1e6+t_diff.tv_usec) / GPU_RUNS_CMUL;
-	
-	//printf("Average of %d runs: %ld\n", GPU_RUNS_CMUL, elapsed);
-	
+
 	gpuAssert( cudaPeekAtLastError() );
 
     const uint32_t m = BITS / 32;
@@ -191,9 +175,9 @@ void runMul ( const uint32_t num_instances, const uint32_t cuda_block
     double gigaopsu32 = num_u32_ops / (runtime_microsecs * 1000);
 
     printf( "CGBN Multiply (num-instances = %d, num-word-len = %d, total-size: %d), \
-averaged over %d runs: %lu microsecs, Gu32ops/sec: %.2f, Mil-Instances/sec: %.2f\n"
+averaged over %d runs: %lu microsecs, Gu32ops/sec: %.2f\n"
           , num_instances, m, num_instances * m, GPU_RUNS_CMUL
-          , elapsed, gigaopsu32, num_instances / runtime_microsecs
+          , elapsed, gigaopsu32
           );
 	
     // error report uses managed memory, so we sync the device (or stream) and check for cgbn errors
@@ -201,62 +185,43 @@ averaged over %d runs: %lu microsecs, Gu32ops/sec: %.2f, Mil-Instances/sec: %.2f
 	CGBN_CHECK(report);
 
 	// copy the instances back from gpuMemory
-	// printf("Copying results back to CPU, size of instance_t: %d ...\n", sizeof(instance_t));
 	CUDA_CHECK(cudaMemcpy(instances, gpuInstances, sizeof(instance_t)*num_instances, cudaMemcpyDeviceToHost));
 
-	//printf("Verifying the results ...\n");
-	//verify_results(instances, num_instances);
 	verifyResults(false, num_instances, instances);
-}
 
-void runPoly( const uint32_t num_instances, const uint32_t cuda_block
-            , cgbn_error_report_t *report,  instance_t  *gpuInstances
-            , instance_t  *instances
-) {
-    //printf("Running GPU kernel ...\n");
+        { // testing 6 multiplications
+            // start timer
+            unsigned long int elapsed = 0;
+            struct timeval t_start, t_end, t_diff;
+            gettimeofday(&t_start, NULL);
 
-    const uint32_t ipb = cuda_block/TPI;
-
-	// start timer
-	unsigned long int elapsed = 0;
-	struct timeval t_start, t_end, t_diff;
-	gettimeofday(&t_start, NULL);
-
-	// launch with 32 threads per instance, 128 threads (4 instances) per block
-	for(int i = 0; i < GPU_RUNS_POLY; i++)
-		kernel_poly<<<(num_instances+ipb-1)/ipb, cuda_block>>>(report, gpuInstances, num_instances);
-	cudaDeviceSynchronize();
+            // launch with 32 threads per instance, 128 threads (4 instances) per block
+            for(int i = 0; i < GPU_RUNS_CMUL; i++)
+		kernel_6mul<<<(num_instances+ipb-1)/ipb, cuda_block>>>(report, gpuInstances, num_instances);
+            cudaDeviceSynchronize();
 	
-	//end timer
-	gettimeofday(&t_end, NULL);
-	timeval_subtract(&t_diff, &t_end, &t_start);
-	elapsed = (t_diff.tv_sec*1e6+t_diff.tv_usec) / GPU_RUNS_POLY;
+            //end timer
+            gettimeofday(&t_end, NULL);
+            timeval_subtract(&t_diff, &t_end, &t_start);
+            elapsed = (t_diff.tv_sec*1e6+t_diff.tv_usec) / GPU_RUNS_CMUL;
+
+            gpuAssert( cudaPeekAtLastError() );
+
+            const uint32_t m = BITS / 32;
+            double runtime_microsecs = elapsed;
+            double num_u32_ops = 4.0 * 6.0 * num_instances * m * m; 
+            double gigaopsu32 = num_u32_ops / (runtime_microsecs * 1000);
+
+            printf( "CGBN SIX Multiply (num-instances = %d, num-word-len = %d, total-size: %d), \
+averaged over %d runs: %lu microsecs, Gu32ops/sec: %.2f\n"
+                    , num_instances, m, num_instances * m, GPU_RUNS_CMUL
+                    , elapsed, gigaopsu32
+                    );
 	
-	//printf("Average of %d runs: %ld\n", GPU_RUNS_POLY, elapsed);
-	
-	gpuAssert( cudaPeekAtLastError() );
-
-    const uint32_t m = BITS / 32;
-    double runtime_microsecs = elapsed;
-    double num_u32_ops = 4.0 * 4.0 * num_instances * m * m; 
-    double gigaopsu32 = num_u32_ops / (runtime_microsecs * 1000);
-
-    printf( "CGBN Polynomial (num-instances = %d, num-word-len = %d, total-size: %d), \
-averaged over %d runs: %lu microsecs, Gu32ops/sec: %.2f, Mil-Instances/sec: %.2f\n"
-          , num_instances, m, num_instances * m, GPU_RUNS_POLY
-          , elapsed, gigaopsu32, num_instances / runtime_microsecs
-          );
-	
-    // error report uses managed memory, so we sync the device (or stream) and check for cgbn errors
-	CUDA_CHECK(cudaDeviceSynchronize());
-	CGBN_CHECK(report);
-
-	// copy the instances back from gpuMemory
-	//printf("Copying results back to CPU ...\n");
-	CUDA_CHECK(cudaMemcpy(instances, gpuInstances, sizeof(instance_t)*num_instances, cudaMemcpyDeviceToHost));
-
-	//printf("Verifying the results ...\n");
-	//verify_results(instances, num_instances);
+            // error report uses managed memory, so we sync the device (or stream) and check for cgbn errors
+            CUDA_CHECK(cudaDeviceSynchronize());
+            CGBN_CHECK(report);
+        }
 }
 
 
@@ -271,10 +236,8 @@ int main(int argc, char * argv[]) {
     instance_t          *instances, *gpuInstances;
 	cgbn_error_report_t *report;
 
-	//printf("Genereating instances ...\n");
 	instances=generate_instances(num_instances);
 
-	//printf("Copying instances to the GPU ...\n");
 	CUDA_CHECK(cudaSetDevice(0));
 	CUDA_CHECK(cudaMalloc((void **)&gpuInstances, sizeof(instance_t)*num_instances));
 	CUDA_CHECK(cudaMemcpy(gpuInstances, instances, sizeof(instance_t)*num_instances, cudaMemcpyHostToDevice));
@@ -285,7 +248,6 @@ int main(int argc, char * argv[]) {
     
     runAdd (num_instances, 128, report, gpuInstances, instances);
     runMul (num_instances, 128, report, gpuInstances, instances);
-    runPoly(num_instances, 128, report, gpuInstances, instances);
     
 	// clean up
 	free(instances);
