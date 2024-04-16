@@ -17,6 +17,7 @@ void gmpRun(int m, int t, uint32_t* as, uint32_t* bs, uint32_t* rs) {
     }
 
     mpz_export(rs, NULL, -1, sizeof(uint32_t), 0, 0, r);
+    mpz_clear(a); mpz_clear(b); mpz_clear(r);
 }
 
 int main(int argc, char* argv[]) {
