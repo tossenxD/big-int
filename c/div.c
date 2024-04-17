@@ -237,32 +237,41 @@ void multmod(bigint_t u, bigint_t v, int d, bigint_t w, prec_t m) {
 }
 
 // powerdiff function as described in the paper, writes result to big-int `P`
-void powerdiff(bigint_t v, bigint_t w, int h, int l, bigint_t P, prec_t m) {
+// (note, instead of incorporating signs in the big-ints, we return a bool)
+bool powerdiff(bigint_t v, bigint_t w, int h, int l, bigint_t P, prec_t m) {
     int L = 2*m - l + 1;
     bigint_t bh = bpow(h, m);
-    if (ez(v, m) || ez(w, m)) { // multiplication by 0 so `P = B^h`
+    bool retval = 0; // +
+    if (ez(v, m) || ez(w, m)) // multiplication by 0 so `P = B^h`
         cpy(P, bh, m);
-    }
     else if (L >= h) {
         mult(v, w, P, m);
-        sub(bh, P, P, m); // TODO how to subtract?
+        if (lt(P, bh, m))
+            sub(bh, P, P, m);
+        else {
+            sub(P, bh, P, m);
+            retval = 1; // -
+        }
     }
     else {
         multmod(v, w, L, P, m);
         if (!ez(P, m)) {
-            if (P[L-1] == 0) {
-                bigint_t z = init(m);
-                sub(z, P, P, m); // TODO how to subtract?
-                free(z);
-            }
+            if (P[L-1] == 0)
+                retval = 1; // -
             else {
                 bigint_t bL = bpow(L, m);
-                sub(bL, P, P, m); // TODO how to subtract?
+                if (lt(P, bL, m))
+                    sub(bL, P, P, m);
+                else {
+                    sub(P, bL, P, m);
+                    retval = 1; // -
+                }
                 free(bL);
             }
         }
     }
     free(bh);
+    return retval;
 }
 
 // step function as described in the paper s.t. it writes result to big-int `w`
@@ -274,12 +283,17 @@ void step(int h, bigint_t v, bigint_t w, int n, int l, int g, prec_t m) {
     shift(n, w0, w0, m);
 
     // multiply, powerdiff and shift
-    powerdiff(v, w, h - m, l - g, P, m);
+    bool sign = powerdiff(v, w, h - m, l - g, P, m);
     mult(w, P, w, m); // TODO should `m` be doubled?
     shift(2*m - h, w, w, m);
 
-    // add the two terms and free the copy
-    add(w, w0, w, m);
+    // add/subtract the two terms
+    if (sign)
+        sub(w, w0, w, m);
+    else
+        add(w, w0, w, m);
+
+    // cleanup
     free(w0);
     free(P);
 }
@@ -288,8 +302,10 @@ void step(int h, bigint_t v, bigint_t w, int n, int l, int g, prec_t m) {
 void refine1(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
     int g = 1;
     h += g;
+    prnt("w", w, m);
     shift(h - k - l, w, w, m); // scale initial value to full length
     while (h - k > l) {
+        prnt("w", w, m);
         step(h, v, w, 0, l, 0, m);
         l = min(2*l - 1, h - k); // number of correct digits
     }
@@ -380,8 +396,8 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
            `[0,0,0,0,1]`). Hence, subtracting `V` from `b^2(2*l)` results in a
            term of either 2 or 4 digits.
 
-           In turns, this mean we can represent everything as unsigned 128-bit
-           integers, which C supports, meaning we can efficiently divide.
+           In turn, we can represent everything as unsigned 128-bit integers,
+           which C supports, meaning we can efficiently divide.
         */
         __uint128_t V =      (__uint128_t) v[k-l];
         V +=                ((__uint128_t) v[k-l+1]) << 32;
@@ -405,6 +421,8 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
 
 // divides big-int `u` by `v` and write result to `w` using method from the paper
 void div_shinv(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
+    int h = findk(u, m) + 1;
+
     // requires padding of at least one since if `h=m` then `B^h > (B^m)-1`
     prec_t   p = m*2; // `m` padding because of multiplication (inefficient)
     bigint_t a = init(p); cpy(a, u, m); // `a = u`
@@ -412,7 +430,6 @@ void div_shinv(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
     bigint_t r = init(p);               // `r = w`
 
     // TODO, how to handle delta?
-    int h = findk(u, m) + 1;
     shinv(b, h, r, p);  // `r = shinv_h b`
     mult(a, r, b, p);   // `b = a * r`
     shift(-h, b, r, p); // `r = shift_(-h) b`
