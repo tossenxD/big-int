@@ -10,6 +10,8 @@
 
 #define GPU_RUNS_ADD  100
 #define GPU_RUNS_CMUL 25
+#define ADD 1
+#define MUL 0
 
 /****************************/
 /***  support routines    ***/
@@ -245,9 +247,12 @@ int main(int argc, char * argv[]) {
 	// create a cgbn_error_report for CGBN to report back errors
 	CUDA_CHECK(cgbn_error_report_alloc(&report)); 
 
-    
+  #if ADD
     runAdd (num_instances, 128, report, gpuInstances, instances);
+  #endif
+  #if MUL
     runMul (num_instances, 128, report, gpuInstances, instances);
+  #endif
     
 	// clean up
 	free(instances);
