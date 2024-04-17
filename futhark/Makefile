@@ -45,21 +45,21 @@ ten-add64:
 
 mul: mul32 mul64
 
-mul32: one-mul32 ten-mul32
+mul32: one-mul32 six-mul32
 
-mul64: one-mul64 ten-mul64
+mul64: one-mul64 six-mul64
 
 one-mul32:
 	futhark bench $(BFLGS) $(BDIR)one-mul32.fut $(FORM)
 
-ten-mul32:
-	futhark bench $(BFLGS) $(BDIR)ten-mul32.fut $(FORM)
+six-mul32:
+	futhark bench $(BFLGS) $(BDIR)six-mul32.fut $(FORM)
 
 one-mul64:
 	futhark bench $(BFLGS) $(BDIR)one-mul64.fut $(FORM)
 
-ten-mul64:
-	futhark bench $(BFLGS) $(BDIR)ten-mul64.fut $(FORM)
+six-mul64:
+	futhark bench $(BFLGS) $(BDIR)six-mul64.fut $(FORM)
 
 
 
