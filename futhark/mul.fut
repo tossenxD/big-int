@@ -25,8 +25,11 @@ def iterate64 (l: u64, h: u64, c: u64) (a: u64) (b: u64) : (u64, u64, u64) =
   let cn = c + (u64.bool (hn < h))
   in (ln, hn, cn)
 
-def rev [n] 'a (as: [n]a) : [n]a =
-  map (\ i -> as[n-1 - i]) (0..<n)
+def combine64 (l0:u64,h0:u64,c0:u64) (l1:u64,h1:u64,c1:u64): (u64,u64,u64,u64) =
+  let h0l1 = h0 + l1
+  let h1c0c = h1 + c0 + (u64.bool (h0l1 < h0))
+  let c1c = c1 + (u64.bool (h1c0c < h1))
+  in (l0, h0l1, h1c0c, c1c)
 
 
 --------------------------------------------------------------------------------
@@ -76,3 +79,40 @@ def convMult64 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
   let cs = map (\ i -> if i <= 1 then 0 else cs[i-2]) (iota n)
   -- add the low, high and carry parts
   in badd64v1 ls hs |> badd64v1 cs
+
+
+def convMult64v2 [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
+  -- function that computes a low, high and carry part of multiplication
+  let convMultLhcs (tid: i64) : ( (u64, u64, u64, u64), (u64, u64, u64, u64) ) =
+    let k1 = tid * 2
+    let (lhc1, lhc2) =
+      loop (lhc1,lhc2) = ((0u64,0u64,0u64),(0u64,0u64,0u64)) for i < k1 + 1 do
+      let j = k1 - i
+      let a = as[i]
+      let lhc1 = iterate64 lhc1 a bs[j]
+      let lhc2 = iterate64 lhc2 a bs[j+1]
+      in (lhc1, lhc2)
+    let lhc2 = iterate64 lhc2 as[k1+1] bs[0]
+
+    let k2 = m-1 - k1
+    let (lhc3, lhc4) =
+      loop (lhc3,lhc4) = ((0u64,0u64,0u64),(0u64,0u64,0u64)) for i < k2 do
+      let j = k2-1 - i
+      let a = as[i]
+      let lhc3 = iterate64 lhc3 a bs[j]
+      let lhc4 = iterate64 lhc4 a bs[j+1]
+      in (lhc3, lhc4)
+    let lhc4 = iterate64 lhc4 as[k2] bs[0]
+
+    in (combine64 lhc1 lhc2, combine64 lhc3 lhc4)
+
+  -- find two low-, high- and carry-parts for each thread
+  let (lhcs1, lhcs2) = map convMultLhcs (iota (m/4)) |> unzip
+  let lhcss = lhcs1 ++ (rev lhcs2)
+  let (lhcss1, lhcss2) = map (\i -> (lhcss[i*2],lhcss[i*2+1])) (0..<m/4) |> unzip
+  let (l1s, hl1s, ch1s, cc1s) = unzip4 lhcss1
+  let (l2s, hl2s, ch2s, cc2s) = unzip4 lhcss2
+  let lhcs1sh = l1s ++ hl1s ++ ch1s ++ cc1s :> [m]u64
+  let lhcs2sh = l2s ++ hl2s ++ ch2s ++ cc2s :> [m]u64
+  let lhcs2sh = map (\ i -> if i <= 1 then 0 else lhcs2sh[i-2]) (iota m)
+  in badd64v2 lhcs1sh lhcs2sh -- TODO since its already in shared, should call RUN version
