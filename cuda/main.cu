@@ -292,7 +292,7 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
     cudaMemcpy(d_bs, h_bs, mem_size_nums, cudaMemcpyHostToDevice);
 
     // 3. kernel dimensions
-    const uint32_t q = (v == 1 || v == 3) ? 2 : 4;
+    const uint32_t q = (v >= 1 && v <= 3) ? 2 : 4;
     assert(m%q == 0 && m >= q && m/q <= 1024);
     const uint32_t ipb = (v == 3 || v == 5) ? (256 + m - 1) / m : 1; // TODO finetune after v5 valid
     dim3 block(ipb*(m/q), 1, 1);
@@ -308,7 +308,7 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
         if      (v == 1)
             convMult1<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 2)
-            convMult2<Base,m,q>  <<< grid, block >>>(d_as, d_bs, d_rs);
+            convMult2<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 3)
             convMult3<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 4)
@@ -320,7 +320,7 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
         if      (v == 1)
             convMult1Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 2)
-            convMult2Bench<Base,m,q,6>  <<< grid, block >>>(d_as, d_bs, d_rs);
+            convMult2Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 3)
             convMult3Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 4)
@@ -343,7 +343,7 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
                 convMult1<Base,m>     <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 2)
             for(int i=0; i<GPU_RUNS_MUL; i++)
-                convMult2<Base,m,q>   <<< grid, block >>>(d_as, d_bs, d_rs);
+                convMult2<Base,m>     <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 3)
              for(int i=0; i<GPU_RUNS_MUL; i++)
                  convMult3<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
@@ -360,7 +360,7 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
                 convMult1Bench<Base,m,6>     <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 2)
             for(int i=0; i<GPU_RUNS_MUL; i++)
-                convMult2Bench<Base,m,q,6>   <<< grid, block >>>(d_as, d_bs, d_rs);
+                convMult2Bench<Base,m,6>     <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 3)
              for(int i=0; i<GPU_RUNS_MUL; i++)
                  convMult3Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
