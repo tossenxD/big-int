@@ -580,7 +580,7 @@ convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
         // 1.1. compute two consecutive sums over `k1`
         ubig_t lhc0[2]; lhc0[0] = 0; lhc0[1] = 0;
         ubig_t lhc1[2]; lhc1[0] = 0; lhc1[1] = 0;
-        int k1 = threadIdx.x*2 + (m/2) * ((threadIdx.x*4)/m);
+        int k1 = threadIdx.x*2;
         int k1_start = (k1/m) * m;
 
         for (int i=k1_start; i<=k1; i++) {
@@ -621,10 +621,8 @@ convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
         // 1.3. compute two consecutive sums over `k2`
         lhc0[0] = 0; lhc0[1] = 0;
         lhc1[0] = 0; lhc1[1] = 0;
-        // int k2 = ipb*m-1 - k1;
-        int k2 = k1_start+m-1 - k1;
-        // int k2_start = (k2/m) * m;
-        int k2_start = k1_start;
+        int k2 = ipb*m-1 - k1;
+        int k2_start = (k2/m) * m;
 
         for (int i=k2_start; i<=k2-1; i++) {
             // fetch memory
@@ -668,73 +666,18 @@ convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
            still access consecutive memory cells, but does so in reversed order.
            Hopefully, this also results in wrap-level memory hits.
         */
-        int s = m / 2; // stride
-        int inid = ((threadIdx.x*4)/m); // instance ID
-        int itid = (threadIdx.x % (m/4)); // thread ID within instance
+        int off = threadIdx.x;
+        int s = ipb * m/2;
 
-        int off1 = s * inid + itid;
-        int off2 = s * inid + s-1 - itid;
+        shmem_buff[off] = lhck1[0];
+        shmem_buff[off+s] = lhck1[1];
+        shmem_buff[off+2*s] = lhck1[2];
+        shmem_buff[off+3*s] = lhck1[3];
 
-        s *= ipb;
-
-        shmem_buff[off1] = lhck1[0];
-        shmem_buff[off2] = lhck2[0];
-
-        shmem_buff[off1+s] = lhck1[1];
-        shmem_buff[off2+s] = lhck2[1];
-
-        shmem_buff[off1+2*s] = lhck1[2];
-        shmem_buff[off2+2*s] = lhck2[2];
-
-        shmem_buff[off1+3*s] = lhck1[3];
-        shmem_buff[off2+3*s] = lhck2[3];
-
-        // TODO fix above code and delete below code
-        
-        // int ioff = ((threadIdx.x*4)/m)*m;
-        // int off = threadIdx.x;
-        // int s = m / 2;
-
-        // shmem_buff[ioff+off] = lhck1[0];
-        // shmem_buff[ioff+off+s] = lhck1[1];
-        // shmem_buff[ioff+off+2*s] = lhck1[2];
-        // shmem_buff[ioff+off+3*s] = lhck1[3];
-
-        // shmem_buff[ioff+s-off-1] = lhck2[0];
-        // shmem_buff[ioff+s*2-off-1] = lhck2[1];
-        // shmem_buff[ioff+s*3-off-1] = lhck2[2];
-        // shmem_buff[ioff+s*4-off-1] = lhck2[3];
-
-        
-        // int s = m / 2;
-        // int off = threadIdx.x + s * ((threadIdx.x*4)/m);
-        // int ioff = ((off/m) * m);
-
-        // shmem_buff[off] = lhck1[0];
-        // shmem_buff[off+s] = lhck1[1];
-        // shmem_buff[off+2*s] = lhck1[2];
-        // shmem_buff[off+3*s] = lhck1[3];
-
-        // shmem_buff[ioff+s-off-1] = lhck2[0];
-        // shmem_buff[ioff+s*2-off-1] = lhck2[1];
-        // shmem_buff[ioff+s*3-off-1] = lhck2[2];
-        // shmem_buff[ioff+s*4-off-1] = lhck2[3];
-
-
-        
-        
-        // int off = threadIdx.x;
-        // int s = (ipb*m) / 2;
-
-        // shmem_buff[off] = lhck1[0];
-        // shmem_buff[off+s] = lhck1[1];
-        // shmem_buff[off+2*s] = lhck1[2];
-        // shmem_buff[off+3*s] = lhck1[3];
-
-        // shmem_buff[s-off-1] = lhck2[0];
-        // shmem_buff[s*2-off-1] = lhck2[1];
-        // shmem_buff[s*3-off-1] = lhck2[2];
-        // shmem_buff[s*4-off-1] = lhck2[3];
+        shmem_buff[s-off-1] = lhck2[0];
+        shmem_buff[s*2-off-1] = lhck2[1];
+        shmem_buff[s*3-off-1] = lhck2[2];
+        shmem_buff[s*4-off-1] = lhck2[3];
     }
     __syncthreads();
 
@@ -743,7 +686,7 @@ convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
         /* Memory cells are read in groups of two, where each group is fetched coalesced.
         */
         int off = threadIdx.x*2;
-        int s = ipb*(m/2);
+        int s = ipb * m/2;
 
         lhck1[0] = shmem_buff[off];
         lhck2[2] = shmem_buff[off+1];
@@ -751,10 +694,10 @@ convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
         lhck1[1] = shmem_buff[off+s];
         lhck2[3] = shmem_buff[off+s+1];
 
-        lhck2[0] = ((off*2) % m) ? shmem_buff[off+2*s-1] : 0;
+        lhck2[0] = (off*2 % m) ? shmem_buff[off+2*s-1] : 0;
         lhck1[2] = shmem_buff[off+2*s];
 
-        lhck2[1] = ((off*2) % m) ? shmem_buff[off+3*s-1] : 0;
+        lhck2[1] = (off*2 % m) ? shmem_buff[off+3*s-1] : 0;
         lhck1[3] = shmem_buff[off+3*s];
     }
     __syncthreads();
