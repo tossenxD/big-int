@@ -4,6 +4,52 @@
 #include "ker-helpers.cu.h"
 #include "ker-add.cu.h"
 
+/***************/
+/*** Helpers ***/
+/***************/
+
+/* This function takes two low and high parts of two consecutive multiplication convolutions, both
+   stored as the data type `Base::ubig_t`, and it then first converts each set of low-high parts to
+   a set of low-high-carry parts in the normal base type `Base::uint_t`, and then combines both
+   sets. Below is a illustration of the process (where overflows denoted by `ov` and an arrow):
+
+     Step 1.                                        <----\
+      `[l00l01, h00h01]` --becomes--> `[l00, h00+l01, h01+ov]` --renamed--> `[l0, h0, c0]'
+      `[l10l11, h10h11]` --becomes--> `[l10, h10+l11, h11+ov]` --renamed--> `[l1, h1, c1]'
+                                                    <----/
+     Step 2.               <---\
+      '[l0, h0+l1, c0+h1+ov, c1+ov]`
+                 <------/
+*/
+template<class Base>
+__device__ void
+combine(typename Base::ubig_t* lhc_a, typename Base::ubig_t* lhc_b, typename Base::uint_t* lhc_r) {
+    using uint_t = typename Base::uint_t;
+
+    uint_t h0t = (uint_t) lhc_a[1];
+    uint_t h0  = h0t + ((uint_t) (lhc_a[0] >> Base::bits));
+    uint_t c0  = ((uint_t) (lhc_a[1] >> Base::bits)) + (h0 < h0t);
+
+    uint_t h1t = (uint_t) lhc_b[1];
+    uint_t h1  = h1t + ((uint_t) (lhc_b[0] >> Base::bits));
+    uint_t c1  = ((uint_t) (lhc_b[1] >> Base::bits)) + (h1 < h1t);
+
+    lhc_r[0] = (uint_t) lhc_a[0];
+    lhc_r[1] = h0 + ((uint_t) lhc_b[0]);
+    lhc_r[2] = c0 + h1 + (lhc_r[1] < h0);
+    lhc_r[3] = c1 + (lhc_r[2] < h1);
+}
+
+// Computes a convolution iteration using `Base::ubig_t`-representation.
+template<class Base>
+__device__ void
+iterate(typename Base::uint_t a, typename Base::uint_t b, typename Base::ubig_t* lh) {
+    using ubig_t = typename Base::ubig_t;
+    ubig_t ab = ((ubig_t) a) * ((ubig_t) b);
+    lh[0] += ab & ((ubig_t) Base::HIGHEST);
+    lh[1] += ab >> Base::bits;
+}
+
 /****************************************************/
 /*** Big Integer Multiplication By Convolution v1 ***/
 /****************************************************/
@@ -384,83 +430,35 @@ convMult4Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
     uint_t lhck1[4];
     uint_t lhck2[4];
     {
-        // 1.1. compute two consecutive sums over `k1`
-        ubig_t lhc0[2]; lhc0[0] = 0; lhc0[1] = 0;
-        ubig_t lhc1[2]; lhc1[0] = 0; lhc1[1] = 0;
+        // 1.1. compute two consecutive convolutions over `k1`
+        ubig_t lh0[2]; lh0[0] = 0; lh0[1] = 0;
+        ubig_t lh1[2]; lh1[0] = 0; lh1[1] = 0;
         int k1 = threadIdx.x*2;
 
         for (int i=0; i<=k1; i++) {
-            // fetch memory
             int j = k1 - i;
-            ubig_t a = (ubig_t) shmem_as[i];
-            ubig_t ab0 = a * ((ubig_t) shmem_bs[j]);
-            ubig_t ab1 = a * ((ubig_t) shmem_bs[j+1]);
-
-            // compute high and low parts of result
-            lhc0[0] += ab0 & ((ubig_t) Base::HIGHEST);
-            lhc0[1] += ab0 >> Base::bits;
-            lhc1[0] += ab1 & ((ubig_t) Base::HIGHEST);
-            lhc1[1] += ab1 >> Base::bits;
-        }
-        {   // do the remaining computation (i.e. `i=k1+1`)
-            ubig_t ab = ((ubig_t) shmem_as[k1+1]) * ((ubig_t) shmem_bs[0]);
-            lhc1[0] += ab & ((ubig_t) Base::HIGHEST);
-            lhc1[1] += ab >> Base::bits;
-        }
+            uint_t a = shmem_as[i];
+            iterate<Base>(a, shmem_bs[j], lh0);
+            iterate<Base>(a, shmem_bs[j+1], lh1);
+        }   iterate<Base>(shmem_as[k1+1], shmem_bs[0], lh1); // the remaining computation (`i=k1+1`)
 
         // 1.2. combine results associated with `k1` (i.e. compute `lhck1`)
-        {
-            uint_t h0t = (uint_t) lhc0[1];
-            uint_t h0  = h0t + ((uint_t) (lhc0[0] >> Base::bits));
-            uint_t c0  = ((uint_t) (lhc0[1] >> Base::bits)) + (h0 < h0t);
+        combine<Base>(lh0, lh1, lhck1);
 
-            uint_t h1t = (uint_t) lhc1[1];
-            uint_t h1  = h1t + ((uint_t) (lhc1[0] >> Base::bits));
-            uint_t c1  = ((uint_t) (lhc1[1] >> Base::bits)) + (h1 < h1t);
-
-            lhck1[0] = (uint_t) lhc0[0];
-            lhck1[1] = h0 + ((uint_t) lhc1[0]);
-            lhck1[2] = c0 + h1 + (lhck1[1] < h0);
-            lhck1[3] = c1 + (lhck1[2] < h1);
-        }
-
-        // 1.3. compute two consecutive sums over `k2`
-        lhc0[0] = 0; lhc0[1] = 0;
-        lhc1[0] = 0; lhc1[1] = 0;
+        // 1.3. compute two consecutive convolutions over `k2`
+        lh0[0] = 0; lh0[1] = 0;
+        lh1[0] = 0; lh1[1] = 0;
         int k2 = m-1 - k1;
 
         for (int i=0; i<=k2-1; i++) {
-            // fetch memory
             int j = k2-1 - i;
-            ubig_t a = (ubig_t) shmem_as[i];
-            ubig_t ab0 = a * ((ubig_t) shmem_bs[j]);
-            ubig_t ab1 = a * ((ubig_t) shmem_bs[j+1]);
-
-            // compute high and low parts of result
-            lhc0[0] += ab0 & ((ubig_t) Base::HIGHEST);
-            lhc0[1] += ab0 >> Base::bits;
-            lhc1[0] += ab1 & ((ubig_t) Base::HIGHEST);
-            lhc1[1] += ab1 >> Base::bits;
-        }
-        {   // do the remaining computation (i.e. `i=k2`)
-            ubig_t ab = ((ubig_t) shmem_as[k2]) * ((ubig_t) shmem_bs[0]);
-            lhc1[0] += ab & ((ubig_t) Base::HIGHEST);
-            lhc1[1] += ab >> Base::bits;
-        }
+            uint_t a = shmem_as[i];
+            iterate<Base>(a, shmem_bs[j], lh0);
+            iterate<Base>(a, shmem_bs[j+1], lh1);
+        }   iterate<Base>(shmem_as[k2], shmem_bs[0], lh1); // the remaining computation (`i=k2`)
 
         // 1.4. combine results associated with `k2` (i.e. compute `lhck2`)
-        uint_t h0t = (uint_t) lhc0[1];
-        uint_t h0  = h0t + ((uint_t) (lhc0[0] >> Base::bits));
-        uint_t c0  = ((uint_t) (lhc0[1] >> Base::bits)) + (h0 < h0t);
-
-        uint_t h1t = (uint_t) lhc1[1];
-        uint_t h1  = h1t + ((uint_t) (lhc1[0] >> Base::bits));
-        uint_t c1  = ((uint_t) (lhc1[1] >> Base::bits)) + (h1 < h1t);
-
-        lhck2[0] = (uint_t) lhc0[0];
-        lhck2[1] = h0 + ((uint_t) lhc1[0]);
-        lhck2[2] = c0 + h1 + (lhck2[1] < h0);
-        lhck2[3] = c1 + (lhck2[2] < h1);
+        combine<Base>(lh0, lh1, lhck2);
     }
     __syncthreads();
 
@@ -578,84 +576,37 @@ convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
     uint_t lhck2[4];
     {
         // 1.1. compute two consecutive sums over `k1`
-        ubig_t lhc0[2]; lhc0[0] = 0; lhc0[1] = 0;
-        ubig_t lhc1[2]; lhc1[0] = 0; lhc1[1] = 0;
+        ubig_t lh0[2]; lh0[0] = 0; lh0[1] = 0;
+        ubig_t lh1[2]; lh1[0] = 0; lh1[1] = 0;
         int k1 = threadIdx.x*2;
         int k1_start = (k1/m) * m;
 
         for (int i=k1_start; i<=k1; i++) {
-            // fetch memory
             int j = k1 - i + k1_start;
-            ubig_t a = (ubig_t) shmem_as[i];
-            ubig_t ab0 = a * ((ubig_t) shmem_bs[j]);
-            ubig_t ab1 = a * ((ubig_t) shmem_bs[j+1]);
-
-            // compute high and low parts of result
-            lhc0[0] += ab0 & ((ubig_t) Base::HIGHEST);
-            lhc0[1] += ab0 >> Base::bits;
-            lhc1[0] += ab1 & ((ubig_t) Base::HIGHEST);
-            lhc1[1] += ab1 >> Base::bits;
-        }
-        {   // do the remaining computation (i.e. `i=k1+1`)
-            ubig_t ab = ((ubig_t) shmem_as[k1+1]) * ((ubig_t) shmem_bs[k1_start]);
-            lhc1[0] += ab & ((ubig_t) Base::HIGHEST);
-            lhc1[1] += ab >> Base::bits;
-        }
+            uint_t a = shmem_as[i];
+            iterate<Base>(a, shmem_bs[j], lh0);
+            iterate<Base>(a, shmem_bs[j+1], lh1);
+        }   iterate<Base>(shmem_as[k1+1], shmem_bs[k1_start], lh1); // the remaining computation
 
         // 1.2. combine results associated with `k1` (i.e. compute `lhck1`)
-        {
-            uint_t h0t = (uint_t) lhc0[1];
-            uint_t h0  = h0t + ((uint_t) (lhc0[0] >> Base::bits));
-            uint_t c0  = ((uint_t) (lhc0[1] >> Base::bits)) + (h0 < h0t);
-
-            uint_t h1t = (uint_t) lhc1[1];
-            uint_t h1  = h1t + ((uint_t) (lhc1[0] >> Base::bits));
-            uint_t c1  = ((uint_t) (lhc1[1] >> Base::bits)) + (h1 < h1t);
-
-            lhck1[0] = (uint_t) lhc0[0];
-            lhck1[1] = h0 + ((uint_t) lhc1[0]);
-            lhck1[2] = c0 + h1 + (lhck1[1] < h0);
-            lhck1[3] = c1 + (lhck1[2] < h1);
-        }
+        combine<Base>(lh0, lh1, lhck1);
 
         // 1.3. compute two consecutive sums over `k2`
-        lhc0[0] = 0; lhc0[1] = 0;
-        lhc1[0] = 0; lhc1[1] = 0;
+        lh0[0] = 0; lh0[1] = 0;
+        lh1[0] = 0; lh1[1] = 0;
         int k2 = ipb*m-1 - k1;
         int k2_start = (k2/m) * m;
 
         for (int i=k2_start; i<=k2-1; i++) {
             // fetch memory
             int j = k2-1 - i + k2_start;
-            ubig_t a = (ubig_t) shmem_as[i];
-            ubig_t ab0 = a * ((ubig_t) shmem_bs[j]);
-            ubig_t ab1 = a * ((ubig_t) shmem_bs[j+1]);
-
-            // compute high and low parts of result
-            lhc0[0] += ab0 & ((ubig_t) Base::HIGHEST);
-            lhc0[1] += ab0 >> Base::bits;
-            lhc1[0] += ab1 & ((ubig_t) Base::HIGHEST);
-            lhc1[1] += ab1 >> Base::bits;
-        }
-        {   // do the remaining computation (i.e. `i=k2`)
-            ubig_t ab = ((ubig_t) shmem_as[k2]) * ((ubig_t) shmem_bs[k2_start]);
-            lhc1[0] += ab & ((ubig_t) Base::HIGHEST);
-            lhc1[1] += ab >> Base::bits;
-        }
+            uint_t a = shmem_as[i];
+            iterate<Base>(a, shmem_bs[j], lh0);
+            iterate<Base>(a, shmem_bs[j+1], lh1);
+        }   iterate<Base>(shmem_as[k2], shmem_bs[k2_start], lh1); // the remaining computation
 
         // 1.4. combine results associated with `k2` (i.e. compute `lhck2`)
-        uint_t h0t = (uint_t) lhc0[1];
-        uint_t h0  = h0t + ((uint_t) (lhc0[0] >> Base::bits));
-        uint_t c0  = ((uint_t) (lhc0[1] >> Base::bits)) + (h0 < h0t);
-
-        uint_t h1t = (uint_t) lhc1[1];
-        uint_t h1  = h1t + ((uint_t) (lhc1[0] >> Base::bits));
-        uint_t c1  = ((uint_t) (lhc1[1] >> Base::bits)) + (h1 < h1t);
-
-        lhck2[0] = (uint_t) lhc0[0];
-        lhck2[1] = h0 + ((uint_t) lhc1[0]);
-        lhck2[2] = c0 + h1 + (lhck2[1] < h0);
-        lhck2[3] = c1 + (lhck2[2] < h1);
+        combine<Base>(lh0, lh1, lhck2);
     }
     __syncthreads();
 
