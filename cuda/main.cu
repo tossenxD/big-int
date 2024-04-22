@@ -294,7 +294,7 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
     // 3. kernel dimensions
     const uint32_t q = (v >= 1 && v <= 3) ? 2 : 4;
     assert(m%q == 0 && m >= q && m/q <= 1024);
-    const uint32_t ipb = (v == 3 || v == 5) ? (256 + m - 1) / m : 1; // TODO finetune after v5 valid
+    const uint32_t ipb = (v == 3 || v == 5) ? (128 + (m/q) - 1) / (m/q) : 1; // ceil(128/(m/q))
     dim3 block(ipb*(m/q), 1, 1);
     dim3 grid (num_instances/ipb, 1, 1);
     #if PRINT_DEBUG_INFO
