@@ -101,6 +101,7 @@ scanExcBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
 template<class S, uint32_t q>
 __device__ inline
 void cpReg2Shm (S reg[q], volatile S* shm) {
+    #pragma unroll
     for(int i=0; i<q; i++)
         shm[q*threadIdx.x + i] = reg[i];
 }
@@ -108,6 +109,7 @@ void cpReg2Shm (S reg[q], volatile S* shm) {
 template<class S, uint32_t q>
 __device__ inline
 void cpShm2Reg (volatile S* shm, S reg[q]) {
+    #pragma unroll
     for(int i=0; i<q; i++)
         reg[i] = shm[q*threadIdx.x + i];
 }
@@ -116,6 +118,7 @@ template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
 void cpGlb2Shm (S* glb, volatile S* shm) {
     uint64_t glb_offs = blockIdx.x * (m * ipb);
+    #pragma unroll
     for(int i=0; i<q; i++) {
         uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
         shm[loc_pos] = glb[glb_offs + loc_pos];
@@ -126,6 +129,7 @@ template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
 void cpShm2Glb (volatile S* shm, S* glb) {
     uint64_t glb_offs = blockIdx.x * (m * ipb);
+    #pragma unroll
     for(int i=0; i<q; i++) {
         uint32_t loc_pos = i*(ipb*m/q) + threadIdx.x;
         glb[glb_offs + loc_pos] = shm[loc_pos];
@@ -152,6 +156,7 @@ template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
 void cpGlb2Reg (S* glb, S reg[q]) {
     uint64_t glb_offs = blockIdx.x * (m * ipb);
+    #pragma unroll
     for(int i=0; i<q; i++)
         reg[i] = glb[glb_offs + threadIdx.x*q + i];
 }
@@ -160,6 +165,7 @@ template<class S, uint32_t m, uint32_t q, uint32_t ipb>
 __device__ inline
 void cpReg2Glb (S reg[q], S* glb) { 
     uint64_t glb_offs = blockIdx.x * (ipb * m);
+    #pragma unroll
     for(int i=0; i<q; i++)
         glb[glb_offs + threadIdx.x*q + i] = reg[i];
 }

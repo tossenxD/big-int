@@ -122,7 +122,7 @@ void gpuAdd (uint32_t num_instances, typename Base::uint_t* h_as,
     // 3. kernel dimensions
     const uint32_t q = (v == 1) ? 1 : (m <= 1024) ? 4 : (m+1024-1) / 1024; // ceil(m/1024)
     assert(m%q == 0 && m >= q && m/q <= 1024);
-    const uint32_t ipb = (v == 3) ? (128 + m/q - 1) / (m/q) : 1; // ceil(128/(m/q))
+    const uint32_t ipb = (v == 3) ? (256 + m/q - 1) / (m/q) : 1; // ceil(256/(m/q))
     dim3 block(ipb*(m/q), 1, 1);
     dim3 grid (num_instances/ipb, 1, 1);
 

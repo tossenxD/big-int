@@ -99,6 +99,7 @@ baddKer1Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Bas
     // 2. compute results with carry propagation p times
     __shared__ carry_t shmem[m];
     uint_t r = b;
+    #pragma unroll
     for(int i=0; i<p; i++) {
         r = baddKer1Run<Base,m>(a, r, shmem);
         __syncthreads();
@@ -183,6 +184,7 @@ baddKer2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Bas
     // 2. compute results with carry propagation p times
     uint_t* rss = bss;
     __shared__ carry_t shmem[m];
+    #pragma unroll
     for(int i=0; i<p; i++) {
         baddKer2Run<Base,m,q>(ass, rss, rss, shmem);
         __syncthreads();
@@ -269,6 +271,7 @@ baddKer3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Bas
     // 2. compute results with carry propagation p times
     uint_t* rss = bss;
     __shared__ carry_t shmem[m*ipb];
+    #pragma unroll
     for(int i=0; i<p; i++) {
         baddKer3Run<Base,m,q,ipb>(ass, rss, rss, shmem);
         __syncthreads();
