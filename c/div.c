@@ -95,6 +95,11 @@ prec_t findk(bigint_t u, prec_t m) {
     return k;
 }
 
+// computes how many digits are "used" + 1 (i.e. size without front zeroes)
+prec_t prec(bigint_t u, prec_t m) {
+    return findk(u, m) + 1;
+}
+
 // shifts a big-int `u` by `n` to the right or left depending on the sign of `n`
 // and writes result to big-int `v` (note that `u` and `v` can be the same)
 void shift(int n, bigint_t u, bigint_t v, prec_t m) {
@@ -239,7 +244,7 @@ void multmod(bigint_t u, bigint_t v, int d, bigint_t w, prec_t m) {
 // powerdiff function as described in the paper, writes result to big-int `P`
 // (note, instead of incorporating signs in the big-ints, we return a bool)
 bool powerdiff(bigint_t v, bigint_t w, int h, int l, bigint_t P, prec_t m) {
-    int L = 2*m - l + 1;
+    int L = prec(v, m) + prec(w, m) - l + 1;
     bigint_t bh = bpow(h, m);
     bool retval = 0; // +
     if (ez(v, m) || ez(w, m)) // multiplication by 0 so `P = B^h`
@@ -283,9 +288,9 @@ void step(int h, bigint_t v, bigint_t w, int n, int l, int g, prec_t m) {
     shift(n, w0, w0, m);
 
     // multiply, powerdiff and shift
-    bool sign = powerdiff(v, w, h - m, l - g, P, m);
-    mult(w, P, w, m); // TODO should `m` be doubled?
-    shift(2*m - h, w, w, m);
+    bool sign = powerdiff(v, w, h - n, l - g, P, m);
+    mult(w, P, w, m);
+    shift(2*n - h, w, w, m);
 
     // add/subtract the two terms
     if (sign)
@@ -302,10 +307,8 @@ void step(int h, bigint_t v, bigint_t w, int n, int l, int g, prec_t m) {
 void refine1(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
     int g = 1;
     h += g;
-    prnt("w", w, m);
     shift(h - k - l, w, w, m); // scale initial value to full length
     while (h - k > l) {
-        prnt("w", w, m);
         step(h, v, w, 0, l, 0, m);
         l = min(2*l - 1, h - k); // number of correct digits
     }
@@ -337,7 +340,7 @@ void refine3(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
         shift(-s, v, v0, m);
         step(k + l + n - s + g, v0, w, n, l, g, m);
         shift(-1, w, w, m);
-        l += m - 1;
+        l += n - 1;
     }
 
     shift(-g, w, w, m);
@@ -384,7 +387,7 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
     }
 
     // 3. form initial approximation
-    int l = min(k, 2);
+    int l = 2; //min(k, 2); // TODO how to handle l=1?
     {
         /* The method for finding the initial approximation described in the
            paper focuses on a generalized base. However, we can specialize it
@@ -416,7 +419,7 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
 
     // 4. either return (if sufficient) or refine initial approximation
     if (h - k <= l) { shift(h - k - l, w, w, m); }
-    else            { refine1(v, h, k, w, l, m); }
+    else            { refine3(v, h, k, w, l, m); }
 }
 
 // divides big-int `u` by `v` and write result to `w` using method from the paper
@@ -424,17 +427,17 @@ void div_shinv(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
     int h = findk(u, m) + 1;
 
     // requires padding of at least one since if `h=m` then `B^h > (B^m)-1`
-    prec_t   p = m*2; // `m` padding because of multiplication (inefficient)
+    prec_t   p = m*2; // `m` padding because of multiplication
     bigint_t a = init(p); cpy(a, u, m); // `a = u`
     bigint_t b = init(p); cpy(b, v, m); // `b = v`
     bigint_t r = init(p);               // `r = w`
 
-    // TODO, how to handle delta?
     shinv(b, h, r, p);  // `r = shinv_h b`
     mult(a, r, b, p);   // `b = a * r`
     shift(-h, b, r, p); // `r = shift_(-h) b`
 
     cpy(w, r, m);
+
     free(a); free(b); free(r);
 }
 
@@ -455,43 +458,83 @@ void div_gmp(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        printf("Usage: %s <m> <space-seperated big integers>\n", argv[0]);
+        printf("Usage-fixd: %s 0 <m> <space-seperated big-ints>\n", argv[0]);
+        printf("Usage-rand: %s 1 <m>\n", argv[0]);
         exit(1);
     }
 
-    int m = atoi(argv[1]);
-
-    if (argc - 2 != m * 2) {
-        printf("Dimensions does not match\n");
-        exit(1);
-    }
+    int randomP = atoi(argv[1]);
+    int m = atoi(argv[2]);
 
     bigint_t u = (bigint_t) malloc(m * sizeof(digit_t));
     bigint_t v = (bigint_t) malloc(m * sizeof(digit_t));
     bigint_t w = (bigint_t) malloc(m * sizeof(digit_t));
+    bigint_t x = (bigint_t) malloc(m * sizeof(digit_t));
 
-    for (int i=0; i < m; i++) {
-        u[i] = atoi(argv[2     + i]);
-        v[i] = atoi(argv[2 + m + i]);
-        w[i] = 0;
+    if(randomP) {
+        for (int nz = 1; nz < m; nz++) {
+            for(int k = 0; k < m; k++) {
+                uint32_t vd = 0;
+                uint32_t ud = 0;
+                uint32_t low  = rand()*2;
+                uint32_t high = rand()*2;
+                ud = (high << 16) + low;
+                if(k < nz) {
+                    low = rand()*2;
+                    high = rand()*2;
+                    vd = (high << 16) + low;
+                }
+                u[k] = ud;
+                v[k] = vd;
+            }
+
+            div_shinv(u, v, w, m);
+            div_gmp(u, v, x, m);
+
+            bool p = (x[0] - w[0]) < 2;
+            for(int i = 1; i < m; i++) {
+                p = p && (w[i] == x[i]);
+            }
+
+            if (!p) {
+                printf("---------------------------------------------------\n");
+                printf("Inputs:\n");
+                prnt("  u", u, m);
+                prnt("  v", v, m);
+                printf("Output:\n");
+                prnt("  w", w, m);
+                printf("GMP:\n");
+                prnt("  x", x, m);
+                printf("---------------------------------------------------\n");
+            }
+        }
     }
+    else {
+        for (int i=0; i < m; i++) {
+            u[i] = atoi(argv[3     + i]);
+            v[i] = atoi(argv[3 + m + i]);
+            w[i] = 0;
+        }
 
-    printf("Inputs:\n");
-    prnt(" u", u, m);
-    prnt(" v", v, m);
+        printf("---------------------------------------------------\n");
+        printf("Inputs:\n");
+        prnt("  u", u, m);
+        prnt("  v", v, m);
 
-    div_shinv(u, v, w, m);
+        div_shinv(u, v, w, m);
+        div_gmp(u, v, x, m);
 
-    printf("\nOutput:\n");
-    prnt(" w", w, m);
+        printf("Output:\n");
+        prnt("  w", w, m);
 
-    div_gmp(u, v, w, m);
-
-    printf("\nGMP:\n");
-    prnt(" w", w, m);
+        printf("GMP:\n");
+        prnt("  x", x, m);
+        printf("---------------------------------------------------\n");
+    }
 
     free(u);
     free(v);
     free(w);
+    free(x);
     return 0;
 }
