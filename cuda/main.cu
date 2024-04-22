@@ -53,9 +53,9 @@ using namespace std;
    |                     | * ADD v3: Implements parameterized number of instances per block to v2.|
    |                     |                                                                        |
    |                     | * MUL v1: Fundamental (see thesis report for description).             |
-   |                     | * MUL v2: Implements a parameterized sequentialization factor to v1.   |
-   |                     | * MUL v3: Implements parameterized number of instances per block to v1.|
-   |                     | * MUL v4: Implements a fixed sequentialization factor of 4 to v1.      |
+   |                     | * MUL v2: Implements optimized convulution computations to v1.         |
+   |                     | * MUL v3: Implements parameterized number of instances per block to v2.|
+   |                     | * MUL v4: Implements a fixed sequentialization factor of 4 to v2.      |
    |                     | * MUL v5: Implements parameterized number of instances per block to v4.|
    |                     |                                                                        |
    |                     | If VERSION is set to 0, then all kernel versions are run.              |

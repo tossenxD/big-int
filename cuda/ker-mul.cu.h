@@ -8,6 +8,21 @@
 /*** Helpers ***/
 /***************/
 
+/* Converts low-high parts of type `Base::ubig_t` to low-high-carry of `type Base::uint_t`, s.t.:
+
+     `[l0l1, h0h1]` ---becomes--> '[l0, h0+l1, h1+ov]`
+                                             <---/
+*/
+template<class Base>
+__device__ void
+combine1(typename Base::ubig_t* lh, typename Base::uint_t* lhc) {
+    using uint_t = typename Base::uint_t;
+    lhc[0] = (uint_t) lh[0];
+    uint_t h = (uint_t) lh[1];
+    lhc[1] = h + ((uint_t) (lh[0] >> Base::bits));
+    lhc[2] = ((uint_t) (lh[1] >> Base::bits)) + (lhc[1] < h);
+}
+
 /* This function takes two low and high parts of two consecutive multiplication convolutions, both
    stored as the data type `Base::ubig_t`, and it then first converts each set of low-high parts to
    a set of low-high-carry parts in the normal base type `Base::uint_t`, and then combines both
@@ -23,31 +38,21 @@
 */
 template<class Base>
 __device__ void
-combine(typename Base::ubig_t* lhc_a, typename Base::ubig_t* lhc_b, typename Base::uint_t* lhc_r) {
+combine2(typename Base::ubig_t* lh0, typename Base::ubig_t* lh1, typename Base::uint_t* lhc) {
     using uint_t = typename Base::uint_t;
 
-    uint_t h0t = (uint_t) lhc_a[1];
-    uint_t h0  = h0t + ((uint_t) (lhc_a[0] >> Base::bits));
-    uint_t c0  = ((uint_t) (lhc_a[1] >> Base::bits)) + (h0 < h0t);
+    uint_t h0t = (uint_t) lh1[1];
+    uint_t h0  = h0t + ((uint_t) (lh0[0] >> Base::bits));
+    uint_t c0  = ((uint_t) (lh0[1] >> Base::bits)) + (h0 < h0t);
 
-    uint_t h1t = (uint_t) lhc_b[1];
-    uint_t h1  = h1t + ((uint_t) (lhc_b[0] >> Base::bits));
-    uint_t c1  = ((uint_t) (lhc_b[1] >> Base::bits)) + (h1 < h1t);
+    uint_t h1t = (uint_t) lh1[1];
+    uint_t h1  = h1t + ((uint_t) (lh1[0] >> Base::bits));
+    uint_t c1  = ((uint_t) (lh1[1] >> Base::bits)) + (h1 < h1t);
 
-    lhc_r[0] = (uint_t) lhc_a[0];
-    lhc_r[1] = h0 + ((uint_t) lhc_b[0]);
-    lhc_r[2] = c0 + h1 + (lhc_r[1] < h0);
-    lhc_r[3] = c1 + (lhc_r[2] < h1);
-}
-
-template<class Base>
-__device__ void
-combine1(typename Base::ubig_t* lhc_a, typename Base::uint_t* lhc_r) {
-    using uint_t = typename Base::uint_t;
-    lhc_r[0] = (uint_t) lhc_a[0];
-    uint_t h = (uint_t) lhc_a[1];
-    lhc_r[1] = h + ((uint_t) (lhc_a[0] >> Base::bits));
-    lhc_r[2] = ((uint_t) (lhc_a[1] >> Base::bits)) + (lhc_r[1] < h);
+    lhc[0] = (uint_t) lh0[0];
+    lhc[1] = h0 + ((uint_t) lh1[0]);
+    lhc[2] = c0 + h1 + (lhc[1] < h0);
+    lhc[3] = c1 + (lhc[2] < h1);
 }
 
 // Computes a convolution iteration using `Base::ubig_t`-representation.
@@ -67,11 +72,9 @@ iterate(typename Base::uint_t a, typename Base::uint_t b, typename Base::ubig_t*
 /** Each block multiplies one instance of big integers and each thread handle two units **/
 
 template<class Base, uint32_t m>
-__device__ void
+__device__ void // ASSUMPTION: Shared memory buffer can store atleast `3*m` elements.
 convMult1Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
-             typename Base::uint_t* shmem_ls, typename Base::uint_t* shmem_hs,
-             typename Base::uint_t* shmem_cs, typename Base::carry_t* shmem_add,
-             typename Base::uint_t* rss) {
+             typename Base::uint_t* shmem_buff, typename Base::uint_t* rss) {
     using uint_t  = typename Base::uint_t;
     using ubig_t  = typename Base::ubig_t;
     using carry_t = typename Base::carry_t;
@@ -109,23 +112,23 @@ convMult1Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
     __syncthreads();
 
     // 2. write low part, high part and carry part to shared memory
-    shmem_ls[k1] = lss[0]; shmem_hs[k1] = hss[0]; shmem_cs[k1] = css[0];
-    shmem_ls[k2] = lss[1]; shmem_hs[k2] = hss[1]; shmem_cs[k2] = css[1];
+    shmem_buff[k1] = lss[0]; shmem_buff[k1+m] = hss[0]; shmem_buff[k1+2*m] = css[0];
+    shmem_buff[k2] = lss[1]; shmem_buff[k2+m] = hss[1]; shmem_buff[k2+2*m] = css[1];
     __syncthreads();
 
     // 3. fetch low, high and carry from shared memory to registers
-    lss[0] = shmem_ls[threadIdx.x*2];
-    lss[1] = shmem_ls[threadIdx.x*2 + 1];
-    hss[0] = (threadIdx.x) ? shmem_hs[threadIdx.x*2 - 1] : 0;
-    hss[1] = shmem_hs[threadIdx.x*2];
-    css[0] = (threadIdx.x) ? shmem_cs[threadIdx.x*2 - 2] : 0;
-    css[1] = (threadIdx.x) ? shmem_cs[threadIdx.x*2 - 1] : 0;
+    lss[0] = shmem_buff[threadIdx.x*2];
+    lss[1] = shmem_buff[threadIdx.x*2 + 1];
+    hss[0] = (threadIdx.x) ? shmem_buff[threadIdx.x*2 + m - 1] : 0;
+    hss[1] = shmem_buff[threadIdx.x*2 + m];
+    css[0] = (threadIdx.x) ? shmem_buff[threadIdx.x*2 + 2*m - 2] : 0;
+    css[1] = (threadIdx.x) ? shmem_buff[threadIdx.x*2 + 2*m - 1] : 0;
     __syncthreads();
 
     // 4. add low, high and carry
-    baddKer2Run<Base,m,2>(lss, hss, rss, shmem_add);
+    baddKer2Run<Base,m,2>(lss, hss, rss, (carry_t*) shmem_buff);
     __syncthreads();
-    baddKer2Run<Base,m,2>(css, rss, rss, shmem_add);
+    baddKer2Run<Base,m,2>(css, rss, rss, (carry_t*) shmem_buff);
 }
 
 template<class Base, uint32_t m>
@@ -142,7 +145,7 @@ convMult1(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
     // 2. multiply as and bs
     uint_t rss[2];
-    convMult1Run<Base,m>(shmem, shmem+m, shmem, shmem+m, shmem+2*m, (carry_t*)shmem, rss);
+    convMult1Run<Base,m>(shmem, shmem+m, shmem, rss);
     __syncthreads();
 
     // 3. write result to global memory
@@ -163,12 +166,12 @@ convMult1Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 
     // 2. multiply as and bs, then, multiply the result by a p times, i.e. a^p * b
     uint_t rss[2];
-    convMult1Run<Base,m>(shmem,shmem+m,shmem+2*m,shmem+3*m,shmem+4*m,(carry_t*)shmem+2*m,rss);
+    convMult1Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);
     __syncthreads();
     for(int i=1; i<p; i++) {
         cpReg2Shm<uint_t,2>(rss, shmem+m);
         __syncthreads();
-        convMult1Run<Base,m>(shmem,shmem+m,shmem+2*m,shmem+3*m,shmem+4*m,(carry_t*)shmem+2*m,rss);
+        convMult1Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);
         __syncthreads();
     }
 
@@ -183,11 +186,9 @@ convMult1Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 /** Each block multiplies one instance of big integers and each thread handle two units **/
 
 template<class Base, uint32_t m>
-__device__ void
+__device__ void // ASSUMPTION: Shared memory buffer can store atleast `3*m` elements.
 convMult2Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
-             typename Base::uint_t* shmem_ls, typename Base::uint_t* shmem_hs,
-             typename Base::uint_t* shmem_cs, typename Base::carry_t* shmem_add,
-             typename Base::uint_t* rss) {
+             typename Base::uint_t* shmem_buff, typename Base::uint_t* rss) {
     using uint_t  = typename Base::uint_t;
     using ubig_t  = typename Base::ubig_t;
     using carry_t = typename Base::carry_t;
@@ -195,19 +196,20 @@ convMult2Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
     // 1. compute low, high and carry (high overflow) for k1 and k2 (thread elements)
     uint_t lss[2]; uint_t hss[2]; uint_t css[2];
 
-    // 1.1 compute high-low parts of sum over `k1`
+    //   1.1 compute low-high parts of sum over `k1`
     ubig_t lh[2]; lh[0] = 0; lh[1] = 0;
     uint64_t k1 = threadIdx.x;
     for (int i=0; i<=k1; i++) {
         int j  = k1 - i;
         iterate<Base>(shmem_as[i], shmem_bs[j], lh);
     }
-    // 1.2 combine high-low parts associated with `k1`
+
+    //   1.2 combine low-high parts associated with `k1`
     uint_t lhc[3];
     combine1<Base>(lh, lhc);
     lss[0] = lhc[0]; hss[0] = lhc[1]; css[0] = lhc[2];
 
-    // 1.3 compute high-low parts of sum over `k2`
+    //   1.3 compute low-high parts of sum over `k2`
     lh[0] = 0; lh[1] = 0;
     uint64_t k2 = m-1 - k1;
     for (int i=0; i<=k2; i++) {
@@ -215,29 +217,29 @@ convMult2Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
         iterate<Base>(shmem_as[i], shmem_bs[j], lh);
     }
 
-    // 1.4 combine high-low parts associated with `k2`
+    //   1.4 combine low-high parts associated with `k2`
     combine1<Base>(lh, lhc);
     lss[1] = lhc[0]; hss[1] = lhc[1]; css[1] = lhc[2];
     __syncthreads();
 
     // 2. write low part, high part and carry part to shared memory
-    shmem_ls[k1] = lss[0]; shmem_hs[k1] = hss[0]; shmem_cs[k1] = css[0];
-    shmem_ls[k2] = lss[1]; shmem_hs[k2] = hss[1]; shmem_cs[k2] = css[1];
+    shmem_buff[k1] = lss[0]; shmem_buff[k1+m] = hss[0]; shmem_buff[k1+2*m] = css[0];
+    shmem_buff[k2] = lss[1]; shmem_buff[k2+m] = hss[1]; shmem_buff[k2+2*m] = css[1];
     __syncthreads();
 
     // 3. fetch low, high and carry from shared memory to registers
-    lss[0] = shmem_ls[threadIdx.x*2];
-    lss[1] = shmem_ls[threadIdx.x*2 + 1];
-    hss[0] = (threadIdx.x) ? shmem_hs[threadIdx.x*2 - 1] : 0;
-    hss[1] = shmem_hs[threadIdx.x*2];
-    css[0] = (threadIdx.x) ? shmem_cs[threadIdx.x*2 - 2] : 0;
-    css[1] = (threadIdx.x) ? shmem_cs[threadIdx.x*2 - 1] : 0;
+    lss[0] = shmem_buff[threadIdx.x*2];
+    lss[1] = shmem_buff[threadIdx.x*2 + 1];
+    hss[0] = (threadIdx.x) ? shmem_buff[threadIdx.x*2 + m - 1] : 0;
+    hss[1] = shmem_buff[threadIdx.x*2 + m];
+    css[0] = (threadIdx.x) ? shmem_buff[threadIdx.x*2 + 2*m - 2] : 0;
+    css[1] = (threadIdx.x) ? shmem_buff[threadIdx.x*2 + 2*m - 1] : 0;
     __syncthreads();
 
     // 4. add low, high and carry
-    baddKer2Run<Base,m,2>(lss, hss, rss, shmem_add);
+    baddKer2Run<Base,m,2>(lss, hss, rss, (carry_t*) shmem_buff);
     __syncthreads();
-    baddKer2Run<Base,m,2>(css, rss, rss, shmem_add);
+    baddKer2Run<Base,m,2>(css, rss, rss, (carry_t*) shmem_buff);
 }
 
 template<class Base, uint32_t m>
@@ -254,7 +256,7 @@ convMult2(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
     // 2. multiply as and bs
     uint_t rss[2];
-    convMult2Run<Base,m>(shmem, shmem+m, shmem, shmem+m, shmem+2*m, (carry_t*)shmem, rss);
+    convMult2Run<Base,m>(shmem, shmem+m, shmem, rss);
     __syncthreads();
 
     // 3. write result to global memory
@@ -275,12 +277,12 @@ convMult2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 
     // 2. multiply as and bs, then, multiply the result by a p times, i.e. a^p * b
     uint_t rss[2];
-    convMult2Run<Base,m>(shmem,shmem+m,shmem+2*m,shmem+3*m,shmem+4*m,(carry_t*)shmem+2*m,rss);
+    convMult2Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);
     __syncthreads();
     for(int i=1; i<p; i++) {
         cpReg2Shm<uint_t,2>(rss, shmem+m);
         __syncthreads();
-        convMult2Run<Base,m>(shmem,shmem+m,shmem+2*m,shmem+3*m,shmem+4*m,(carry_t*)shmem+2*m,rss);
+        convMult2Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);
         __syncthreads();
     }
 
@@ -295,69 +297,64 @@ convMult2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 /** Each block multiplies ipb instances of big integers and each thread handle q units **/
 
 template<class Base, uint32_t m, uint32_t ipb>
-__device__ void
+__device__ void // ASSUMPTION: Shared memory buffer can store atleast `3*m` elements.
 convMult3Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
-             typename Base::uint_t* shmem_ls, typename Base::uint_t* shmem_hs,
-             typename Base::uint_t* shmem_cs, typename Base::carry_t* shmem_add,
-             typename Base::uint_t* rss) {
+             typename Base::uint_t* shmem_buff, typename Base::uint_t* rss) {
     using uint_t  = typename Base::uint_t;
     using ubig_t  = typename Base::ubig_t;
     using carry_t = typename Base::carry_t;
 
     // 1. compute low, high and carry (high overflow) for k1 and k2 (thread elements)
-    uint_t lss[2]; lss[0] = 0; lss[1] = 0;
-    uint_t hss[2]; hss[0] = 0; hss[1] = 0;
-    uint_t css[2]; css[0] = 0; css[1] = 0;
+    uint_t lss[2]; uint_t hss[2]; uint_t css[2];
 
+    //   1.1 compute low-high parts of sum over `k1`
+    ubig_t lh[2]; lh[0] = 0; lh[1] = 0;
     uint64_t k1 = threadIdx.x;
     uint64_t k1_start = (k1/m)*m;
     for (int i=k1_start; i<=k1; i++) {
-        // compute high and low part of result
         int j  = k1 - i + k1_start;
-        ubig_t r  = ((ubig_t) shmem_as[i]) * ((ubig_t) shmem_bs[j]);
-        uint_t lr = (uint_t) r;
-        uint_t hr = (uint_t) (r >> Base::bits);
-        // update l, h and c
-        lss[0] += lr;
-        hss[0] += hr + (lss[0] < lr);
-        css[0] += (hss[0] < hr);
+        iterate<Base>(shmem_as[i], shmem_bs[j], lh);
     }
 
+    //   1.2 combine low-high parts associated with `k1`
+    uint_t lhc[3];
+    combine1<Base>(lh, lhc);
+    lss[0] = lhc[0]; hss[0] = lhc[1]; css[0] = lhc[2];
+
+    //   1.3 compute low-high parts of sum over `k2`
+    lh[0] = 0; lh[1] = 0;
     uint64_t k2 = ipb*m-1 - k1;
     uint64_t k2_start = (k2/m)*m;
     for (int i=k2_start; i<=k2; i++) {
-        // compute high and low part of result
         int j  = k2 - i + k2_start;
-        ubig_t r  = ((ubig_t) shmem_as[i]) * ((ubig_t) shmem_bs[j]);
-        uint_t lr = (uint_t) r;
-        uint_t hr = (uint_t) (r >> Base::bits);
-        // update l, h, and c
-        lss[1] += lr;
-        hss[1] += hr + (lss[1] < lr);
-        css[1] += (hss[1] < hr);
+        iterate<Base>(shmem_as[i], shmem_bs[j], lh);
     }
+
+    //   1.4 combine low-high parts associated with `k2`
+    combine1<Base>(lh, lhc);
+    lss[1] = lhc[0]; hss[1] = lhc[1]; css[1] = lhc[2];
     __syncthreads();
 
     // 2. write low part, high part and carry part to shared memory
-    shmem_ls[k1] = lss[0]; shmem_hs[k1] = hss[0]; shmem_cs[k1] = css[0];
-    shmem_ls[k2] = lss[1]; shmem_hs[k2] = hss[1]; shmem_cs[k2] = css[1];
+    shmem_buff[k1] = lss[0]; shmem_buff[k1+m] = hss[0]; shmem_buff[k1+2*m] = css[0];
+    shmem_buff[k2] = lss[1]; shmem_buff[k2+m] = hss[1]; shmem_buff[k2+2*m] = css[1];
     __syncthreads();
 
     // 3. fetch low, high and carry from shared memory to registers
     uint64_t off  = threadIdx.x*2;
     uint64_t ioff = off % m;
-    lss[0] = shmem_ls[off];
-    lss[1] = shmem_ls[off + 1];
-    hss[0] = (ioff) ? shmem_hs[off - 1] : 0;
-    hss[1] = shmem_hs[off];
-    css[0] = (ioff) ? shmem_cs[off - 2] : 0;
-    css[1] = (ioff) ? shmem_cs[off - 1] : 0;
+    lss[0] = shmem_buff[off];
+    lss[1] = shmem_buff[off + 1];
+    hss[0] = (ioff) ? shmem_buff[off + m - 1] : 0;
+    hss[1] = shmem_buff[off + m];
+    css[0] = (ioff) ? shmem_buff[off + 2*m - 2] : 0;
+    css[1] = (ioff) ? shmem_buff[off + 2*m - 1] : 0;
     __syncthreads();
 
     // 4. add low, high and carry
-    baddKer3Run<Base,m,2,ipb>(lss, hss, rss, shmem_add);
+    baddKer3Run<Base,m,2,ipb>(lss, hss, rss, (carry_t*) shmem_buff);
     __syncthreads();
-    baddKer3Run<Base,m,2,ipb>(css, rss, rss, shmem_add);
+    baddKer3Run<Base,m,2,ipb>(css, rss, rss, (carry_t*) shmem_buff);
 }
 
 template<class Base, uint32_t m, uint32_t ipb>
@@ -374,7 +371,7 @@ convMult3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
     // 2. multiply as and bs
     uint_t rss[2];
-    convMult3Run<Base,m,ipb>(shmem,shmem+ipb*m,shmem,shmem+ipb*m,shmem+2*ipb*m,(carry_t*)shmem,rss);
+    convMult3Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem, rss);
     __syncthreads();
 
     // 3. write result to global memory
@@ -395,14 +392,12 @@ convMult3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 
     // 2. multiply as and bs, then, multiply the result by a p times, i.e. a^p * b
     uint_t rss[2];
-    convMult3Run<Base,m,ipb>(shmem,shmem+ipb*m,shmem+2*ipb*m,shmem+3*ipb*m,shmem+4*ipb*m,
-                             (carry_t*)shmem+2*ipb*m,rss);
+    convMult3Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem+2*ipb*m, rss);
     __syncthreads();
     for(int i=1; i<2; i++) {
         cpReg2Shm<uint_t,2>(rss, shmem+ipb*m);
         __syncthreads();
-        convMult3Run<Base,m,ipb>(shmem,shmem+ipb*m,shmem+2*ipb*m,shmem+3*ipb*m,
-                                 shmem+4*ipb*m,(carry_t*)shmem+2*ipb*m,rss);
+        convMult3Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem+2*ipb*m, rss);
         __syncthreads();
     }
 
@@ -441,7 +436,7 @@ convMult4Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
         }   iterate<Base>(shmem_as[k1+1], shmem_bs[0], lh1); // the remaining computation (`i=k1+1`)
 
         // 1.2. combine results associated with `k1` (i.e. compute `lhck1`)
-        combine<Base>(lh0, lh1, lhck1);
+        combine2<Base>(lh0, lh1, lhck1);
 
         // 1.3. compute two consecutive convolutions over `k2`
         lh0[0] = 0; lh0[1] = 0;
@@ -456,7 +451,7 @@ convMult4Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
         }   iterate<Base>(shmem_as[k2], shmem_bs[0], lh1); // the remaining computation (`i=k2`)
 
         // 1.4. combine results associated with `k2` (i.e. compute `lhck2`)
-        combine<Base>(lh0, lh1, lhck2);
+        combine2<Base>(lh0, lh1, lhck2);
     }
     __syncthreads();
 
@@ -587,7 +582,7 @@ convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
         }   iterate<Base>(shmem_as[k1+1], shmem_bs[k1_start], lh1); // the remaining computation
 
         // 1.2. combine results associated with `k1` (i.e. compute `lhck1`)
-        combine<Base>(lh0, lh1, lhck1);
+        combine2<Base>(lh0, lh1, lhck1);
 
         // 1.3. compute two consecutive sums over `k2`
         lh0[0] = 0; lh0[1] = 0;
@@ -604,7 +599,7 @@ convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
         }   iterate<Base>(shmem_as[k2], shmem_bs[k2_start], lh1); // the remaining computation
 
         // 1.4. combine results associated with `k2` (i.e. compute `lhck2`)
-        combine<Base>(lh0, lh1, lhck2);
+        combine2<Base>(lh0, lh1, lhck2);
     }
     __syncthreads();
 
