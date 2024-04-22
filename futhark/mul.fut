@@ -36,7 +36,7 @@ def combine64 (l0:u64,h0:u64,c0:u64) (l1:u64,h1:u64,c1:u64): (u64,u64,u64,u64) =
 -- multiplication by convolution ( O(n^2) )
 --------------------------------------------------------------------------------
 
-def convMult32 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
+def convMult32v1 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
   -- function that computes a low, high and carry part of multiplication
   let convMultLhcs (tid: i64) : ( (u32, u32, u32), (u32, u32, u32) ) =
     let k1 = tid
@@ -58,7 +58,7 @@ def convMult32 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
   -- add the low, high and carry parts
   in badd32v1 ls hs |> badd32v1 cs
 
-def convMult64 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
+def convMult64v1 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
   -- function that computes a low, high and carry part of multiplication
   let convMultLhcs (tid: i64) : ( (u64, u64, u64), (u64, u64, u64) ) =
     let k1 = tid
