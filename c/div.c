@@ -438,6 +438,16 @@ void div_shinv(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
 
     cpy(w, r, m);
 
+    // check whether delta = {0,1}
+    mult(v, r, a, m);        // `a = v * r`
+    if (!eq(a, u, m)) {      // `if a != u`
+        add(v, a, b, m);     // `b = a + v`
+        if (lt(b, u, m)) {   // `if b < u`
+            set(a, 1, m);    // `a = 1`
+            add(w, a, w, m); // `w = w + a`
+        }
+    }
+
     free(a); free(b); free(r);
 }
 
@@ -491,7 +501,7 @@ int main(int argc, char* argv[]) {
             div_shinv(u, v, w, m);
             div_gmp(u, v, x, m);
 
-            bool p = (x[0] - w[0]) < 2;
+            bool p = (x[0] == w[0]);
             for(int i = 1; i < m; i++) {
                 p = p && (w[i] == x[i]);
             }

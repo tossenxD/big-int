@@ -125,5 +125,7 @@ def div [m] (u: [m]u64) (v: [m]u64) : [m]u64 =
   -- pad big integers in advance for multiplications (TODO optimize)
   let u_p = map (\ i -> if i < m then u[i] else 0u64) (iota (m*2))
   let v_p = map (\ i -> if i < m then v[i] else 0u64) (iota (m*2))
-  -- TODO handle delta
-  in shinv v_p h |> mult u_p |> shift (-h) |> take m
+  -- compute quotient
+  let q = shinv v_p h |> mult u_p |> shift (-h) |> take m
+  -- handle delta
+  in if lt u (mult q v |> add v) then q else add q (singleton m 1)
