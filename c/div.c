@@ -402,19 +402,34 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
            In turn, we can represent everything as unsigned 128-bit integers,
            which C supports, meaning we can efficiently divide.
         */
-        __uint128_t V =      (__uint128_t) v[k-l];
-        V +=                ((__uint128_t) v[k-l+1]) << 32;
-        V += (l == 1) ? 0 : ((__uint128_t) v[k]    ) << 64;
+        __uint128_t V = 0;
+        V += ((__uint128_t) v[k-2]);
+        V += ((__uint128_t) v[k-1]) << 32;
+        V += ((__uint128_t) v[k]  ) << 64;
 
-        // compute `B^(2*l) - V` within 128-bits
-        __uint128_t b2lV = (l == 1) ? (((__uint128_t) 1) << 64) - V :
-            (((((__uint128_t) 1) << 96) - (V >> 32)) << 32)
-            - (V & ((__uint128_t) 4294967295));
+        // compute `(B^4 - V) / (V+1)`
+        __uint128_t r = (((__uint128_t) 0) - V) / (V) + 1;
 
-        __uint128_t r = b2lV / (V+1);
+        w[0] = (digit_t) (r);
+        w[1] = (digit_t) (r >> 32);
+        w[2] = (digit_t) (r >> 64);
+        w[3] = (digit_t) (r >> 96);
 
-        set(w, (uint32_t) r, m);     w[1] = (uint32_t) (r >> 32);
-        w[2] = (uint32_t) (r >> 64); w[3] = (uint32_t) (r >> 96);
+
+        // BELOW IS GENERALIZED OVER l = {1,2}, keep or trash based on `l` TODO
+        /* __uint128_t V =      (__uint128_t) v[k-l]; */
+        /* V +=                ((__uint128_t) v[k-l+1]) << 32; */
+        /* V += (l == 1) ? 0 : ((__uint128_t) v[k]    ) << 64; */
+
+        /* // compute `B^(2*l) - V` within 128-bits */
+        /* __uint128_t b2lV = (l == 1) ? (((__uint128_t) 1) << 64) - V : */
+        /*     (((((__uint128_t) 1) << 96) - (V >> 32)) << 32) */
+        /*     - (V & ((__uint128_t) 4294967295)); */
+
+        /* __uint128_t r = b2lV / (V+1); */
+
+        /* set(w, (uint32_t) r, m);     w[1] = (uint32_t) (r >> 32); */
+        /* w[2] = (uint32_t) (r >> 64); w[3] = (uint32_t) (r >> 96); */
     }
 
     // 4. either return (if sufficient) or refine initial approximation
@@ -427,7 +442,7 @@ void div_shinv(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
     int h = findk(u, m) + 1;
 
     // requires padding of at least one since if `h=m` then `B^h > (B^m)-1`
-    prec_t   p = m*2; // `m` padding because of multiplication
+    prec_t   p = m*4; // `m` padding because of multiplication
     bigint_t a = init(p); cpy(a, u, m); // `a = u`
     bigint_t b = init(p); cpy(b, v, m); // `b = v`
     bigint_t r = init(p);               // `r = w`
