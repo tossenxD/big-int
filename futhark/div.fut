@@ -11,6 +11,10 @@ def findk [m] (u: [m]u64) : i64 =
   map2 (\ x i -> if x != 0u64 then i else 0i64) u (iota m)
   |> reduce (\ acc i -> if i != 0i64 then i else acc) 0i64
 
+-- Index `i` such that `u <= B^i`where `B = 2^64`.
+def findh [m] (u: [m]u64) : i64 =
+  let i = findk u in if u[i] == 1 then i else i + 1
+
 -- Precision of big integer `u` (i.e. number of digits without zeroes in front).
 def prec [m] (u: [m]u64) : i64 =
   findk u |> (+) 1
@@ -23,6 +27,20 @@ def shift [m] (n: i64) (u: [m]u64) : [m]u64 =
 -- Constructs `(2^64)^n` as a `m` precision big integer.
 def bpow (m: i64) (n: i64) : [m]u64 =
   singleton m 1u64 |> shift n
+
+-- Checks whether `u < B^i`, where `B = 2^64`
+def ltBpow [m] (u: [m]u64) (i: i64) : bool =
+  map2 (\ x j -> x == 0 || j < i) u (iota m) |> reduce (&&) true
+
+-- Checks whether `u > B^i`, where `B = 2^64`
+def gtBpow [m] (u: [m]u64) (i: i64) : bool =
+  map2 (\ x j -> (x > 1 && j == i) || (x > 0 && j > i)) u (iota m)
+  |> reduce (||) false
+
+-- Checks whether `u == B^i`, where `B = 2^64`
+def eqBpow [m] (u: [m]u64) (i: i64) : bool =
+  map2 (\ x j -> (x == 0 || j != i) || (x == 1 || j == i)) u (iota m)
+  |> reduce (&&) true |> (&&) (m > i)
 
 -- Addition of big integers `u` and `v`.
 def add [m] (u: [m]u64) (v: [m]u64) : [m]u64 =
@@ -106,10 +124,10 @@ def refine3 [m] (v: [m]u64) (w: [m]u64) (h: i64) (k: i64) (l: i64) : [m]u64 =
 def shinv [m] (v: [m]u64) (h: i64) : [m]u64 =
   let k = findk v
   -- handle the four special cases
-  in if lt v (bpow m 1) then quod (bpow m h) v[0]
-     else if lt (bpow m h) v then new m
-     else if lt (bpow m h) (multd v 2) then singleton m 1
-     else if eq v (bpow m h) then bpow m (h - k)
+  in if ltBpow v 1 then quod (bpow m h) v[0]
+     else if gtBpow v h then new m
+     else if gtBpow (multd v 2) h then singleton m 1
+     else if eqBpow v k then bpow m (h - k)
      -- form initial approximation
      else let l = 2 -- TODO this, or `i64.min k 2` ?
           let V = map (\ i -> v[k-l+i]) (iota (l + 1))
@@ -120,8 +138,8 @@ def shinv [m] (v: [m]u64) (h: i64) : [m]u64 =
 
 -- Divides big integer `u` by big integer `v`.
 def div [m] (u: [m]u64) (v: [m]u64) : [m]u64 =
-  -- TODO potential bug if `u = B^h` in the way `h` is computed
-  let h = prec u
+  -- compute `h` in the assumption `u <= B^h`
+  let h = findh u
   -- pad big integers in advance for multiplications (TODO optimize)
   let u_p = map (\ i -> if i < m then u[i] else 0u64) (iota (m*2))
   let v_p = map (\ i -> if i < m then v[i] else 0u64) (iota (m*2))
