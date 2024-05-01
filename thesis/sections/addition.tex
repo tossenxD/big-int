@@ -1,0 +1,100 @@
+\section{Addition}
+
+\subsection{Algorithm}
+
+The additions of two big integers is simply the sum of the addition of their digits:
+\begin{equation}
+  \label{eq:add}
+  u + v = \sum_{i=0}^{m-1}u_i\cdot B^{i} + \sum_{i=0}^{m-1}v_i\cdot B^{i} = \sum_{i=0}^{m-1}(u_i+v_i)\cdot B^{i}
+\end{equation}
+
+The $m$ additions of digits translates trivially to a \fun{map} on a GPU. However, each addition may overflow the base size, which results in a carry being added to the following digit. In turn, this digit may now overflow, and so we need to add yet another carry, and so on. The carries will propagate at most $m$ times, once for each digit, and hence, each digit may need to know whether digits before it has overflown. This can be efficiently computed as a prefix sum using a \fun{scan} operator, specifically an exclusive \fun{scan} since the first digit has no prior information and we do not care if the last digit overflows. Thus, big integer addition on a GPU is effectively a \fun{map}-\fun{scan} composition with the following form:
+% \begin{equation}
+% \label{eq:addgpu}
+% u + v \equiv\left({\fun{scan}~e \otimes \phantom{}} \circ~\fun{map} \oplus \phantom{}\right) ~u~v
+% \end{equation}
+\begin{equation}
+\label{eq:addgpu}
+u + v \equiv \fun{map} + \left( \fun{map} + u~v\right) \left(\left({\fun{scan\_exc}~e \otimes \phantom{}} \circ~\fun{map} \oplus \phantom{}\right)~u~v\right)
+\end{equation}
+The task at hand is to figure out what $\oplus$, $\otimes$ and $e$ is. This is exactly what Olesen, Topalovic and Restelli-Nielsen did in a course-project on this exact topic \cite{DPP-PROJECT}. They found that $\oplus$ must compute whether the addition results in an overflow or the maximum representable integer. Say we have digits $x$ and $y$ represented as unsigned integers in base $B$ with wrapping on overflow, then we get:
+\begin{equation}
+\label{eq:oplus}
+x \oplus y \coloneq \tup{x + y < x}{x + y = B-1}
+\end{equation}
+
+The operator $\otimes$ then use the inner tuple to judge whether a digit overflows by I) if it already overflowed, or II) if it is the maximum representable integer and the digit just before it overflowed. Say we have some pair of booleans $x = \tup{\mathit{ov_x}}{\mathit{mx_{x}}}$ and some pair of booleans $y = \tup{\mathit{ov_y}}{\mathit{mx_{y}}}$, then we get:
+\begin{equation}
+  \label{eq:otimes}
+  x \otimes y \coloneq \tup{\mathit{ov_x} \land \mathit{mx_y} \lor \mathit{ov_y}}{\mathit{mx_x} \land \mathit{mx_y}}
+\end{equation}
+
+They found that the neutral element, $e$, of $\otimes$ is:
+\begin{equation}
+  \label{eq:otimesne}
+  e \coloneq \tup{\mathbf{F}}{\mathbf{T}}
+\end{equation}
+
+While this approach is intuitive and straightforward to implement in Futhark, a Cuda implementation highlights an optimization vector by the underlying data types: Hardware does not support boolean values - they are syntactic sugar for zero-and-nonzero integer words. Since a low-level implementation will have to use integers, we might as well use bitwise operations over logical ones, as these are faster.
+
+Furthermore, instead of storing pairs of integer words with only one bit used to indicate boolean values, we can store one word with two bits used to each indicate a boolean value. Not only does this halve the memory usage of the prefix sum, but it also results in each workthread only having to fetch and write one word instead of two, which should result in better memory utilization.
+
+The formalization of these optimizations, where the least and second least significant bit indicates integer overflow and maximum representable integer, respectively, is:
+\begin{align}
+  \label{eq:oplusopt}
+  x \oplus y &\coloneq (x + y < x)~|~((x + y = B-1) \ll 1) \\
+  \label{eq:otimesopt}
+  x \otimes y &\coloneq (((x~\&~(y \gg 1))~|~y)~\&~1)~|~(x~\&~y~\&~2)\\
+  \label{eq:otimesneopt}
+  e &\coloneq 2
+\end{align}
+
+Equation (\ref{eq:oplusopt}) is a straightforward conversion of equation (\ref{eq:oplus}), with the tuple being replaced by the bitwise \fun{or}-operator, and the second result of the second clause shifted one bit to the left.
+
+Equation (\ref{eq:otimesopt}) is a conversion of equation (\ref{eq:otimes}), where I) the tuple is replaced by \fun{or}, II) the first clause is checked in the least significant bit and zeroes out the second bit with ``$\&~1$'', and III) the second clause is checked in the second least significant bit and the first bit is zeroed out with ``$\&~2$''. Associtivity naturally still holds for $\otimes$:
+\begin{align}
+  \label{eq:otimesproof}
+  (x \otimes y) \otimes z &= (~\underbrace{(((x~\&~(y \gg 1))~|~y)~\&~1)~|~(x~\&~y~\&~2)}_{\alpha}~) \otimes z\\
+              &= (((\alpha~\&~(z \gg 1))~|~z)~\&~1)~|~(\alpha~\&~z~\&~2)\\
+              &= (((\alpha~\&~1)~\&~(z \gg 1))~|~(z~\&~1))~|~((\alpha~\&~2)~\&~z)
+\end{align}
+Now, since $1~\&~2$ is $0$ we know that the second clause of $\alpha~\&~1$ is always $0$ and that the first clause of $\alpha~\&~2$ is always $0$, and so we get: 
+  \begin{align}
+  \label{eq:otimesproof}
+  \phantom{(x \otimes y) \otimes z}
+    &= ((((((x~\&~(y \gg 1))~|~y)~\&~1)~\&~1)~\&~(z \gg 1))~|\\
+    &\phantom{= ((}(z~\&~1))~|~((x~\&~y~\&~2)~\&~2)~\&~z)
+  \end{align}
+  
+{\color{red} TODO finish proof}
+
+
+Likewise, the optimized $e$ (equation (\ref{eq:otimesneopt})) is simply the corresponding bits of equation (\ref{eq:otimesne}) set to 1 and 0, and so $e$ remains a left-associative neutral element of $\otimes$:
+\begin{align}
+  \label{eq:otimesneproof}
+  2 \otimes 0 &= (((2~\&~(0 \gg 1))~|~0)~\&~1)~|~(2~\&~0~\&~2) = 0 \\
+  2 \otimes 1 &= (((2~\&~(1 \gg 1))~|~1)~\&~1)~|~(2~\&~1~\&~2) = 1 \\
+  2 \otimes 2 &= (((2~\&~(2 \gg 1))~|~2)~\&~1)~|~(2~\&~2~\&~2) = 2 \\
+  2 \otimes 3 &= (((2~\&~(3 \gg 1))~|~3)~\&~1)~|~(2~\&~3~\&~2) = 3 \qed
+\end{align}
+
+Since we needed extra information (the second least significant bit) in order for $\otimes$ to be associative, we need to discard it after the \fun{scan}. Thus, the addition becomes:
+\begin{equation}
+\label{eq:addgpu1}
+u + v \equiv \fun{map} + \left( \fun{map} + u~v\right)~\left(\left(\fun{map}~(\&~1) ~\circ ~{\fun{scan\_exc}~e~\otimes}~ \circ ~ \fun{map} \oplus \phantom{}\right)~u~v\right)
+\end{equation}
+
+Both $\oplus$ and $\otimes$ are $O(1)$, and so the \fun{map}s exhibit total work $O(m)$ and total span $O(1)$, and the \fun{scan} work $O(m)$ and span $O(\log m)$. Thus, the work of a big integer addition is $O(m)$ and the span is $O(\log m)$.
+
+\subsection{Implementation}
+
+{\color{red} TODO write about further optimizitations, e.g. upping the sequentialization factor}
+
+\subsubsection{CUDA}
+
+\subsubsection{Futhark}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "../main"
+%%% End:

@@ -1,0 +1,103 @@
+@mastersthesis{DPP-PROJECT,
+  author  = {Amar Topalovic, Walter Restelli-Nielsen, Kristian Olesen},
+  title   = {Multiple-precision Integer Arithmetic},
+  school  = {University of Copenhagen},
+  year    = {2022},
+  month   = {January},
+  type    = {{Data Parallel Programming} Course Project},
+  note    = {\url{https://futhark-lang.org/student-projects/dpp21-mpint.pdf}},
+}
+@misc{watt2023efficient,
+      title={Efficient Generic Quotients Using Exact Arithmetic}, 
+      author={Stephen M. Watt},
+      year={2023},
+      eprint={2304.01753},
+      archivePrefix={arXiv},
+      primaryClass={cs.SC}
+}
+@mastersthesis{CGBN,
+  author  = {NVlabs},
+  title   = {CGBN: CUDA Accelerated Multiple Precision Arithmetic (Big Num) using Cooperative Groups },
+  school  = {GitHub},
+  note    = {\url{https://github.com/NVlabs/CGBN}},
+}
+
+@misc{bassil2012sequential,
+      title={Sequential and Parallel Algorithms for the Addition of Big-Integer Numbers}, 
+      author={Youssef Bassil and Aziz Barbar},
+      year={2012},
+      eprint={1204.0232},
+      archivePrefix={arXiv},
+      primaryClass={cs.DS},
+      note={\url{https://doi.org/10.48550/arXiv.1204.0232}}
+}
+
+@article{Maza_2010,
+doi = {10.1088/1742-6596/256/1/012009},
+url = {https://dx.doi.org/10.1088/1742-6596/256/1/012009},
+year = {2010},
+month = {nov},
+publisher = {},
+volume = {256},
+number = {1},
+pages = {012009},
+author = {Marc Moreno Maza and Wei Pan},
+title = {Fast polynomial multiplication on a GPU},
+journal = {Journal of Physics: Conference Series},
+abstract = {We present CUDA implementations of Fast Fourier Transforms over finite fields. This allows us to develop GPU support for dense univariate polynomial multiplication leading to speedup factors in the range 21 – 37 with respect to the best serial C-code available to us, for our largest input data sets. Since dense univariate polynomial multiplication is a core routine in symbolic computation, this is promising result for the integration of GPU support into computer algebra systems.}
+}
+
+@article{Emmart2010HighPI,
+  title={High Precision Integer Addition, Subtraction and Multiplication with a Graphics Processing Unit},
+  author={Niall Emmart and Charles C. Weems},
+  journal={Parallel Process. Lett.},
+  year={2010},
+  volume={20},
+  pages={293-306},
+  url={https://api.semanticscholar.org/CorpusID:46446827}
+}
+@article{Bantikyan2014BigIM,
+  title={Big Integer Multiplication with CUDA FFT(cuFFT) Library},
+  author={Hovhannes Bantikyan},
+  journal={International Journal of Innovative Research in Computer and Communication Engineering},
+  year={2014},
+  volume={2},
+  pages={6317-6325},
+  url={https://api.semanticscholar.org/CorpusID:14759606}
+}
+
+@article{doi:10.1177/10943420221077964,
+author = {Adrian P Dieguez and Margarita Amor and Ramón Doallo and Akira Nukada and Satoshi Matsuoka},
+title ={Efficient high-precision integer multiplication on the GPU},
+
+journal = {The International Journal of High Performance Computing Applications},
+volume = {36},
+number = {3},
+pages = {356-369},
+year = {2022},
+doi = {10.1177/10943420221077964},
+
+URL = { 
+    
+        https://doi.org/10.1177/10943420221077964
+    
+    
+
+},
+eprint = { 
+    
+        https://doi.org/10.1177/10943420221077964
+    
+    
+
+}
+,
+    abstract = { The multiplication of large integers, which has many applications in computer science, is an operation that can be expressed as a polynomial multiplication followed by a carry normalization. This work develops two approaches for efficient polynomial multiplication: one approach is based on tiling the classical convolution algorithm, but taking advantage of new CUDA architectures, a novelty approach to compute the multiplication using integers without accuracy lossless; the other one is based on the Strassen algorithm, an algorithm that multiplies large polynomials using the FFT operation, but adapting the fastest FFT libraries for current GPUs and working on the complex field. Previous studies reported that the Strassen algorithm is an effective implementation for “large enough” integers on GPUs. Additionally, most previous studies do not examine the implementation of the carry normalization, but this work describes a parallel implementation for this operation. Our results show the efficiency of our approaches for short, medium, and large sizes. }
+}
+
+@article{marlow2010haskell,
+  title={Haskell 2010 language report},
+  author={Marlow, Simon and others},
+  year={2010},
+  url={https://www.haskell.org/onlinereport/haskell2010/}
+}

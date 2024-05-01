@@ -1,0 +1,22 @@
+\section{Representation of Big Integers}
+When working with big integers, one must make a choice between arbitrary precision and exact precision integers. Arbitrary precision, like the name suggests, means that the integers are not bounded by software. This is, for example, implemented in Haskell \cite{marlow2010haskell}, and provides a great deal of abstraction, as there can occur no under/overflows or wrap-arounds. In other words, it allows the programmer to work without worrying about the sufficiency of the underlying data structure. {\color{red} TODO also mention gmp}
+
+However, the cost of this abstraction is inefficiency, since it requires dynamic memory allocation to handle overflows. This is especially troublesome given a GPU architecture, as discussed in section \ref{sec:pre}.
+
+Exact precision integers are bounded by a specified size, making them more suitable for a GPU architecture. The programmer is still allowed to specify integers of an arbitrary size, and the size of integers can still be changed (by means of allocating and copying to a new big integer), but the exact size is always known and remains the same after arithmetic operations. Thus, only exact precision is consideren in this thesis.\\
+
+Equation (\ref{eq:rep}) denotes a big integer $u$ in base $B \in \mathbb{N}$ with $m$ digits $u_{i\in \{0,1,\dots,m-1\}}\in\{0,1,\dots,B-1\}$. E.g. the decimal number $42$ is equivalent to $2\cdot 10^0+4\cdot 10^1$. {\color{red} TODO add references to show that this notation is common}
+\begin{equation}
+\label{eq:rep}
+u = \sum_{i=0}^{m-1}u_i\cdot B^{i}
+\end{equation}
+
+The chosen big integer representation (equation (\ref{eq:rep})) translates naturally on a computer to an array of integer words. Say we specify a big integer to be an array of 64-bit integers (i.e. $B = 2^{64}$) and precision of four digits (i.e. array length $m = 4$), then the big integer is equivalent to a 256-bit integer.
+
+Furthermore, we only consider unsigned integers as base, since signed integers waste space (e.g. there are $m$ ways to write $-1$). The best representation for signed big integers is by sign-magnitude {\color{red} TODO elaborate}. Thus, we mostly treat big integers as unsigned, but can easily extend them if we need to.
+
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "../main"
+%%% End:

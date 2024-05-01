@@ -1,0 +1,83 @@
+\documentclass[12pt, oneside]{article}
+\usepackage{KUstyle}
+\input{setup.tex}
+
+%%% Front Page %%%
+% \fpimage{fpimage}
+\ptype{Master's Thesis}
+\author{Thorbjørn Bülow Bringgaard}
+\title{Efficient Big Integer Arithmetics Using GPGPU}
+\subtitle{With focus on implementations of big integer addition, division and multiplication in CUDA and Futhark}
+\advisor{Advisor: Cosmin Eugen Oancea}
+\date{\today}
+
+%%%%% Main %%%%%
+\begin{document}
+\maketitle
+
+\newpage 
+
+\section*{Abstract}
+\label{sec:abstract}
+\addcontentsline{toc}{section}{Abstract} 
+\input{sections/abstract}
+
+% \newpage
+% \section*{Resumé}
+% \label{sec:resume}
+% \addcontentsline{toc}{section}{Resumé}
+% \input{sections/resume}
+
+\newpage
+\tableofcontents
+\newpage
+
+\input{sections/introduction}
+\label{sec:intro}
+
+\input{sections/preliminaries}
+\label{sec:pre}
+
+\input{sections/bigint}
+\label{sec:big}
+
+\input{sections/addition}
+\label{sec:add}
+
+\input{sections/multiplication}
+\label{sec:mul}
+
+% \input{sections/division}
+\label{sec:div}
+
+\input{sections/considerations}
+\label{sec:cons}
+
+\input{sections/results}
+\label{sec:res}
+
+\input{sections/conclusion}
+\label{sec:conc}
+
+\newpage
+\phantomsection
+
+\newpage
+
+\addcontentsline{toc}{section}{Bibliography}
+\bibliography{sections/references}
+
+\newpage
+\phantomsection
+\newpage
+
+\addcontentsline{toc}{section}{Appendix}
+\input{sections/appendix}
+\label{sec:app}
+
+\end{document}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: t
+%%% End:
