@@ -1,5 +1,7 @@
 *
-!*.c
+!vim.c
+!mult.c
 !.gitignore
 !Makefile
 !Debug.hs
+!README.txt
