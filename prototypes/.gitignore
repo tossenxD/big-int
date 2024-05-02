@@ -1,5 +1,5 @@
 *
-!vim.c
+!div.c
 !mult.c
 !.gitignore
 !Makefile
