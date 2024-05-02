@@ -303,6 +303,7 @@ void step(int h, bigint_t v, bigint_t w, int n, int l, int g, prec_t m) {
     free(P);
 }
 
+// DOES NOT VALIDATE, USE REFINE1 OR REFINE2 INSTEAD
 // refine1 function as described in the paper s.t. it writes result to `w`
 void refine1(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
     int g = 1;
@@ -317,7 +318,7 @@ void refine1(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
 
 // refine2 function as described in the paper s.t. it writes result to `w`
 void refine2(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
-    int g = 2; // 2 guard digits
+    int g = m/4; // `m` guard digits; NOTE `m/4` because we use 4times buffer
     shift(g, w, w, m);
     while (h - k > l) {
         int n = min(h - k + 1 - l, l); // how much to grow
@@ -330,7 +331,7 @@ void refine2(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
 
 // refine3 function as described in the paper s.t. it writes result to `w`
 void refine3(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
-    int g = 2; // 2 guard digits
+    int g = m/4; // `m` guard digits; NOTE `m/4` because we use 4times buffer
     shift(g, w, w, m);
     bigint_t v0 = init(m);
 
@@ -416,7 +417,7 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
         w[3] = (digit_t) (r >> 96);
 
 
-        // BELOW IS GENERALIZED OVER l = {1,2}, keep or trash based on `l` TODO
+        // BELOW IS GENERALIZED OVER l = {1,2}, keep or trash based on `l` TODO^
         /* __uint128_t V =      (__uint128_t) v[k-l]; */
         /* V +=                ((__uint128_t) v[k-l+1]) << 32; */
         /* V += (l == 1) ? 0 : ((__uint128_t) v[k]    ) << 64; */
@@ -445,22 +446,20 @@ void div_shinv(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
     prec_t   p = m*4; // `m` padding because of multiplication
     bigint_t a = init(p); cpy(a, u, m); // `a = u`
     bigint_t b = init(p); cpy(b, v, m); // `b = v`
-    bigint_t r = init(p);               // `r = w`
+    bigint_t r = init(p);               // `r = 0`
 
     shinv(b, h, r, p);  // `r = shinv_h b`
     mult(a, r, b, p);   // `b = a * r`
     shift(-h, b, r, p); // `r = shift_(-h) b`
 
-    cpy(w, r, m);
+    cpy(w, r, m);       // `w = r`
 
-    // check whether delta = {0,1}
-    mult(v, r, a, m);        // `a = v * r`
-    if (!eq(a, u, m)) {      // `if a != u`
-        add(v, a, b, m);     // `b = a + v`
-        if (lt(b, u, m)) {   // `if b < u`
-            set(a, 1, m);    // `a = 1`
-            add(w, a, w, m); // `w = w + a`
-        }
+    // check whether 𝛿 = {0,1}
+    mult(v, r, a, m);    // `a = v * r`
+    add(v, a, b, m);     // `b = a + v`
+    if (lt(b, u, m)) {   // `if b < u`
+        set(a, 1, m);    // `a = 1`
+        add(w, a, w, m); // `w = w + a`
     }
 
     free(a); free(b); free(r);
@@ -497,6 +496,7 @@ int main(int argc, char* argv[]) {
     bigint_t x = (bigint_t) malloc(m * sizeof(digit_t));
 
     if(randomP) {
+        int valid = 0;
         for (int nz = 1; nz < m; nz++) {
             for(int k = 0; k < m; k++) {
                 uint32_t vd = 0;
@@ -531,8 +531,11 @@ int main(int argc, char* argv[]) {
                 printf("GMP:\n");
                 prnt("  x", x, m);
                 printf("---------------------------------------------------\n");
+            } else {
+                valid++;
             }
         }
+        printf("[%d/%d] IS VALID\n", valid, m-1);
     }
     else {
         for (int i=0; i < m; i++) {
