@@ -112,7 +112,7 @@ def convMult64v2 [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
   -- find two low-, high- and carry-parts for each thread
   let (lhcs1, lhcs2) = map convMultLhcs (iota (m/4)) |> unzip
   let lhcss = lhcs1 ++ (reverse lhcs2)
-  let (lhcss1, lhcss2) = map (\i -> (lhcss[i*2],lhcss[i*2+1])) (0..<m/4) |> unzip
+  let (lhcss1, lhcss2) = map (\i -> (lhcss[i*2],lhcss[i*2+1])) (0..<m/4) |>unzip
   let (l1s, hl1s, ch1s, cc1s) = unzip4 lhcss1
   let (l2s, hl2s, ch2s, cc2s) = unzip4 lhcss2
   let lhcs1sh = l1s ++ hl1s ++ ch1s ++ cc1s :> [m]u64
@@ -127,12 +127,16 @@ def convMult64v2 [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
 -- TODO
 
 def convMult64v3 [m] (ipb: i64) (as: [m]u64) (bs: [m]u64) : [m]u64 =
+  -- size of each instance
+  let n = m / ipb
+
   -- function that computes a low, high and carry part of multiplication
   let convMultLhcs (tid: i64) : ( (u64, u64, u64, u64), (u64, u64, u64, u64) ) =
     let k1 = tid * 2
-    let k1_start = (k1 / m) * m
+    let k1_start = (k1 / n) * n
     let (lhc1, lhc2) =
-      loop (lhc1,lhc2) = ((0u64,0u64,0u64),(0u64,0u64,0u64)) for i < k1 + 1 do
+      loop (lhc1,lhc2) = ( (0u64, 0u64, 0u64), (0u64, 0u64, 0u64) )
+      for i < (k1 + 1 - k1_start) do
       let j = k1 - i
       let a = as[i + k1_start]
       let lhc1 = iterate64 lhc1 a bs[j]
@@ -141,9 +145,10 @@ def convMult64v3 [m] (ipb: i64) (as: [m]u64) (bs: [m]u64) : [m]u64 =
     let lhc2 = iterate64 lhc2 as[k1+1] bs[k1_start]
 
     let k2 = m-1 - k1
-    let k2_start = (k2 / m) * m
+    let k2_start = (k2 / n) * n
     let (lhc3, lhc4) =
-      loop (lhc3,lhc4) = ((0u64,0u64,0u64),(0u64,0u64,0u64)) for i < k2 do
+      loop (lhc3,lhc4) = ( (0u64, 0u64, 0u64), (0u64, 0u64, 0u64) )
+      for i < (k2 - k2_start) do
       let j = k2-1 - i
       let a = as[i + k2_start]
       let lhc3 = iterate64 lhc3 a bs[j]
@@ -154,12 +159,21 @@ def convMult64v3 [m] (ipb: i64) (as: [m]u64) (bs: [m]u64) : [m]u64 =
     in (combine64 lhc1 lhc2, combine64 lhc3 lhc4)
 
   -- find two low-, high- and carry-parts for each thread
-  let (lhcs1, lhcs2) = map convMultLhcs (iota ((ipb*m)/4)) |> unzip
+  let (lhcs1, lhcs2) = map convMultLhcs (iota (m/4)) |> unzip
   let lhcss = lhcs1 ++ (reverse lhcs2)
-  let (lhcss1, lhcss2) = map (\i -> (lhcss[i*2],lhcss[i*2+1])) (0..<(ipb*m)/4) |> unzip
+  let (lhcss1, lhcss2) = map (\i -> (lhcss[i*2],lhcss[i*2+1])) (0..<m/4) |>unzip
   let (l1s, hl1s, ch1s, cc1s) = unzip4 lhcss1
   let (l2s, hl2s, ch2s, cc2s) = unzip4 lhcss2
   let lhcs1sh = l1s ++ hl1s ++ ch1s ++ cc1s :> [m]u64
-  let lhcs2sh = l2s ++ hl2s ++ ch2s ++ cc2s :> [m]u64
-  let lhcs2sh = map (\ i -> if i <= 1 then 0 else lhcs2sh[i-2]) (iota (m*ipb))
-  in badd64v2 lhcs1sh lhcs2sh -- TODO since its already in shared, should call RUN version
+  let lhcs2sh = l2s ++ hl2s ++ ch2s ++ cc2s
+  let lhcs2sh = map (\ i -> if i <= 1 then 0 else lhcs2sh[i-2]) (iota m)
+  in badd64v3 ipb lhcs1sh lhcs2sh -- TODO since its already in shared, should call RUN version
+
+entry convMult64v3Wrapper [n][m] (ass: [n][m]u64) (bss: [n][m]u64) : [n][m]u64 =
+  let ipb = if m > 4 then (128 + (m/4) - 1) / (m/4) else 1 -- ceil(128/(m/4))
+  let ipb = if ipb > n || (n % ipb) > 0 then 1 else ipb
+  -- let ipb = 2
+  let as  = (flatten ass :> [(n/ipb)*(ipb*m)]u64) |> unflatten
+  let bs  = (flatten bss :> [(n/ipb)*(ipb*m)]u64) |> unflatten
+  let rs  = imap2Intra as bs (convMult64v3 ipb)
+  in (flatten rs :> [n*m]u64) |> unflatten
