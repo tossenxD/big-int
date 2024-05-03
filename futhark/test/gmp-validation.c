@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <gmp.h>
-#include "test-gmp-validation-lib.h"
+#include "gmp-validation-lib.h"
 
 #define PR_FAILS 0
 

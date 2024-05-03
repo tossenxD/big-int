@@ -12,23 +12,23 @@ test: test-gmp-validation-compile test-gmp-validation-run test-fut-validation te
 
 test-gmp-validation-compile:
 	@echo "## COMPILING CPU GMP-VALIDATION TESTS"
-	futhark c --library $(TDIR)test-gmp-validation-lib.fut
-	gcc $(TDIR)test-gmp-validation.c -o $(TDIR)test-gmp-validation-cpu $(TDIR)test-gmp-validation-lib.c -lgmp
+	futhark c --library $(TDIR)gmp-validation-lib.fut
+	gcc $(TDIR)gmp-validation.c -o $(TDIR)gmp-validation-cpu $(TDIR)gmp-validation-lib.c -lgmp
 	@echo "## COMPILING GPU GMP-VALIDATION TESTS"
-	futhark opencl --library $(TDIR)test-gmp-validation-lib.fut
-	gcc $(TDIR)test-gmp-validation.c -o $(TDIR)test-gmp-validation-gpu $(TDIR)test-gmp-validation-lib.c -lgmp -lOpenCL -lm
+	futhark opencl --library $(TDIR)gmp-validation-lib.fut
+	gcc $(TDIR)gmp-validation.c -o $(TDIR)gmp-validation-gpu $(TDIR)gmp-validation-lib.c -lgmp -lOpenCL -lm
 
 test-gmp-validation-run:
 	@echo "## RUNNING CPU GMP-VALIDATION TESTS"
-	./$(TDIR)test-gmp-validation-cpu
+	./$(TDIR)gmp-validation-cpu
 	@echo "## RUNNING GPU GMP-VALIDATION TESTS"
-	./$(TDIR)test-gmp-validation-gpu
+	./$(TDIR)gmp-validation-gpu
 
 test-fut-validation:
 	@echo "## RUNNING CPU FUT-VALIDATION TESTS"
-	futhark test --backend=c $(TDIR)test-add.fut $(TDIR)test-mul.fut
+	futhark test --backend=c $(TDIR)fut-validation.fut
 	@echo "## RUNNING GPU FUT-VALIDATION TESTS"
-	futhark test --backend=c $(TDIR)test-add.fut $(TDIR)test-mul.fut
+	futhark test --backend=c $(TDIR)fut-validation.fut
 
 test-fut-properties:
 	@echo "## RUNNING CPU FUT-PROPERTIES TESTS"
@@ -83,4 +83,4 @@ six-mul64:
 # CLEANUP
 
 clean:
-	find . -not -name '.' -not -name 'bench' -not -name 'test' -not -name '*.fut' -not -name '*.awk' -not -name '.gitignore' -not -name 'Makefile' -delete
+	find . -not -name '.' -not -name 'bench' -not -name 'test' -not -name '*.fut' -not -name '*.awk' -not -name '.gitignore' -not -name 'Makefile' -not -name 'gmp-validation.c' -delete

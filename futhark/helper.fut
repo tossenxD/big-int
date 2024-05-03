@@ -36,8 +36,8 @@ def lt [m] (u: [m]u64) (v: [m]u64) : bool =
   |> reduce (\ (accl, _) (l, e) -> (l || (e && accl), true)) (false, true)
   |> fst
 
-def eq [m] (u: [m]u64) (v: [m]u64) : bool =
-  map2 (==) u v |> reduce (&&) true
+def eq [m] 't (f: t -> t -> bool) (u: [m]t) (v: [m]t) : bool =
+  map2 f u v |> reduce (&&) true
 
 def ez [m] (u: [m]u64) : bool =
   map (0 ==) u |> reduce (&&) true
