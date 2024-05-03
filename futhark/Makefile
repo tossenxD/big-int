@@ -1,23 +1,42 @@
-TFLGS = --backend=opencl 
+# SETUP
 BFLGS = --backend=opencl
 BDIR  = bench/
 TDIR  = test/
 FORM  = | awk -f form-tool.awk -
 
+# TESTS
 
+.PHONY: test
 
-.PHONY: test test-add test-mul
+test: test-gmp-validation-compile test-gmp-validation-run test-fut-validation test-fut-properties
 
-test:
-	futhark test $(TFLGS) $(TDIR)test-add.fut $(TDIR)test-mul.fut
+test-gmp-validation-compile:
+	@echo "## COMPILING CPU GMP-VALIDATION TESTS"
+	futhark c --library $(TDIR)test-gmp-validation-lib.fut
+	gcc $(TDIR)test-gmp-validation.c -o $(TDIR)test-gmp-validation-cpu $(TDIR)test-gmp-validation-lib.c -lgmp
+	@echo "## COMPILING GPU GMP-VALIDATION TESTS"
+	futhark opencl --library $(TDIR)test-gmp-validation-lib.fut
+	gcc $(TDIR)test-gmp-validation.c -o $(TDIR)test-gmp-validation-gpu $(TDIR)test-gmp-validation-lib.c -lgmp -lOpenCL -lm
 
-test-add:
-	futhark test $(TFLGS) $(TDIR)test-add.fut
+test-gmp-validation-run:
+	@echo "## RUNNING CPU GMP-VALIDATION TESTS"
+	./$(TDIR)test-gmp-validation-cpu
+	@echo "## RUNNING GPU GMP-VALIDATION TESTS"
+	./$(TDIR)test-gmp-validation-gpu
 
-test-mul:
-	futhark test $(TFLGS) $(TDIR)test-mul.fut
+test-fut-validation:
+	@echo "## RUNNING CPU FUT-VALIDATION TESTS"
+	futhark test --backend=c $(TDIR)test-add.fut $(TDIR)test-mul.fut
+	@echo "## RUNNING GPU FUT-VALIDATION TESTS"
+	futhark test --backend=c $(TDIR)test-add.fut $(TDIR)test-mul.fut
 
+test-fut-properties:
+	@echo "## RUNNING CPU FUT-PROPERTIES TESTS"
+	futhark test --backend=c $(TDIR)test-add.fut $(TDIR)test-mul.fut
+	@echo "## RUNNING GPU FUT-PROPERTIES TESTS"
+	futhark test --backend=c $(TDIR)test-add.fut $(TDIR)test-mul.fut
 
+# BENCHMARKS
 
 .PHONY: add
 
@@ -61,7 +80,7 @@ one-mul64:
 six-mul64:
 	futhark bench $(BFLGS) $(BDIR)six-mul64.fut $(FORM)
 
-
+# CLEANUP
 
 clean:
 	find . -not -name '.' -not -name 'bench' -not -name 'test' -not -name '*.fut' -not -name '*.awk' -not -name '.gitignore' -not -name 'Makefile' -delete

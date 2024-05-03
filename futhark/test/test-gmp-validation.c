@@ -2,13 +2,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <gmp.h>
-#include "add.h"
-/* #include "mul.h" */
-/* #include "div.c" */
+#include "test-gmp-validation-lib.h"
 
 #define PR_FAILS 0
-
-// gcc test-against-gmp.c -o gmp add.c -lgmp
 
 /* Runs big integer addition, multiplication and division using GMP. */
 void run_gmp(uint32_t m, uint32_t *u, uint32_t *v, uint32_t *w_add,
@@ -52,13 +48,6 @@ int eq(int m, uint32_t *u, uint32_t *v) {
     int retval = 1;
     for(int i=0; i<m; i++) { retval &= u[i] == v[i]; }
     return retval;
-}
-
-// prints a string `s` followed big-int `u` to stdout
-void prnt(char* s, uint32_t* u, uint32_t m) {
-    printf("%s: [", s);
-    for (uint32_t i=0; i < m; i++) { printf("%u,", u[i]); }
-    printf("]\n");
 }
 
 /* Tests the arithemtic functions implemented in Futhark against the ones
@@ -114,19 +103,17 @@ void run_tests(uint32_t m_init, int m_grwth, uint32_t runs, struct futhark_conte
         run_gmp(m, u_32, v_32, w_gmp_add, w_gmp_mul, w_gmp_div);
 
         // compute arithmetics using Futhark
-        futhark_entry_badd32v1(ctx, &w_fut_add_32, u_fut_32, v_fut_32);
-        futhark_entry_badd64v1(ctx, &w_fut_add_64, u_fut_64, v_fut_64);
-        /* futhark_entry_convMult32v1(ctx, w_fut_mul_32, u_fut_32, v_fut_32); */
-        /* futhark_entry_convMult64v1(ctx, w_fut_mul_64, u_fut_64, v_fut_64); */
-        /* futhark_entry_div32v1(ctx, w_fut_div_32, u_fut_32, v_fut_32); */
-        /* futhark_entry_div64v1(ctx, w_fut_div_64, u_fut_64, v_fut_64); */
+        futhark_entry_test_add32(ctx, &w_fut_add_32, u_fut_32, v_fut_32);
+        futhark_entry_test_add64(ctx, &w_fut_add_64, u_fut_64, v_fut_64);
+        futhark_entry_test_mul32(ctx, &w_fut_mul_32, u_fut_32, v_fut_32);
+        futhark_entry_test_mul64(ctx, &w_fut_mul_64, u_fut_64, v_fut_64);
+        futhark_entry_test_div32(ctx, &w_fut_div_32, u_fut_32, v_fut_32);
+        futhark_entry_test_div64(ctx, &w_fut_div_64, u_fut_64, v_fut_64);
         futhark_context_sync(ctx);
 
         // compare Futhark and GMP results
         futhark_values_u32_1d(ctx, w_fut_add_32, w_our_32);
         futhark_context_sync(ctx);
-        /* prnt("GMP", w_gmp_add, m); */
-        /* prnt("OUR", w_our, m); */
         if (eq(m, w_gmp_add, w_our)) { badd32v1P++; }
         else if (PR_FAILS) { printf("[FAIL] badd32v1 with m = %d\n", m); }
 

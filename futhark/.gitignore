@@ -3,6 +3,6 @@
 !Makefile
 !bench/
 !test/
-!test/test-against-gmp.c
+!test/test-gmp-validation.c
 !*.fut
 !*.awk
