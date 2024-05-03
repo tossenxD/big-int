@@ -349,15 +349,12 @@ void refine3(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
 }
 
 // whole-shifted inverse of big-int `v` by `h`; result is written to big-int `w`
-void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
+void shinv(bigint_t v, int h, int k, bigint_t w, prec_t m) {
     /* In the paper, we group digits if the base is too small. However,
        that is not an issue here since we use a sufficiently large fixed base.
     */
 
-    // 1. compute `k`, i.e., the largest non-zero digit
-    int k = findk(v, m);
-
-    // 2. handle special cases to guarantee `B < v <= B^h / 2`
+    // 1. handle special cases to guarantee `B < v <= B^h / 2`
     {
         // return predicate
         bool rp = 0;
@@ -387,8 +384,11 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
         if (rp) { return; }
     }
 
-    // 3. form initial approximation
-    int l = 2; //min(k, 2); // TODO how to handle l=1?
+    // 2. form initial approximation
+    /* We handle the case where `k == 1` outside of this function (by shifting
+       both `u` and `v` by one, and we handle case where `k == 0` in step 1..
+    */
+    int l = 2;
     {
         /* The method for finding the initial approximation described in the
            paper focuses on a generalized base. However, we can specialize it
@@ -415,67 +415,74 @@ void shinv(bigint_t v, int h, bigint_t w, prec_t m) {
         w[1] = (digit_t) (r >> 32);
         w[2] = (digit_t) (r >> 64);
         w[3] = (digit_t) (r >> 96);
-
-
-        // BELOW IS GENERALIZED OVER l = {1,2}, keep or trash based on `l` TODO^
-        /* __uint128_t V =      (__uint128_t) v[k-l]; */
-        /* V +=                ((__uint128_t) v[k-l+1]) << 32; */
-        /* V += (l == 1) ? 0 : ((__uint128_t) v[k]    ) << 64; */
-
-        /* // compute `B^(2*l) - V` within 128-bits */
-        /* __uint128_t b2lV = (l == 1) ? (((__uint128_t) 1) << 64) - V : */
-        /*     (((((__uint128_t) 1) << 96) - (V >> 32)) << 32) */
-        /*     - (V & ((__uint128_t) 4294967295)); */
-
-        /* __uint128_t r = b2lV / (V+1); */
-
-        /* set(w, (uint32_t) r, m);     w[1] = (uint32_t) (r >> 32); */
-        /* w[2] = (uint32_t) (r >> 64); w[3] = (uint32_t) (r >> 96); */
     }
 
-    // 4. either return (if sufficient) or refine initial approximation
+    // 3. either return (if sufficient) or refine initial approximation
     if (h - k <= l) { shift(h - k - l, w, w, m); }
     else            { refine3(v, h, k, w, l, m); }
 }
 
-// divides big-int `u` by `v` and write result to `w` using method from the paper
-void div_shinv(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
+// divides big integer `u` by `v` using Theorem 1 (see paper), and writes the
+// quotient to big integer `q` and remainder to `r`
+void div_shinv(bigint_t u, bigint_t v, bigint_t q, bigint_t r, prec_t m) {
+    // 1. compute assumptions
     int h = findk(u, m) + 1;
+    int k = findk(v, m);
 
-    // requires padding of at least one since if `h=m` then `B^h > (B^m)-1`
-    prec_t   p = m*4; // `m` padding because of multiplication
+    // 2. requires padding of at least one since if `h=m` then `B^h > (B^m)-1`,
+    //    but we use `3*m` because of the multiplications ('3m' is excesive)
+    prec_t p = m*4;
+
+    // 3. allocate and initialize some big integers
     bigint_t a = init(p); cpy(a, u, m); // `a = u`
     bigint_t b = init(p); cpy(b, v, m); // `b = v`
-    bigint_t r = init(p);               // `r = 0`
+    bigint_t c = init(p);               // `c = 0`
 
-    shinv(b, h, r, p);  // `r = shinv_h b`
-    mult(a, r, b, p);   // `b = a * r`
-    shift(-h, b, r, p); // `r = shift_(-h) b`
-
-    cpy(w, r, m);       // `w = r`
-
-    // check whether 𝛿 = {0,1}
-    mult(v, r, a, m);    // `a = v * r`
-    add(v, a, b, m);     // `b = a + v`
-    if (lt(b, u, m)) {   // `if b < u`
-        set(a, 1, m);    // `a = 1`
-        add(w, a, w, m); // `w = w + a`
+    // 4. if `k == 1`, we shift `u` and `v` by one to avoid the infinite loop
+    //    for `l = 1` inside the `shinv` algorithm
+    if (k == 1) {
+        h++;                 // `h = h + 1`
+        k++;                 // `k = k + 1`
+        shift(1, a, a, m+1); // `a = a << 1`
+        shift(1, b, b, m+1); // `b = b << 1`
     }
 
-    free(a); free(b); free(r);
+    // 5. compute the quotient
+    shinv(b, h, k, c, p); // `c = shinv_h b`
+    mult(a, c, b, p);     // `b = a * c`
+    shift(-h, b, b, p);   // `b = shift_(-h) b`
+    cpy(q, b, m);         // `q = b`
+
+    // 6. compute the remainder and check whether 𝛿 = {0,1}
+    mult(v, q, a, m);    // `a = v * q`
+    sub(u, a, r, m);     // `r = u - a`
+    if (!lt(r, v, m)) {  // `if r >= v`
+        set(a, 1, m);    // `a = 1`
+        add(q, a, q, m); // `w = w + a`
+        sub(r, v, r, m); // `r = r - v`
+    }
+
+    // 7. cleanup
+    free(a); free(b); free(c);
 }
 
-// divides big-int `u` by `v` and write result to `w` using gmp
-void div_gmp(bigint_t u, bigint_t v, bigint_t w, prec_t m) {
+// divides `u` by `v` using GMP and write quotient to `q` and remainder to `r`
+void div_gmp(bigint_t u, bigint_t v, bigint_t q, bigint_t r, prec_t m) {
+    set(q, 0, m);
+    set(r, 0, m);
+
     mpz_t a; mpz_init(a); mpz_import(a, m, -1, sizeof(digit_t), 0, 0, u);
     mpz_t b; mpz_init(b); mpz_import(b, m, -1, sizeof(digit_t), 0, 0, v);
-    mpz_t r; mpz_init(r);
+    mpz_t c; mpz_init(c);
+    mpz_t d; mpz_init(d);
 
-    mpz_div(r, a, b);
+    mpz_div(c, a, b); // c = a / b
+    mpz_mul(d, b, c); // d = b * c
+    mpz_sub(b, a, d); // b = a - d
 
-    set(w, 0, m);
-    mpz_export(w, NULL, -1, sizeof(digit_t), 0, 0, r);
-    mpz_clear(a); mpz_clear(b); mpz_clear(r);
+    mpz_export(q, NULL, -1, sizeof(digit_t), 0, 0, c);
+    mpz_export(r, NULL, -1, sizeof(digit_t), 0, 0, b);
+    mpz_clear(a); mpz_clear(b); mpz_clear(c); mpz_clear(d);
 }
 
 /** MAIN **/
@@ -492,11 +499,13 @@ int main(int argc, char* argv[]) {
 
     bigint_t u = (bigint_t) malloc(m * sizeof(digit_t));
     bigint_t v = (bigint_t) malloc(m * sizeof(digit_t));
-    bigint_t w = (bigint_t) malloc(m * sizeof(digit_t));
-    bigint_t x = (bigint_t) malloc(m * sizeof(digit_t));
+    bigint_t q_our = (bigint_t) malloc(m * sizeof(digit_t));
+    bigint_t r_our = (bigint_t) malloc(m * sizeof(digit_t));
+    bigint_t q_gmp = (bigint_t) malloc(m * sizeof(digit_t));
+    bigint_t r_gmp = (bigint_t) malloc(m * sizeof(digit_t));
 
     if(randomP) {
-        int valid = 0;
+        int valid_count = 0;
         for (int nz = 1; nz < m; nz++) {
             for(int k = 0; k < m; k++) {
                 uint32_t vd = 0;
@@ -513,12 +522,12 @@ int main(int argc, char* argv[]) {
                 v[k] = vd;
             }
 
-            div_shinv(u, v, w, m);
-            div_gmp(u, v, x, m);
+            div_shinv(u, v, q_our, r_our, m);
+            div_gmp(u, v, q_gmp, r_gmp, m);
 
-            bool p = (x[0] == w[0]);
-            for(int i = 1; i < m; i++) {
-                p = p && (w[i] == x[i]);
+            bool p = 1;
+            for(int i = 0; i < m; i++) {
+                p = p && q_our[i] == q_gmp[i] && r_our[i] == r_gmp[i];
             }
 
             if (!p) {
@@ -527,21 +536,24 @@ int main(int argc, char* argv[]) {
                 prnt("  u", u, m);
                 prnt("  v", v, m);
                 printf("Output:\n");
-                prnt("  w", w, m);
+                prnt("  q", q_our, m);
+                prnt("  r", r_our, m);
                 printf("GMP:\n");
-                prnt("  x", x, m);
+                prnt("  q", q_gmp, m);
+                prnt("  r", r_gmp, m);
                 printf("---------------------------------------------------\n");
             } else {
-                valid++;
+                valid_count++;
             }
         }
-        printf("[%d/%d] IS VALID\n", valid, m-1);
+        printf("[%d/%d] IS VALID\n", valid_count, m-1);
     }
     else {
         for (int i=0; i < m; i++) {
             u[i] = atoi(argv[3     + i]);
             v[i] = atoi(argv[3 + m + i]);
-            w[i] = 0;
+            q_our[i] = 0;
+            r_our[i] = 0;
         }
 
         printf("---------------------------------------------------\n");
@@ -549,20 +561,24 @@ int main(int argc, char* argv[]) {
         prnt("  u", u, m);
         prnt("  v", v, m);
 
-        div_shinv(u, v, w, m);
-        div_gmp(u, v, x, m);
+        div_shinv(u, v, q_our, r_our, m);
+        div_gmp(u, v, q_gmp, r_gmp, m);
 
         printf("Output:\n");
-        prnt("  w", w, m);
+        prnt("  q", q_our, m);
+        prnt("  r", r_our, m);
 
         printf("GMP:\n");
-        prnt("  x", x, m);
+        prnt("  q", q_gmp, m);
+        prnt("  r", r_gmp, m);
         printf("---------------------------------------------------\n");
     }
 
     free(u);
     free(v);
-    free(w);
-    free(x);
+    free(q_our);
+    free(r_our);
+    free(q_gmp);
+    free(r_gmp);
     return 0;
 }

@@ -1,4 +1,4 @@
-FLGS=-O3 -Wall -Wextra
+FLGS=-O3 -Wall -Wextra -g
 
 .PHONY:
 random:
