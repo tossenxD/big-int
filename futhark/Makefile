@@ -8,7 +8,7 @@ FORM  = | awk -f form-tool.awk -
 
 .PHONY: test
 
-test: test-gmp-validation-compile test-gmp-validation-run test-fut-validation test-fut-properties
+test: test-gmp-validation-compile test-gmp-validation-run test-fut-validation-properties
 
 test-gmp-validation-compile:
 	@echo "## COMPILING CPU GMP-VALIDATION TESTS"
@@ -24,17 +24,11 @@ test-gmp-validation-run:
 	@echo "## RUNNING GPU GMP-VALIDATION TESTS"
 	./$(TDIR)gmp-validation-gpu
 
-test-fut-validation:
-	@echo "## RUNNING CPU FUT-VALIDATION TESTS"
-	futhark test --backend=c $(TDIR)fut-validation.fut
-	@echo "## RUNNING GPU FUT-VALIDATION TESTS"
-	futhark test --backend=c $(TDIR)fut-validation.fut
-
-test-fut-properties:
-	@echo "## RUNNING CPU FUT-PROPERTIES TESTS"
-	futhark test --backend=c $(TDIR)test-add.fut $(TDIR)test-mul.fut
-	@echo "## RUNNING GPU FUT-PROPERTIES TESTS"
-	futhark test --backend=c $(TDIR)test-add.fut $(TDIR)test-mul.fut
+test-fut-validation-properties:
+	@echo "## RUNNING CPU FUT-VALIDATION AND FUT-PROPERTIES TESTS"
+	futhark test --backend=c $(TDIR)fut-validation.fut $(TDIR)fut-properties.fut
+	@echo "## RUNNING GPU FUT-VALIDATION AND FUT-PROPERTIES TESTS"
+	futhark test --backend=opencl $(TDIR)fut-validation.fut $(TDIR)fut-properties.fut
 
 # BENCHMARKS
 
