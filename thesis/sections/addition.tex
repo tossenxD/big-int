@@ -61,11 +61,29 @@ Equation (\ref{eq:otimesopt}) is a conversion of equation (\ref{eq:otimes}), whe
 Now, since $1~\&~2$ is $0$ we know that the second clause of $\alpha~\&~1$ is always $0$ and that the first clause of $\alpha~\&~2$ is always $0$, and so we get: 
   \begin{align}
   \label{eq:otimesproof}
-  \phantom{(x \otimes y) \otimes z}
-    &= ((((((x~\&~(y \gg 1))~|~y)~\&~1)~\&~1)~\&~(z \gg 1))~|\\
-    &\phantom{= ((}(z~\&~1))~|~((x~\&~y~\&~2)~\&~2)~\&~z)
+    =~&((((((x~\&~(y \gg 1))~|~y)~\&~1)~\&~1)~\&~(z \gg 1))~|~(z~\&~1))\\
+      &~|~((x~\&~y~\&~2)~\&~2)~\&~z)
   \end{align}
+Let us first consider the second clause. Since bitwise conjunction is commutative and associative, we get:
+\begin{align}
+\label{eq:otimesproof}
+(x~\&~y~\&~2)~\&~2)~\&~z = x~\&~(2~\&~(y~\&~z~\&~2))
+\end{align}
+
+\begin{align}
+\label{eq:otimesproof}
+  x \otimes (y \otimes z) &= x \otimes (~\underbrace{((y~\&~(z \gg 1))~|~z)~\&~1)~|~(y~\&~z~\&~2)}_{\beta}~)\\
+  &= (((x~\&~(\beta \gg 1))~|~\beta)~\&~1)~|~(x~\&~\beta~\&~2)\\
+  &= ((x~\&~(\beta \gg 1)~\&~1)~|~(\beta~\&~1))~|~(x~\&~(\beta~\&~2))
+\end{align}
+
+Consider the second clause. We have:
+\begin{align}
+  \label{eq:3}
   
+\end{align}
+
+
 {\color{red} TODO finish proof}
 
 
