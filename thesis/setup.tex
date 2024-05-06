@@ -1,3 +1,5 @@
+%% PACKAGES
+
 \usepackage[utf8]{inputenc}
 \usepackage{babel}
 \usepackage{amsmath,amssymb,amsthm,amsfonts,amstext}
@@ -11,14 +13,79 @@
 \usepackage{float}
 \usepackage{fancyhdr}
 \usepackage{listings}
+\usepackage[T1]{fontenc}
+
+%% STYLE
 
 \bibliographystyle{plainurl}
 \makeatletter
 \renewcommand\@dotsep{280}
 \makeatother
 
+%% COMMANDS
+
 \newcommand\fun[1]{\ensuremath{\mathtt{#1}}}
 \newcommand\tup[2]{\ensuremath{(#1,~#2)}}
+
+%% LISTINGS
+
+\lstdefinelanguage{futhark}
+{
+  % list of keywords
+  morekeywords={
+    do,
+    else,
+    for,
+    if,
+    in,
+    include,
+    let,
+    loop,
+    then,
+    type,
+    val,
+    while,
+    with,
+    module,
+    def,
+    entry,
+    local,
+    open,
+    import,
+    assert,
+    match,
+    case,
+  },
+  sensitive=true, % Keywords are case sensitive.
+  morecomment=[l]{--}, % l is for line comment.
+  morestring=[b]" % Strings are enclosed in double quotes.
+}
+
+\lstdefinelanguage{CPP}
+{
+  language = C++,
+  morekeywords = {
+    uint32_t,
+    uint64_t
+  },
+}
+
+\lstdefinestyle{myStyle}
+{
+  frame=tb,
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle = \color{blue},
+  commentstyle = \color{green},
+  stringstyle = \color{purple},
+  numberstyle=\scriptsize\color{darkgray},
+  captionpos=t,
+  breaklines=true,
+  numbers=left,
+}
+
+\lstset{style=myStyle}  
+
+
 
 %%% Local Variables:
 %%% mode: LaTeX
