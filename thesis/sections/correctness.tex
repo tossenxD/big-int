@@ -1,4 +1,5 @@
 \section{Correctness}
+\label{sec:cor}
 
 A big integer library is only as useful as it is correct. Furthermore, we cannot trust performance benchmarks of incorrect implementations, as the underlying algorithms may not be fully implemented.
 
@@ -38,7 +39,7 @@ Lastly, we also test that the usual arithmetic properties hold for their respect
 
 \lstinputlisting[language=futhark,firstline=169,lastline=174,caption={\footnotesize Futhark commutativity test for addition with 64-bit base from \texttt{fut-properties.fut}.},label={futaddproptest},firstnumber=169]{../futhark/test/fut-properties.fut}
 
-{\color{red} TODO testing div with random $nz$ to ensure meaningful tests}
+{\color{red} TODO testing div with random $nz$ divisor to ensure meaningful tests}
 
 \subsection{Test Results}
 

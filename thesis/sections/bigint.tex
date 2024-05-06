@@ -1,4 +1,5 @@
 \section{Representation of Big Integers}
+\label{sec:big}
 When working with big integers, one must make a choice between arbitrary precision and exact precision integers. Arbitrary precision, like the name suggests, means that the integers are not bounded by software. This is, for example, implemented in Haskell \cite{marlow2010haskell}, and provides a great deal of abstraction, as there can occur no under/overflows or wrap-arounds. In other words, it allows the programmer to work without worrying about the sufficiency of the underlying data structure. {\color{red} TODO also mention gmp}
 
 However, the cost of this abstraction is inefficiency, since it requires dynamic memory allocation to handle overflows. This is especially troublesome given a GPU architecture, as discussed in section \ref{sec:pre}.

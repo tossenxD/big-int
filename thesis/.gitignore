@@ -9,3 +9,5 @@ main.pdf
 *.out
 *.synctex.gz
 *.toc
+*#
+.#*

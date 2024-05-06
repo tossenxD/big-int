@@ -1,8 +1,63 @@
 \section{Performance}
+\label{sec:per}
 
+The main benefit of data parallel computing is superior scaling and performance gain on big data. As such, the big integer library written in this project must be efficient and perform well on medium-sized big integers, but also scale well across the size of the big integers, the number of big integer instances and the number of operations.
+
+In order to determine the efficiency of the Futhark library, we benchmark the performance and compare it to our CUDA implementation. The assumption is that the CUDA implementation yields the best performance possible, given the underlying design, algorithms and optimizations, revealing the performance overhead and inefficiencies of the Futhark library. In turn, the efficiency of the underlying basis is just as important, and so we compare it against the state of the art CUDA library CGBN.
+
+Efficient computation means multiple things; a low power consumption, good memory usage, good thread utilization, low running time, high bandwidth, operations per second, etc. In the spirit of Futhark, we are interrested in the hardware-agnostic performance. A good ground is benchmarking the running time, as the relative running times should be similiar across hardware (assuming it scales linearly on the specifications of the underlying GPUs).
+
+However, running times are not directly comparable unless we keep the data size fixed. Instead, we define some performance metrics based on the running time, big integer size, number of instances and more, allowing us to compare versions and implementations in an objective manner.
+
+Subsection \ref{subsec:benchset} describes the benchmark setup, subsection \ref{subsec:perfmet} introduces the performance metrics, and subsection \ref{subsec:benchres} presents and discuss the benchmark results.
+
+\subsection{Benchmark Setup}
+\label{subsec:benchset}
+
+In order to understand the performance and scaling thereof, two benchmark structures are defined for each arithemtic function. The first structure is simply the functions themselves, which serves as the basis for judging the performance. The second structure is multiple consecutive calls to the functions, designed to give insight in the scaling of the functions in semi-realistic usecases. These structures are generic over the big integer precision and number of arithemtic instances.
+
+While we want to vary the number of instances and precision, the benchmark results are only directly comparable if we keep the total amount of work fixed. E.g. consider a fixed 32-bit digit work size of 128; the benchmarks can then be run with 1 instance of base 32-bit 128-precision big integers, 1 instance of base 64-bit 64-precision big integers, 2 instances of base 32-bit 64-precision big integers, etc., which all uses the exact same number of bits. As such, the benchmark results will explicitly reveal which function-version is most suitable on what input pattern.
+
+The second benchmark structure is defined below, where program 1 and 2 is for addition and multiplication, respectively. The programs corresponds to calculating $(10 \cdot u + v)$ and $(u \cdot v)^5$, respectively. {\color{red} TODO bench 2 should probably be like described here, but is a bit different in the code}
+
+\begin{lstlisting}[language=futhark]
+loop w = v for i < 10 do map2 add u w
+let s = map2 mul u v in loop w = s for i < 5 do map2 mul s w
+\end{lstlisting}
+
+The chosen fixed total arithmetic work of 32-bit digits is $134217728$, and run with base 32-bit big integer sizes $16, 32, 64, \ldots, 2048$ and half of that for 64-bit base benchmarks. Runtimes are averaged over multiple runs to improve stability. The benchmarks are run on a NVIDIA GTX 1650 SUPER - a GPU with 1280 CUDA cores, 4GB memory and 192.0 GB/s memory bandwidth \cite{gpuspecs}. Futhark functions are benchmarked using \texttt{futhark-bench} and can be adjusted in the directory \texttt{bench}, whereas CUDA benchmarks are both run and adjusted directly from the mainfile \texttt{main.cu}. Each part contains a \texttt{Makefile} to replicate the benchmarks. 
 \subsection{Performance Metrics}
+\label{subsec:perfmet}
+
+Performance metrics are defined on an arithmetic basis, based on their complexity, inner workings and benchmark setup. Runtimes are measured in microseconds.
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Addition}\\
+  In Section \ref{sec:add} we analyze the complexity of addition to work $O(n)$ and span $O(\log n)$. It is computational efficient, and only a single \fun{scan} function exceeds $O(1)$ span. Hence, we expect addition to be \textit{bandwidth} bound rather than \textit{operation} bound.
+
+  For $n$ instances of addition with $m$-sized base $b$ big integers we calculate the bandwidth, measured in gigabytes/second, using the following formula:
+  \begin{equation}
+    \label{eq:bandwidth}
+    \mathit{bandwidth} = 3 \cdot \dfrac{n \cdot m \cdot \log(b)/8}{1000000000} \cdot \dfrac{1000000}{\mathit{runtime}}
+  \end{equation}
+  The first fraction represents how many gigabytes of a big integer are accessed, where the term $\log(b) / 8$ is the bytesize of a digit, $n\cdot m$ is the amount of accessed digits and the divisor converts to gigabytes. The second fraction is the runtime converted to seconds. The number 3 is because it must at minimum fetch twice and write once to/from global memory, regardless of performing one or ten consecutive additions. Thus, we use the same formula for both benchmark setups.
+  
+
+\item \textbf{Multiplication}\\
+  In Section \ref{sec:mul} we analyze the complexity of multiplication to work $O(n^2)$ and span $O(n)$. It is much more computational demanding than addition, and so we expect to be \textit{operation} bound.
+
+  Thus, we estimate the number of operations per second. In order to better compare different bases, we specifically chose the number of unsigned 32-bit integer operations per second as the metric.
+  \begin{equation}
+  \label{eq:u32ops}
+  \mathit{Gu32ops} = 4\cdot \dfrac{n \cdot (m \cdot \log(b) / 32)^2}{1000000000} \cdot \dfrac{1000000}{\mathit{runtime}}
+  \end{equation}
+\end{itemize}
+
+The performance metrics are computed directly as part of the benchmarking for CUDA in \texttt{main.cu}, but \texttt{futhark-bench} reports only the average runtimes. To compute the metrics for Futhark benchmarks, a small AWK program \texttt{form-tool.awk} is included in the Futhark directory and integrated in the \texttt{Makefile}'s benchmark call.
 
 \subsection{Benchmark Results}
+\label{subsec:benchres}
+
 
 
 %%% Local Variables:

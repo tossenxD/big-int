@@ -1,4 +1,5 @@
 \section{Division}
+\label{sec:div}
 As an example, lets handrun divison $\frac{u}{v}$ on the big integers $u = \texttt{[8,0,0,5]}$ and $v = \texttt{[4,2,0,0]}$ in base $B=2^{32}$. First, we must find $h$ such that $u\leq B^h$. A trivial pick is the precision of $u$ since the most significant digit is non-zero, i.e., $h=4$. Now comes the tricky part; we must find the whole shifted inverse of $v$ with respect to $h$, i.e., $\mathtt{shinv}_hv$.
 
 First we must find $k$ such that $B^k\leq v < B^{k+1}$. This is simply the precision - 1, so we have $k = 1$. Next we have the four special cases which guarantee that $B < v \leq \frac{B^h}{2}$. The first case is if $v < B$, or, if only the first digit of $v$ is set. The second case is if $v > B^h$, which means that $v>u$ and the division $\frac{u}{v}$ floors to $0$. The third case is if $2v > B^h$, which means that the division floors to $1$. The last case is if $v = B^k$, which means that $v$ is exactly a multiple of the base, and so the whole shifted inverse of $v$ is also a multiple of the base.
