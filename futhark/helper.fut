@@ -41,3 +41,7 @@ def eq [m] 't (f: t -> t -> bool) (u: [m]t) (v: [m]t) : bool =
 
 def ez [m] (u: [m]u64) : bool =
   map (0 ==) u |> reduce (&&) true
+
+def pad1d [m] 't (a: i64) (e: t) (u: [m]t) : []t =
+  let p = (a - (m % a)) % a
+  in u ++ replicate p e

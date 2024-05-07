@@ -183,31 +183,31 @@ entry add64_associative [m] (s: [m]u64) (u: [m]u64) (v: [m]u64) : bool =
 entry mul64_identity [m] (u: [m]u64) : bool =
   let id = map (\ i -> if i == 0 then 1 else 0) (iota m)
   let b1 = eq (u64.==) (convMult64v1 u id) u
-  let b2 = eq (u64.==) (convMult64v2 u id) u
-  let b3 = eq (u64.==) (convMult64v3 1 u id) u
+  let b2 = eq (u64.==) (convMult64v2Safe u id) u
+  let b3 = eq (u64.==) (convMult64v3Safe1d u id) u
   in b1 && b2 && b3
 
 entry mul64_zero [m] (u: [m]u64) : bool =
   let z  = replicate m 0
   let b1 = eq (u64.==) (convMult64v1 u z) z
-  let b2 = eq (u64.==) (convMult64v2 u z) z
-  let b3 = eq (u64.==) (convMult64v3 1 u z) z
+  let b2 = eq (u64.==) (convMult64v2Safe u z) z
+  let b3 = eq (u64.==) (convMult64v3Safe1d u z) z
   in b1 && b2 && b3
 
 entry mul64_commutative [m] (u: [m]u64) (v: [m]u64) : bool =
   let b1 = eq (u64.==) (convMult64v1 u v) (convMult64v1 v u)
-  let b2 = eq (u64.==) (convMult64v2 u v) (convMult64v2 v u)
-  let b3 = eq (u64.==) (convMult64v3 1 u v) (convMult64v3 1 v u)
+  let b2 = eq (u64.==) (convMult64v2Safe u v) (convMult64v2Safe v u)
+  let b3 = eq (u64.==) (convMult64v3Safe1d u v) (convMult64v3Safe1d v u)
   in b1 && b2 && b3
 
 entry mul64_associative [m] (s: [m]u64) (u: [m]u64) (v: [m]u64) : bool =
   let b1 = eq (u64.==) (convMult64v1 (convMult64v1 s u) v) (convMult64v1 s (convMult64v1 u v))
-  let b2 = eq (u64.==) (convMult64v2 (convMult64v2 s u) v) (convMult64v2 s (convMult64v2 u v))
-  let b3 = eq (u64.==) (convMult64v3 1 (convMult64v3 1 s u) v) (convMult64v3 1 s (convMult64v3 1 u v))
+  let b2 = eq (u64.==) (convMult64v2Safe (convMult64v2Safe s u) v) (convMult64v2Safe s (convMult64v2Safe u v))
+  let b3 = eq (u64.==) (convMult64v3Safe1d (convMult64v3Safe1d s u) v) (convMult64v3Safe1d s (convMult64v3Safe1d u v))
   in b1 && b2 && b3
 
 entry mul64_distributive [m] (s: [m]u64) (u: [m]u64) (v: [m]u64) : bool =
   let b1 = eq (u64.==) (convMult64v1 s (test_add64 u v)) (test_add64 (convMult64v1 s u) (convMult64v1 s v))
-  let b2 = eq (u64.==) (convMult64v2 s (test_add64 u v)) (test_add64 (convMult64v2 s u) (convMult64v2 s v))
-  let b3 = eq (u64.==) (convMult64v3 1 s (test_add64 u v)) (test_add64 (convMult64v3 1 s u) (convMult64v3 1 s v))
+  let b2 = eq (u64.==) (convMult64v2Safe s (test_add64 u v)) (test_add64 (convMult64v2Safe s u) (convMult64v2Safe s v))
+  let b3 = eq (u64.==) (convMult64v3Safe1d s (test_add64 u v)) (test_add64 (convMult64v3Safe1d s u) (convMult64v3Safe1d s v))
   in b1 && b2 && b3

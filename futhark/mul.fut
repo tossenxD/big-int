@@ -35,6 +35,7 @@ def combine64 (l0:u64,h0:u64,c0:u64) (l1:u64,h1:u64,c1:u64): (u64,u64,u64,u64) =
 --------------------------------------------------------------------------------
 -- multiplication by convolution ( O(n^2) ) with two elements per thread
 --------------------------------------------------------------------------------
+-- if size is uneven, the last thread stays idle for upper computation
 
 def convMult32v1 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
   -- function that computes a low, high and carry part of multiplication
@@ -44,21 +45,21 @@ def convMult32v1 [n] (as: [n]u32) (bs: [n]u32) : [n]u32 =
     let k2 = n-1 - k1
     let lhc1 = loop lhc = (0u32,0u32,0u32) for i < k1 + 1 do
                let j = k1 - i in iterate32 lhc ash[i] bsh[j]
-    let lhc2 = loop lhc = (0u32,0u32,0u32) for i < k2 + 1 do
-               let j = k2 - i in iterate32 lhc ash[i] bsh[j]
+    let lhc2 =
+      if tid == n/2 then (0u32,0u32,0u32)
+      else loop lhc = (0u32,0u32,0u32) for i < k2 + 1 do
+           let j = k2 - i in iterate32 lhc ash[i] bsh[j]
     in (lhc1, lhc2)
 
-  -- add padding
-  let p = n % 2
-  let pz = replicate p 0
-  let ash = as ++ pz
-  let bsh = bs ++ pz
+  -- copy to shared memory TODO
+  let ash = as
+  let bsh = bs
 
   -- find two low-, high- and carry-parts for each thread
   let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (0..<(n+1)/2) |> unzip
   let (ls1, hs1, cs1) = unzip3 lhcs1
-  let (ls2, hs2, cs2) = unzip3 <| reverse lhcs2
-  let ls = ls1 ++ ls2 |> take n
+  let (ls2, hs2, cs2) = unzip3 <| reverse <| take (n/2) lhcs2
+  let ls = ls1 ++ ls2 :> [n]u32
   let hs = hs1 ++ hs2
   let hs = map (\ i -> if i == 0 then 0 else hs[i-1]) (iota n)
   let cs = cs1 ++ cs2
@@ -74,21 +75,21 @@ def convMult64v1 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
     let k2 = n-1 - k1
     let lhc1 = loop lhc = (0u64,0u64,0u64) for i < k1 + 1 do
                let j = k1 - i in iterate64 lhc ash[i] bsh[j]
-    let lhc2 = loop lhc = (0u64,0u64,0u64) for i < k2 + 1 do
-               let j = k2 - i in iterate64 lhc ash[i] bsh[j]
+    let lhc2 =
+      if tid == n/2 then (0u64,0u64,0u64)
+      else loop lhc = (0u64,0u64,0u64) for i < k2 + 1 do
+           let j = k2 - i in iterate64 lhc ash[i] bsh[j]
     in (lhc1, lhc2)
 
-  -- add padding
-  let p = n % 2
-  let pz = replicate p 0
-  let ash = as ++ pz
-  let bsh = bs ++ pz
+  -- copy to shared memory TODO
+  let ash = as
+  let bsh = bs
 
   -- find two low-, high- and carry-parts for each thread
-  let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (iota ((n+1)/2)) |> unzip
+  let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (0..<(n+1)/2) |> unzip
   let (ls1, hs1, cs1) = unzip3 lhcs1
-  let (ls2, hs2, cs2) = unzip3 <| reverse lhcs2
-  let ls = ls1 ++ ls2 |> take n
+  let (ls2, hs2, cs2) = unzip3 <| reverse <| take (n/2) lhcs2
+  let ls = ls1 ++ ls2 :> [n]u64
   let hs = hs1 ++ hs2
   let hs = map (\ i -> if i == 0 then 0 else hs[i-1]) (iota n)
   let cs = cs1 ++ cs2
@@ -99,6 +100,7 @@ def convMult64v1 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
 --------------------------------------------------------------------------------
 -- + optimized with four elements per thread
 --------------------------------------------------------------------------------
+-- the size is padded to be a multiple of 4 if it isn't already
 
 def convMult64v2 [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
   -- function that computes a low, high and carry part of multiplication
@@ -126,27 +128,49 @@ def convMult64v2 [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
 
     in (combine64 lhc1 lhc2, combine64 lhc3 lhc4)
 
-  -- add padding
-  let p = (4 - (m % 4)) % 4
-  let pz = replicate p 0
-  let ash = as ++ pz
-  let bsh = bs ++ pz
+  -- copy to shared memory TODO
+  let ash = as
+  let bsh = bs
 
   -- find two low-, high- and carry-parts for each thread
-  let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (iota ((m+p)/4)) |> unzip
-  let lhcss = lhcs1 ++ (reverse lhcs2)
-  let (lhcss1, lhcss2) =
-    map (\i -> (lhcss[i*2],lhcss[i*2+1])) (0..<(m+p)/4) |> unzip
-  let (l1s, hl1s, ch1s, cc1s) = unzip4 lhcss1
-  let (l2s, hl2s, ch2s, cc2s) = unzip4 lhcss2
-  let lhcs1sh = l1s ++ hl1s ++ ch1s ++ cc1s |> take m
-  let lhcs2sh = l2s ++ hl2s ++ ch2s ++ cc2s
-  let lhcs2sh = map (\ i -> if i <= 1 then 0 else lhcs2sh[i-2]) (iota m)
-  in badd64v2 lhcs1sh lhcs2sh
+  let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (0..<m/4) |> unzip
+  let lhcs = lhcs1 ++ (reverse lhcs2)
+
+  -- map the convolution result to memory
+  let (ls, hls, chs, ccs) = unzip4 lhcs
+  let lhcss = ls ++ hls ++ chs ++ ccs :> [2*m]u64
+
+  -- compute indices and retrieve convolution result from memory
+  let (inds1, inds2) =
+    unzip <| imap (0..<m/2) (\ i -> let off = i * 2
+                                    let inds = (off, off+1, off+2, off+3)
+                                    let disc = (-1, -1, -1, -1)
+                                    in if bool.i64 (i % 2) -- if odd
+                                       then ( inds, disc )
+                                       else ( disc, inds ))
+
+  let (inds11, inds12, inds13, inds14) = unzip4 inds1
+  let indss1 = inds11 ++ inds12 ++ inds13 ++ inds14 :> [2*m]i64
+
+  let (inds21, inds22, inds23, inds24) = unzip4 inds2
+  let indss2 = inds21 ++ inds22 ++ inds23 ++ inds24 :> [2*m]i64
+
+  let lhcss1 = scatter (replicate m 0) indss1 lhcss
+  let lhcss2 = scatter (replicate m 0) indss2 lhcss
+
+  -- add the convolution parts
+  in badd64v2 lhcss1 lhcss2
+
+def convMult64v2Safe [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
+  let asPad = pad1d 4 0 as
+  let bsPad = pad1d 4 0 bs
+  in convMult64v2 asPad bsPad |> take m
+
 
 --------------------------------------------------------------------------------
 -- + optimized by allowing multiple instances per block
 --------------------------------------------------------------------------------
+-- the size is padded to be a multiple of 4 and `ipb` if it isn't already
 
 def convMult64v3 [m] (ipb: i64) (as: [m]u64) (bs: [m]u64) : [m]u64 =
   -- size of each instance
@@ -181,28 +205,53 @@ def convMult64v3 [m] (ipb: i64) (as: [m]u64) (bs: [m]u64) : [m]u64 =
 
     in (combine64 lhc1 lhc2, combine64 lhc3 lhc4)
 
-  -- add padding
-  let p = (4 - (m % 4)) % 4
-  let pz = replicate p 0
-  let ash = as ++ pz
-  let bsh = bs ++ pz
+  -- copy to shared memory TODO
+  let ash = as
+  let bsh = bs
 
   -- find two low-, high- and carry-parts for each thread
-  let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (iota ((m+p)/4)) |> unzip
-  let lhcss = lhcs1 ++ (reverse lhcs2)
-  let (lhcss1, lhcss2) =
-    map (\i -> (lhcss[i*2],lhcss[i*2+1])) (0..<(m+p)/4) |> unzip
-  let (l1s, hl1s, ch1s, cc1s) = unzip4 lhcss1
-  let (l2s, hl2s, ch2s, cc2s) = unzip4 lhcss2
-  let lhcs1sh = l1s ++ hl1s ++ ch1s ++ cc1s |> take m
-  let lhcs2sh = l2s ++ hl2s ++ ch2s ++ cc2s
-  let lhcs2sh = map (\ i -> if i <= 1 then 0 else lhcs2sh[i-2]) (iota m)
-  in badd64v3 ipb lhcs1sh lhcs2sh
+  let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (0..<m/4) |> unzip
+  let lhcs = lhcs1 ++ (reverse lhcs2)
+
+  -- map the convolution result to memory
+  let (ls, hls, chs, ccs) = unzip4 lhcs
+  let lhcss = ls ++ hls ++ chs ++ ccs :> [2*m]u64
+
+  -- compute indices and retrieve convolution result from memory
+  let (inds1, inds2) =
+    unzip <| imap (0..<m/2) (\ i -> let off = i * 2
+                                    let isOdd = bool.i64 (i % 2)
+                                    let inds = if isOdd && ((off + 2) % n == 0)
+                                               then (off, off+1, -1, -1)
+                                               else (off, off+1, off+2, off+3)
+                                    let disc = (-1, -1, -1, -1)
+                                    in if isOdd
+                                       then ( inds, disc )
+                                       else ( disc, inds ))
+
+  let (inds11, inds12, inds13, inds14) = unzip4 inds1
+  let indss1 = inds11 ++ inds12 ++ inds13 ++ inds14 :> [2*m]i64
+
+  let (inds21, inds22, inds23, inds24) = unzip4 inds2
+  let indss2 = inds21 ++ inds22 ++ inds23 ++ inds24 :> [2*m]i64
+
+  let lhcss1 = scatter (replicate m 0) indss1 lhcss
+  let lhcss2 = scatter (replicate m 0) indss2 lhcss
+
+  -- add the convolution parts
+  in badd64v3 ipb lhcss1 lhcss2
 
 entry convMult64v3Wrapper [n][m] (ass: [n][m]u64) (bss: [n][m]u64) : [n][m]u64 =
-  let ipb = if m > 4 then (128 + (m/4) - 1) / (m/4) else 1 -- ceil(128/(m/4))
+  let assPad = map (pad1d 4 0) ass
+  let bssPad = map (pad1d 4 0) bss
+  let mm  = m + (4 - (m % 4)) % 4
+  let ipb = (128 + (mm/4) - 1) / (mm/4) -- ceil(128/(mm/4))
   let ipb = if ipb > n || (n % ipb) > 0 then 1 else ipb
-  let as  = (flatten ass :> [(n/ipb)*(ipb*m)]u64) |> unflatten
-  let bs  = (flatten bss :> [(n/ipb)*(ipb*m)]u64) |> unflatten
+  let as  = (flatten assPad :> [(n/ipb)*(ipb*mm)]u64) |> unflatten
+  let bs  = (flatten bssPad :> [(n/ipb)*(ipb*mm)]u64) |> unflatten
   let rs  = imap2Intra as bs (convMult64v3 ipb)
-  in (flatten rs :> [n*m]u64) |> unflatten
+  in (flatten rs :> [n*mm]u64) |> unflatten |> map (take m)
+
+-- Wrapper for 1d arrays; written for testing, use v2 instead
+entry convMult64v3Safe1d [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
+  convMult64v3 1 (pad1d 4 0 as) (pad1d 4 0 bs) |> take m

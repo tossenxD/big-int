@@ -74,7 +74,7 @@ import "../div"
 -- some nicely alligned big integers with sizes of a multiple of 4 are
 -- generated, but also some sporadic unaligned big integer sizes.
 -- ==
--- entry: add64_2d
+-- entry: add64_2d mul64_2d
 -- compiled random input { [2048][4]u64 [2048][4]u64 }
 -- output { true }
 -- compiled random input { [2048][16]u64 [2048][16]u64 }
@@ -129,6 +129,14 @@ entry add64_2d [n][m] (us: [n][m]u64) (vs: [n][m]u64) : bool =
 entry mul64_1d [m] (u: [m]u64) (v: [m]u64) : bool =
   let validP = eq (u64.==) (test_mul64 u v)
   let w1 = convMult64v1 u v
-  let w2 = convMult64v2 u v
-  let w3 = convMult64v3 1 u v
+  let w2 = convMult64v2Safe u v
+  let w3 = convMult64v3Safe1d u v
   in validP w1 && validP w2 && validP w3
+
+entry mul64_2d [n][m] (us: [n][m]u64) (vs: [n][m]u64) : bool =
+  let validP =
+    (\ ws -> map2 (eq (u64.==)) (map2 test_mul64 us vs) ws |> reduce (&&) true)
+  let ws1 = map2 convMult64v1 us vs
+  let ws2 = map2 convMult64v2Safe us vs
+  let ws3 = convMult64v3Wrapper us vs
+  in validP ws1 && validP ws2 && validP ws3
