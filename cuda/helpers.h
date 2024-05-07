@@ -98,7 +98,7 @@ void ourMkRandom(uint32_t num_instances, uint32_t* as) {
                 v = (high << 16) + low;
             }
             it_as[k] = v;
-        }        
+        }
     }
 }
 

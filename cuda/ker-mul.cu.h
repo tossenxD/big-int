@@ -363,7 +363,7 @@ convMult2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 /*** Big Integer Multiplication By Convolution v3 ***/
 /****************************************************/
 
-/** Each block multiplies ipb instances of big integers and each thread handle q units **/
+/** Each block multiplies ipb instances of big integers and each thread handle two units **/
 
 template<class Base, uint32_t m, uint32_t ipb>
 __device__ void // ASSUMPTION: Shared memory buffer size is at least `3*ipb*m`.
