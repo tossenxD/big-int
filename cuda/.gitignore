@@ -3,5 +3,6 @@
 !*.cu
 !*.h
 !Makefile
+!README.txt
 !.gitignore
 cgbn/CGBN

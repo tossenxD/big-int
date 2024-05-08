@@ -1,6 +1,7 @@
 *
 !.gitignore
 !Makefile
+!README.txt
 !bench/
 !test/
 !test/gmp-validation.c
