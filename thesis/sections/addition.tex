@@ -1,10 +1,24 @@
 \section{Addition}
 \label{sec:add}
 
-\subsection{Algorithm}
+Addition is the simplest of the basic arithmetic operators. It is a cornerstone
+of arithmetics that can be used to define all other operations - an essential
+part of a big integer library.
 
-The additions of two big integers is simply the sum of the addition of their
-digits:
+Former work has been carried out by students as part of a parallel course
+project, which will serve as a stepping stone for the algorithm and
+implementation of our addition \cite{DPP-project}.
+
+This section is as follows: In subsection \ref{subsec:addalg} we present an
+algorithm to compute big integer addition in parallel. In subsection
+\ref{subsec:addcud} we discuss how to efficiently implement the algorithm on a
+GPU in CUDA, and in subsection \ref{subsec:addfut} how to translate this
+implementation to Futhark.
+
+\subsection{Algorithm}
+\label{subsec:addalg}
+
+The additions of two big integers is the sum of the addition of their digits:
 \begin{equation}
   \label{eq:add}
   u + v = \sum_{i=0}^{m-1}u_i\cdot B^{i} + \sum_{i=0}^{m-1}v_i\cdot B^{i} = \sum_{i=0}^{m-1}(u_i+v_i)\cdot B^{i}
@@ -20,6 +34,113 @@ using a \fun{scan} operator, specifically an exclusive \fun{scan} since the
 first digit has no prior information and we do not care if the last digit
 overflows. Thus, big integer addition on a GPU is effectively a
 \fun{map}-\fun{scan} composition with the following form:
+
+\begin{figure}
+  \centering
+  \begin{minipage}{0.45\textwidth}
+    \small
+    \texttt{Input:} $u$ and $v$ of size $m$ base $b$\\
+    \texttt{Output:} $w$ of size $m$ in base $b$
+\begin{lstlisting}[language=pseudo,frame=]
+c = 0
+for i in (0..m-1)
+    w[i] = u[i] + v[i] + c
+    c = if overflow then 1 else 0
+\end{lstlisting}
+  \end{minipage}
+  \begin{minipage}{0.45\textwidth}
+    \centering
+    \footnotesize
+    \begin{tabular}{c}
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $u_0$ & $u_1$ & $u_2$ & $\cdots$ & $u_{m-1}$\\ 
+        \hline
+      \end{tabular}\\
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
+        $+$ & $+$ & $+$ & & $+$\\ 
+      \end{tabular}\\
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $v_0$ & $v_1$ & $v_2$ & $\cdots$ & $v_{m-1}$\\
+        \hline
+      \end{tabular}\\
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
+        $+$ & $+$ & $+$ &  & $+$\\
+      \end{tabular}\\
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
+        $0$ & $c_1$ &  $c_2$ & $\cdots$ &$c_{m-1}$ \\
+      \end{tabular}\\[-0.8ex]
+      \begin{tabular}{C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}}
+       \diagonalarrow{} & & \diagonalarrow{} &  & \diagonalarrow{} &  & \diagonalarrow{}\\
+      \end{tabular}\\[-2ex]
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.8cm}C{0.7cm}C{0.7cm}}
+        $=$ & $=$ & $=$ &  & $=$  
+      \end{tabular}\\
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $w_{0}$ & $w_1$ & $w_2$ & $\cdots$ & $w_{m-1}$\\
+        \hline
+      \end{tabular}
+    \end{tabular}
+  \end{minipage}
+  \caption{Pseudo-code and illustration of sequential addition algorithm.}
+  \label{fig:addseq}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \begin{minipage}{0.45\textwidth}
+    \small
+    \texttt{Input:} $u$ and $v$ of size $m$ base $b$\\
+    \texttt{Output:} $w$ of size $m$ in base $b$
+\begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)}]
+(adds, tmp) = map2 (*$\oplus$*) u v
+carries = scan_exc e (*$\otimes$*) tmp
+w = map2 (+) adds carries
+\end{lstlisting}
+  \end{minipage}
+  \begin{minipage}{0.45\textwidth}
+    \centering
+    \footnotesize
+    \begin{tabular}{c}
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $u_0$ & $u_1$ & $u_2$ & $\cdots$ & $u_{m-1}$\\ 
+        \hline
+      \end{tabular}\\
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
+        $+$ & $+$ & $+$ & & $+$\\ 
+      \end{tabular}\\
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $v_0$ & $v_1$ & $v_2$ & $\cdots$ & $v_{m-1}$\\
+        \hline
+      \end{tabular}\\
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
+        $+$ & $+$ & $+$ &  & $+$\\
+      \end{tabular}\\
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
+        $0$ & $c_1$ &  $c_2$ & $\cdots$ &$c_{m-1}$ \\
+      \end{tabular}\\[-0.8ex]
+      \begin{tabular}{C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}}
+       \diagonalarrow{} & & \diagonalarrow{} &  & \diagonalarrow{} &  & \diagonalarrow{}\\
+      \end{tabular}\\[-2ex]
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.8cm}C{0.7cm}C{0.7cm}}
+        $=$ & $=$ & $=$ &  & $=$  
+      \end{tabular}\\
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $w_{0}$ & $w_1$ & $w_2$ & $\cdots$ & $w_{m-1}$\\
+        \hline
+      \end{tabular}
+    \end{tabular}
+  \end{minipage}
+  \caption{Pseudo-code and illustration of parallel addition algorithm.}
+  \label{fig:addpar}
+\end{figure}
+
+
 \begin{equation}
 \label{eq:addgpu}
 u + v \equiv \fun{map} + \left( \fun{map} + u~v\right) \left(\left({\fun{scan\_exc}~e \otimes \phantom{}} \circ~\fun{map} \oplus \phantom{}\right)~u~v\right)
@@ -158,13 +279,14 @@ $O(m)$ and total span $O(1)$, and the \fun{scan} work $O(m)$ and span
 $O(\log m)$. Thus, the work of a big integer addition is $O(m)$ and the span is
 $O(\log m)$.
 
-\subsection{Implementation}
+
+\subsection{CUDA Implementation}
+\label{subsec:addcud}
 
 {\color{red} TODO write about further optimizitations, e.g. upping the sequentialization factor}
 
-\subsubsection{CUDA}
-
-\subsubsection{Futhark}
+\subsection{Futhark Implementation}
+\label{subsec:addfut}
 
 %%% Local Variables:
 %%% mode: LaTeX

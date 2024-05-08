@@ -111,8 +111,16 @@ microseconds.
   integer operations per second as the metric.
   \begin{equation}
   \label{eq:u32ops}
-  \mathit{Gu32ops} = 4\cdot \dfrac{n \cdot (m \cdot \log(b) / 32)^2}{1000000000} \cdot \dfrac{1000000}{\mathit{runtime}}
+  \mathit{Gu32ops} = \dfrac{n \cdot (m \cdot \log(b) / 32)^2}{1000000000} \cdot \dfrac{1000000}{\mathit{runtime}}
   \end{equation}
+  The first fraction is the number of 32-bits in the big integer squared,
+  multiplied by the number of big integers and converted to giga-operations. The
+  second fraction is the runtime converted to seconds. When we compute six
+  consecutive multiplications, we execute six times the number of operations,
+  and so we multiple the metric by 6.
+
+  {\color{red} TODO I think it is a bit different in the implementation (by a
+    constant factor), so either update this or the implementation}
 \end{itemize}
 
 The performance metrics are computed directly as part of the benchmarking for
@@ -121,10 +129,11 @@ runtimes (with confidence intervals). To compute the metrics for Futhark
 benchmarks, a small AWK program \texttt{form-tool.awk} is included in the
 Futhark directory and integrated in the \texttt{Makefile}'s benchmark call.
 
-\subsection{Benchmark Results}
+\subsection{Addition Benchmark Results}
 \label{subsec:benchres}
 
-
+\subsection{Multiplication Benchmark Results}
+\label{subsec:benchres}
 
 %%% Local Variables:
 %%% mode: LaTeX
