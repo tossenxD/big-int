@@ -303,7 +303,7 @@ void step(int h, bigint_t v, bigint_t w, int n, int l, int g, prec_t m) {
     free(P);
 }
 
-// DOES NOT VALIDATE, USE REFINE1 OR REFINE2 INSTEAD
+// DOES NOT VALIDATE, USE REFINE2 OR REFINE3 INSTEAD
 // refine1 function as described in the paper s.t. it writes result to `w`
 void refine1(bigint_t v, int h, int k, bigint_t w, int l, prec_t m) {
     int g = 1;
