@@ -88,19 +88,30 @@ for i in (0..m-1)
   \label{fig:addseq}
 \end{figure}
 
+
+y
+
 \begin{figure}
   \centering
-  \begin{minipage}{0.45\textwidth}
-    \small
+  \begin{minipage}{0.47\textwidth}
+    \footnotesize
     \texttt{Input:} $u$ and $v$ of size $m$ base $b$\\
-    \texttt{Output:} $w$ of size $m$ in base $b$
-\begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)}]
-(adds, tmp) = map2 (*$\oplus$*) u v
-carries = scan_exc e (*$\otimes$*) tmp
-w = map2 (+) adds carries
+    \texttt{Output:} $w$ of size $m$ in base $b$\\
+    \texttt{Uses:} $f$ to extract the carry of augmented array
+\begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)},name=paradd,backgroundcolor=\color{lightgray},]
+(r, o) = map2 (*$\oplus$*) u v
 \end{lstlisting}
-  \end{minipage}
-  \begin{minipage}{0.45\textwidth}
+\vspace{-\baselineskip}
+\begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)},name=paradd,backgroundcolor=\color{Beige}]
+c = scan_exc (*$\otimes$*) e o
+\end{lstlisting}
+\vspace{-\baselineskip}
+\begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)},name=paradd,backgroundcolor=\color{LightSteelBlue}]
+w = map2 ((*$\lambda$*) x y (*$\rightarrow$*) x + f y) r c
+\end{lstlisting}
+\end{minipage}
+  \noindent\fcolorbox{white}{lightgray}{%
+  \begin{minipage}{0.47\textwidth}
     \centering
     \footnotesize
     \begin{tabular}{c}
@@ -110,22 +121,74 @@ w = map2 (+) adds carries
         \hline
       \end{tabular}\\
       \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
-        $+$ & $+$ & $+$ & & $+$\\ 
+        $\oplus$ & $\oplus$ & $\oplus$ & & $\oplus$\\ 
       \end{tabular}\\
       \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
         \hline
         $v_0$ & $v_1$ & $v_2$ & $\cdots$ & $v_{m-1}$\\
         \hline
       \end{tabular}\\
-      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
-        $+$ & $+$ & $+$ &  & $+$\\
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.8cm}C{0.7cm}C{0.7cm}}
+        $=$ & $=$ & $=$ &  & $=$  
+      \end{tabular}\\
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $r_{0}$ & $r_1$ & $r_2$ & $\cdots$ & $r_{m-1}$\\
+        \hline
+      \end{tabular}\\
+      \begin{tabular}{C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}}
+        & &  &  &  &  & \\
+      \end{tabular}\\[-2ex]
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $o_{0}$ & $o_1$ & $o_2$ & $\cdots$ & $o_{m-1}$\\
+        \hline
+      \end{tabular}\\
+    \end{tabular}
+  \end{minipage}
+  }\\
+  \noindent\fcolorbox{white}{Beige}{%
+    \begin{minipage}{0.4525\textwidth}
+    \centering
+    \scriptsize
+    \begin{tabular}{c}
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $o_{0}$ & $o_1$ & $o_2$ & $\cdots$ & $o_{m-1}$\\
+        \hline
+      \end{tabular}\\
+      \begin{tabular}{C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}}
+        \texttt{e}$\shortrightarrow$ & $\otimes$ & $\shortrightarrow$ & $\otimes$ & $\shortrightarrow$ & $\otimes$ & $\shortrightarrow$ & $\otimes$ & $\shortrightarrow$ & $\otimes$ & \\
+      \end{tabular}\\[-1.2ex]
+      \begin{tabular}{C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}}
+       \diagonalarrowdown{} & & \diagonalarrowdown{} & & \diagonalarrowdown{} &  & \diagonalarrowdown{} &  & \diagonalarrowdown{} & &\\
+      \end{tabular}\\[-0.3ex]
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $c_{0}$ & $c_1$ & $c_2$ & $\cdots$ & $c_{m-1}$\\
+        \hline
+      \end{tabular}
+    \end{tabular}
+  \end{minipage}
+}
+\noindent\fcolorbox{white}{LightSteelBlue}{%
+  \begin{minipage}{0.47\textwidth}
+    \centering
+    \footnotesize
+    \begin{tabular}{c}
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $r_0$ & $r_1$ & $r_2$ & $\cdots$ & $r_{m-1}$\\ 
+        \hline
       \end{tabular}\\
       \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
-        $0$ & $c_1$ &  $c_2$ & $\cdots$ &$c_{m-1}$ \\
-      \end{tabular}\\[-0.8ex]
-      \begin{tabular}{C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}}
-       \diagonalarrow{} & & \diagonalarrow{} &  & \diagonalarrow{} &  & \diagonalarrow{}\\
-      \end{tabular}\\[-2ex]
+        $\lambda$ & $\lambda$ & $\lambda$ & & $\lambda$\\ 
+      \end{tabular}\\
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $c_0$ & $c_1$ & $c_2$ & $\cdots$ & $c_{m-1}$\\
+        \hline
+      \end{tabular}\\
       \begin{tabular}{C{0.7cm}C{0.7cm}C{0.8cm}C{0.7cm}C{0.7cm}}
         $=$ & $=$ & $=$ &  & $=$  
       \end{tabular}\\
@@ -133,9 +196,10 @@ w = map2 (+) adds carries
         \hline
         $w_{0}$ & $w_1$ & $w_2$ & $\cdots$ & $w_{m-1}$\\
         \hline
-      \end{tabular}
+      \end{tabular}\\
     \end{tabular}
   \end{minipage}
+  }
   \caption{Pseudo-code and illustration of parallel addition algorithm.}
   \label{fig:addpar}
 \end{figure}
