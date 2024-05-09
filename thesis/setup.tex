@@ -30,6 +30,12 @@
 \makeatother
 \setcounter{tocdepth}{2}
 
+\makeatletter
+\def\thm@space@setup{%
+  \thm@preskip=\parskip \thm@postskip=0pt
+}
+\makeatother
+
 \pagestyle{fancy}
 \lhead{\footnotesize Thorbjørn Bülow Bringgaard}
 \rhead{\footnotesize Efficient Big Integer Arithmetics Using GPGPU}
@@ -37,12 +43,17 @@
 
 \newcolumntype{C}[1]{>{\centering\arraybackslash}m{#1}}
 
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[]
+
 %% COMMANDS
 
 \newcommand\fun[1]{\ensuremath{\mathtt{#1}}}
 \newcommand\tup[2]{\ensuremath{(#1,~#2)}}
 \newcommand{\diagonalarrow}{\ensuremath{\mathrel{\text{\rotatebox[origin=c]{\numexpr30}{$\shortrightarrow$}}}}}
 \newcommand{\diagonalarrowdown}{\ensuremath{\mathrel{\text{\rotatebox[origin=c]{\numexpr330}{$\shortrightarrow$}}}}}
+\newcommand\bigint[1]{\ensuremath{\mathtt{[}#1\mathtt{]}}}
+\newcommand\uint{\texttt{uint}}
 
 %% LISTINGS
 

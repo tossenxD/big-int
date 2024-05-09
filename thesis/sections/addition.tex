@@ -7,7 +7,7 @@ part of a big integer library.
 
 Former work has been carried out by students as part of a parallel course
 project, which will serve as a stepping stone for the algorithm and
-implementation of our addition \cite{DPP-project}.
+implementation of our addition \cite{DPPproject}.
 
 This section is as follows: In subsection \ref{subsec:addalg} we present an
 algorithm to compute big integer addition in parallel. In subsection
@@ -94,7 +94,7 @@ Each addition may overflow at most once, and so we need to figure out when this
 happens. In the former work by Olesen, Topalovic and Restelli-Nielsen, they
 found that this happens when I) the addition already overflowed, or II) it
 results in the maximum representable integer and the addition just before it
-overflowed \cite{DPP-PROJECT}. This can be efficiently computed in parallel as a
+overflowed \cite{DPPproject}. This can be efficiently computed in parallel as a
 prefix sum, specifically an exclusive one\footnote{Easy to see on the arrows of
   the illustration of the sequential algorithm in Figure \ref{fig:addseq}.}.
 
