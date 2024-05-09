@@ -95,21 +95,29 @@ eprint = {
     abstract = { The multiplication of large integers, which has many applications in computer science, is an operation that can be expressed as a polynomial multiplication followed by a carry normalization. This work develops two approaches for efficient polynomial multiplication: one approach is based on tiling the classical convolution algorithm, but taking advantage of new CUDA architectures, a novelty approach to compute the multiplication using integers without accuracy lossless; the other one is based on the Strassen algorithm, an algorithm that multiplies large polynomials using the FFT operation, but adapting the fastest FFT libraries for current GPUs and working on the complex field. Previous studies reported that the Strassen algorithm is an effective implementation for “large enough” integers on GPUs. Additionally, most previous studies do not examine the implementation of the carry normalization, but this work describes a parallel implementation for this operation. Our results show the efficiency of our approaches for short, medium, and large sizes. }
 }
 
-@article{marlow2010haskell,
+@misc{marlow2010haskell,
   title={Haskell 2010 language report},
   author={Marlow, Simon and others},
   year={2010},
-  url={https://www.haskell.org/onlinereport/haskell2010/}
+  howpublished={\url{https://www.haskell.org/onlinereport/haskell2010/}},
+  note = {Accessed: May 9th 2024}
 }
 
 @misc{futguide,
   title = {Futhark User’s Guide},
   howpublished = {\url{https://futhark.readthedocs.io/en/latest/}},
-  note = {Accessed: 2024-05-05}
+  note = {Accessed: May 5th 2024}
 }
 
 @misc{gpuspecs,
   title = {TechPowerUp GPU Database},
   howpublished = {\url{https://www.techpowerup.com/gpu-specs/geforce-gtx-1650-super.c3411}},
-  note = {Accessed: 2024-06-05}
-} 
+  note = {Accessed: May 6th 2024}
+}
+
+@misc{GMP,
+  author = {Torbjörn Granlund et al.},
+  title = {GNU multiple precision arithmetic library version 6.3.0 Manual},
+  howpublished = {\url{https://gmplib.org/manual/index}},
+  note = {Accessed: May 9th 2024}
+}

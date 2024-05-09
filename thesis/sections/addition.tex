@@ -96,7 +96,7 @@ found that this happens when I) the addition already overflowed, or II) it
 results in the maximum representable integer and the addition just before it
 overflowed \cite{DPP-PROJECT}. This can be efficiently computed in parallel as a
 prefix sum, specifically an exclusive one\footnote{Easy to see on the arrows of
-  the illustration of the sequential algorithm in Figure \ref{fig:addseq}}.
+  the illustration of the sequential algorithm in Figure \ref{fig:addseq}.}.
 
 Thus, big integer addition parallelizes to a \fun{map}-\fun{scan} function
 composition. Figure \ref{fig:addpar} lists and illustrates a generalized
