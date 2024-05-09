@@ -24,23 +24,25 @@ The additions of two big integers is the sum of the addition of their digits:
   u + v = \sum_{i=0}^{m-1}u_i\cdot B^{i} + \sum_{i=0}^{m-1}v_i\cdot B^{i} = \sum_{i=0}^{m-1}(u_i+v_i)\cdot B^{i}
 \end{equation}
 
-The $m$ additions of digits translates trivially to a \fun{map} on a
-GPU. However, each addition may overflow the base size, which results in a carry
-being added to the following digit. In turn, this digit may now overflow, and so
-we need to add yet another carry, and so on. The carries will propagate at most
-$m$ times, once for each digit, and hence, each digit may need to know whether
-digits before it has overflown. This can be efficiently computed as a prefix sum
-using a \fun{scan} operator, specifically an exclusive \fun{scan} since the
-first digit has no prior information and we do not care if the last digit
-overflows. Thus, big integer addition on a GPU is effectively a
-\fun{map}-\fun{scan} composition with the following form:
+I.e. we can compute each digit of the result simply by adding the corresponding
+two input digits. However, these additions may overflow the base size, which
+results in a carry being added to the following digit. In turn, this digit may
+now overflow, and so we need to add yet another carry, and so on. E.g. consider
+the addition $199 + 1$ in decimal base; first we add $1$ to $9$ giving $0$ and a
+carry, then we add $0$ and the carry to $9$ giving $0$ and another carry, which
+we then add to $1$, resulting in the number $200$.
+
+A sequential algorithm and illustration thereof is given in Figure
+\ref{fig:addseq}. It is immidiate from the figure that the additions of digits
+can be independently computed, and thus, trivially parallelizable. However, the
+carries are dependent on all additions and carries before it.
 
 \begin{figure}
   \centering
   \begin{minipage}{0.45\textwidth}
     \small
-    \texttt{Input:} $u$ and $v$ of size $m$ base $b$\\
-    \texttt{Output:} $w$ of size $m$ in base $b$
+    \texttt{Input:} $u$ and $v$ of size $m$ base $B$\\
+    \texttt{Output:} $w$ of size $m$ in base $B$
 \begin{lstlisting}[language=pseudo,frame=]
 c = 0
 for i in (0..m-1)
@@ -88,22 +90,36 @@ for i in (0..m-1)
   \label{fig:addseq}
 \end{figure}
 
+Each addition may overflow at most once, and so we need to figure out when this
+happens. In the former work by Olesen, Topalovic and Restelli-Nielsen, they
+found that this happens when I) the addition already overflowed, or II) it
+results in the maximum representable integer and the addition just before it
+overflowed \cite{DPP-PROJECT}. This can be efficiently computed in parallel as a
+prefix sum, specifically an exclusive one\footnote{Easy to see on the arrows of
+  the illustration of the sequential algorithm in Figure \ref{fig:addseq}}.
 
-y
+Thus, big integer addition parallelizes to a \fun{map}-\fun{scan} function
+composition. Figure \ref{fig:addpar} lists and illustrates a generalized
+parallel addition algorithm. The algorithm works in three steps: First, it
+computes the result of the additions (\texttt{r}) and the augmented carries
+(\texttt{a}) by mapping operator $\oplus$. Second, it computes a prefix sum
+(\texttt{c}) over the augmented carries using operator $\otimes$ with left-associative
+neutral element \texttt{e}. Third, it extracts the carries from the prefix sum
+(using \texttt{f}) and adds them to the result of the additions over a map.
 
 \begin{figure}
   \centering
   \begin{minipage}{0.47\textwidth}
     \footnotesize
-    \texttt{Input:} $u$ and $v$ of size $m$ base $b$\\
-    \texttt{Output:} $w$ of size $m$ in base $b$\\
-    \texttt{Uses:} $f$ to extract the carry of augmented array
+    \texttt{Input:} $u$ and $v$ of size $m$ base $B$\\
+    \texttt{Output:} $w$ of size $m$ in base $B$\\
+    \texttt{Uses:} $f$ to extract carry from augmented carry
 \begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)},name=paradd,backgroundcolor=\color{lightgray},]
-(r, o) = map2 (*$\oplus$*) u v
+(r, a) = map2 (*$\oplus$*) u v
 \end{lstlisting}
 \vspace{-\baselineskip}
 \begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)},name=paradd,backgroundcolor=\color{Beige}]
-c = scan_exc (*$\otimes$*) e o
+c = scan_exc (*$\otimes$*) e a
 \end{lstlisting}
 \vspace{-\baselineskip}
 \begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)},name=paradd,backgroundcolor=\color{LightSteelBlue}]
@@ -141,7 +157,7 @@ w = map2 ((*$\lambda$*) x y (*$\rightarrow$*) x + f y) r c
       \end{tabular}\\[-2ex]
       \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
         \hline
-        $o_{0}$ & $o_1$ & $o_2$ & $\cdots$ & $o_{m-1}$\\
+        $a_{0}$ & $a_1$ & $a_2$ & $\cdots$ & $a_{m-1}$\\
         \hline
       \end{tabular}\\
     \end{tabular}
@@ -154,7 +170,7 @@ w = map2 ((*$\lambda$*) x y (*$\rightarrow$*) x + f y) r c
     \begin{tabular}{c}
       \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
         \hline
-        $o_{0}$ & $o_1$ & $o_2$ & $\cdots$ & $o_{m-1}$\\
+        $a_{0}$ & $a_1$ & $a_2$ & $\cdots$ & $a_{m-1}$\\
         \hline
       \end{tabular}\\
       \begin{tabular}{C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}}
@@ -204,50 +220,44 @@ w = map2 ((*$\lambda$*) x y (*$\rightarrow$*) x + f y) r c
   \label{fig:addpar}
 \end{figure}
 
-
-\begin{equation}
-\label{eq:addgpu}
-u + v \equiv \fun{map} + \left( \fun{map} + u~v\right) \left(\left({\fun{scan\_exc}~e \otimes \phantom{}} \circ~\fun{map} \oplus \phantom{}\right)~u~v\right)
-\end{equation}
-The task at hand is to figure out what $\oplus$, $\otimes$ and $e$ is. This is exactly what
-Olesen, Topalovic and Restelli-Nielsen did in a course-project on this exact
-topic \cite{DPP-PROJECT}. They found that $\oplus$ must compute whether the addition
-results in an overflow or the maximum representable integer. Say we have digits
+The task at hand is to figure out what $\oplus$, $\otimes$ and \texttt{e} is. In the former
+work, Olesen et al. found $\oplus$ to compute whether the addition overflows or is
+the maximum representable integer as a pair of boolean values s.t. for digits
 $x$ and $y$ represented as unsigned integers in base $B$ with wrapping on
-overflow, then we get:
+overflow, we define:
 \begin{equation}
 \label{eq:oplus}
 x \oplus y \coloneq \tup{x + y < x}{x + y = B-1}
 \end{equation}
 
-The operator $\otimes$ then use the inner tuple to judge whether a digit overflows by
-I) if it already overflowed, or II) if it is the maximum representable integer
-and the digit just before it overflowed. Say we have some pair of booleans
-$x = \tup{\mathit{ov_x}}{\mathit{mx_{x}}}$ and some pair of booleans
-$y = \tup{\mathit{ov_y}}{\mathit{mx_{y}}}$, then we get:
+The operator $\otimes$ then computes the prefix sum on the augmented carries s.t. if
+both the addition itself and the one just before it results in the maximum
+integer, then they remain the maximum integer combined, and overflows are
+determined by the aforementioned conditions. For some pairs of booleans
+$x = \tup{\mathit{ov_x}}{\mathit{mx_{x}}}$ and
+$y = \tup{\mathit{ov_y}}{\mathit{mx_{y}}}$, we define:
 \begin{equation}
   \label{eq:otimes}
   x \otimes y \coloneq \tup{\mathit{ov_x} \land \mathit{mx_y} \lor \mathit{ov_y}}{\mathit{mx_x} \land \mathit{mx_y}}
 \end{equation}
 
-They found that the neutral element, $e$, of $\otimes$ is:
+They found that the neutral element, \texttt{e}, of $\otimes$ is:
 \begin{equation}
   \label{eq:otimesne}
-  e \coloneq \tup{\mathbf{F}}{\mathbf{T}}
+  \mathtt{e} \coloneq \tup{\mathtt{False}}{\mathtt{True}}
 \end{equation}
 
-While this approach is intuitive and straightforward to implement in Futhark, a
-Cuda implementation highlights an optimization vector by the underlying data
-types: Hardware does not support boolean values - they are syntactic sugar for
-zero-and-nonzero integer words. Since a low-level implementation will have to
-use integers, we might as well use bitwise operations over logical ones, as
+While this approach is intuitive and straightforward to implement, hardware does
+not support boolean values natively - they are syntactic sugar for
+zero-and-nonzero integer words. Thus, a low-level implementation will have to
+use integers, and so we might as well use bitwise operations over logical ones, as
 these are faster.
 
-Furthermore, instead of storing pairs of integer words with only one bit used to
-indicate boolean values, we can store one word with two bits used to each
-indicate a boolean value. Not only does this halve the memory usage of the
-prefix sum, but it also results in each workthread only having to fetch and
-write one word instead of two, which should result in better memory utilization.
+In turn, instead of using pairs of integer words with only one indicator bit for
+boolean values each, we combine them to one word with two bits used to each
+indicate both boolean value. Not only does this halve the memory usage
+w.r.t. the prefix sum, it also increases memory utilization as each workthread
+only having to fetch and write one word.
 
 The formalization of these optimizations, where the least and second least
 significant bit indicates integer overflow and maximum representable integer,
@@ -258,20 +268,17 @@ respectively, is:
   \label{eq:otimesopt}
   x \otimes y &\coloneq (((x~\&~(y \gg 1))~|~y)~\&~1)~|~(x~\&~y~\&~2)\\
   \label{eq:otimesneopt}
-  e &\coloneq 2
+  \mathtt{e} &\coloneq 2
 \end{align}
 
 Equation (\ref{eq:oplusopt}) is a straightforward conversion of equation
-(\ref{eq:oplus}), with the tuple being replaced by the bitwise
-\fun{or}-operator, and the second result of the second clause shifted one bit to
-the left.
+(\ref{eq:oplus}), with the pair being replaced by the shift- and bitwise or-operator.
 
 Equation (\ref{eq:otimesopt}) is a conversion of equation (\ref{eq:otimes}),
-where I) the tuple is replaced by \fun{or}, II) the first clause is checked in
-the least significant bit and zeroes out the second bit with ``$\&~1$'', and
-III) the second clause is checked in the second least significant bit and the
-first bit is zeroed out with ``$\&~2$''. Associtivity naturally still holds for
-$\otimes$.
+where I) the pair is replaced with bitwise or-operator, II) the first clause is checked
+in the least significant bit and zeroes out the second bit with ``$\&~1$'', and
+III) the second clause is checked in the second least significant bit and zeroes
+out the first bit with ``$\&~2$''. Associtivity naturally still holds:
 
 \begin{proof}
   We want to show $x \otimes (y \otimes z) = (x \otimes y) \otimes z$. From left-to-right we have:
@@ -313,12 +320,10 @@ We have $((y \gg 1)~\&~(z \gg 1)) = (y~\&~z \gg 1) = (y~\&~z~\&~2 \gg 1)$ and ge
 Thus, equations (\ref{eq:otimesproofltr}) and (\ref{eq:otimesproofrtl}) are equal, and hence, $x \otimes (y \otimes z) = (x \otimes y) \otimes z$.
 \end{proof}
 
-
-
-
-Likewise, the optimized $e$ (equation (\ref{eq:otimesneopt})) is simply the
-corresponding bits of equation (\ref{eq:otimesne}) set to 1 and 0, and so $e$
-remains a left-associative neutral element of $\otimes$.
+Likewise, the netrual element \texttt{e} of Equation (\ref{eq:otimesneopt}) is
+the corresponding indicator bits of Equation (\ref{eq:otimesne}), and so
+\texttt{e} remains a left-associative neutral element of $\otimes$ after the
+optimizations:
 
 \begin{proof} By exhaustive evaluation we have:
 \begin{align}
@@ -330,18 +335,13 @@ remains a left-associative neutral element of $\otimes$.
 \end{align}
 \end{proof}
 
-Since we needed extra information (the second least significant bit) in order
-for $\otimes$ to be associative, we need to discard it after the \fun{scan}. Thus, the
-addition becomes:
-\begin{equation}
-\label{eq:addgpu1}
-u + v \equiv \fun{map} + \left( \fun{map} + u~v\right)~\left(\left(\fun{map}~(\&~1) ~\circ ~{\fun{scan\_exc}~e~\otimes}~ \circ ~ \fun{map} \oplus \phantom{}\right)~u~v\right)
-\end{equation}
-
-Both $\oplus$ and $\otimes$ are $O(1)$, and so the \fun{map}s exhibit total work
-$O(m)$ and total span $O(1)$, and the \fun{scan} work $O(m)$ and span
-$O(\log m)$. Thus, the work of a big integer addition is $O(m)$ and the span is
-$O(\log m)$.
+Thus, when using the parallel algorithm presented in Figure \ref{fig:addpar}
+with $\oplus$, $\otimes$ and \texttt{e} defined in Equations (\ref{eq:oplus}),
+(\ref{eq:otimesne}) and (\ref{eq:otimesneopt}), we get that
+$\mathtt{f} \coloneq 1~\&$. Both $\oplus$, $\otimes$ and \texttt{f} are $O(1)$, and so the
+\fun{map}s exhibit work $O(m)$ and span $O(1)$, and the \fun{scan} work $O(m)$
+and span $O(\log m)$. Thus, the work of a parallel big integer addition is
+$O(m)$ and the span is $O(\log m)$.
 
 
 \subsection{CUDA Implementation}
