@@ -114,7 +114,7 @@ neutral element \texttt{e}. Third, it extracts the carries from the prefix sum
     \texttt{Input:} $u$ and $v$ of size $m$ base $B$\\
     \texttt{Output:} $w$ of size $m$ in base $B$\\
     \texttt{Uses:} $f$ to extract carry from augmented carry
-\begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)},name=paradd,backgroundcolor=\color{lightgray},]
+\begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)},name=paradd,backgroundcolor=\color{LightGray},]
 (r, a) = map2 (*$\oplus$*) u v
 \end{lstlisting}
 \vspace{-\baselineskip}
@@ -126,7 +126,7 @@ c = scan_exc (*$\otimes$*) e a
 w = map2 ((*$\lambda$*) x y (*$\rightarrow$*) x + f y) r c
 \end{lstlisting}
 \end{minipage}
-  \noindent\fcolorbox{white}{lightgray}{%
+  \noindent\fcolorbox{white}{LightGray}{%
   \begin{minipage}{0.47\textwidth}
     \centering
     \footnotesize
@@ -335,6 +335,9 @@ optimizations:
 \end{align}
 \end{proof}
 
+We name the {\textit{b}}itwise-optimized big integer {\textit{add}}ition
+algorithm \textit{badd}.
+
 Thus, when using the parallel algorithm presented in Figure \ref{fig:addpar}
 with $\oplus$, $\otimes$ and \texttt{e} defined in Equations (\ref{eq:oplus}),
 (\ref{eq:otimesne}) and (\ref{eq:otimesneopt}), we get that
@@ -347,7 +350,7 @@ $O(m)$ and the span is $O(\log m)$.
 \subsection{CUDA Implementation}
 \label{subsec:addcud}
 
-In this section we introduce three versions of addition in CUDA. The first
+In this subsection we introduce three versions of addition in CUDA. The first
 version (\texttt{V1}) is the fundamental implementation that follows the
 algorithm presented in Figure \ref{fig:addpar} closely. The second version
 (\texttt{V2}) attempts to efficiently sequentialize the parallelism in excess:
@@ -356,7 +359,7 @@ constant time, we expect the threads to have an excess amount of parallelism
 spent on communication (waiting for memory and synchronizations). Upping the
 sequentialization factor decreases the amount of communication, which may up the
 performance. This version also serves to compute addition for integers of
-greater size than a CUDA block. The third version (\texttt{V3}) conjoins
+greater size than a CUDA block. The third version (\texttt{V3}) flattens
 integers and do a segmented addition, giving better performance for multiple
 arithmetic instances with small integer sizes, as mentioned in section
 \ref{sec:strat}.
@@ -423,13 +426,14 @@ $\mathtt{CarryProp}$, we have:
 Lastly, $\mathtt{V3}$ is implemented in the same manner as $\mathtt{V2}$, but
 segmented. A segmented scan is a scan with a flag array (indicating where new
 segments starts) s.t. if we are at the beginning of a segment, the neutral
-element is used as the second operand rather than the left sum.
+element is used as the first operand rather than the left sum.
 
 We can implement it as a normal scan, but with an extended operator that checks
-segment beginnings. Just like we combined the overflow-indicator and
-maximum-integer-indicator, we can also combine them with the
-segment-start-indicator (flag array). Thus, in the implementation, we use the
-third least-significant bit to indicate segment beginnings, and we get the
+for segment beginnings, as done in section 8 of the book ``Parallel Programming
+in Futhark'' \cite{ParallelProgrammingInFuthark}. Just like we combined the
+overflow-indicator and maximum-integer-indicator, we can also combine them with
+the segment-start-indicator (flag array). Thus, in the implementation, we use
+the third least-significant bit to indicate segment beginnings, and we get the
 segmented scan operator $\otimes$ (still with neutral element $2$):
 \begin{align}
   \label{eq:segscanop}
@@ -443,6 +447,95 @@ parallel addition algorithm.
 
 \subsection{Futhark Implementation}
 \label{subsec:addfut}
+
+In this subsection, we introduce four versions of addition in Futhark. The first
+version (\texttt{V0}) is the original version formulated by Olesen et
+al. \cite{DPPproject}, i.e., with boolean representation and logical
+operators. In turn, the second version (\texttt{V1}) uses bitwise
+representation. The third version (\texttt{V2}) introduces a fixed
+sequentialization factor of four\footnote{From the CUDA implementation, we found
+  this to be optimal (see subsection \ref{subsec:addcud}).}, and the fourth
+version (\texttt{V3}) introduces a parameterized number of instances per block.
+
+Version \texttt{V0} and \texttt{V1} are defined straightforward, and due to
+Futharks high-level design, looks almost identical to the pseudocode of the
+parallel algorithm (Figure \ref{fig:addpar}). E.g. for base \texttt{u64}:
+\begin{lstlisting}[language=futhark,caption={Futhark addition \texttt{V1} using base \texttt{u64} (from file \texttt{add.fut} slightly edited).}]
+def carry_prop64 (c1: u64) (c2: u64) : u64 =
+  (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1)
+
+def initc64 (r : u64) (a : u64) : u64 =
+  (u64.bool (r < a)) | ((u64.bool (r == u64.highest)) << 1)
+
+entry badd64v1 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
+  let (res,cs)=map2 (\a b -> let r = a + b in (r,initc64 r a)) as bs|>unzip
+  let carries = scan_exc carry_prop64 2 cs
+  in map2 (\ r c -> r + (c & 1)) res carries
+\end{lstlisting}
+
+While versions \texttt{V0} and \texttt{V1} feeds into the strengths of Futhark,
+versions \texttt{V2} and \texttt{V3} reveals the weakness. Since we want to
+compute four sub-additions for each thread, it is crucial that we first fetch
+the eight input-digits into registers of the threads, reducing eight reads to
+two reads from global memory. However, while we can control this in a low-level
+language like CUDA, we are at the mercy of the Futhark compiler to do this
+optimization, and as of writing this Thesis, it will not do it.
+
+However, while the compiler will not optimize this behaviour by default, we can
+trick it to do it by utilizing short-circuiting. {\color{red} TODO explain
+  short-circuiting and cite paper}.
+
+Thus, the zips, unzips and concatenations in Listing \ref{addfutcpy} below
+becomes NOPs (no operation), but they serve to copy the input from global to
+shared memory in a coalesced fashion. The function call at the end
+(\texttt{badd64v2Run0}) is defined straightforward using tuples of four elements
+and the same sequentialized prefix sum as the CUDA implementation (Listing
+\ref{addopcuda}).
+\lstinputlisting[language=futhark,firstline=154,lastline=166,caption={\footnotesize
+  Futhark code to copy from global to shared memory using short-circuiting from file
+  \texttt{add.fut}.},label={addfutcpy},firstnumber=154]{../futhark/add.fut}
+
+The type signature of the function \texttt{badd64v2Run} above enforces the size
+of the big integers to be a multiple of four, but for the sake of generality, we
+do not require it for construction. Instead, we pad the input and remove the
+padding afterwards, like in Listing \ref{addfutpad} below\footnote{Note, we do
+  not pad CUDA programs, as these are purely performance oriented.}. We can us
+the formula
+\begin{equation}
+  \label{eq:3}
+  n + ((q - (n \bmod q)) \bmod q)
+\end{equation}
+to round up to the closest multiple of $q$ from $n$. Furthermore, we use size
+coercions to infer the supposed array shapes to the typechecker (as it lacks the
+ability to do so itself).
+
+\lstinputlisting[language=futhark,firstline=169,lastline=173,caption={\footnotesize
+  Futhark code to pad inputs to fit the sequentialization factor of four from file
+  \texttt{add.fut}.},label={addfutpad},firstnumber=169]{../futhark/add.fut}
+
+The padding does not impede the performance significantly because the Futhark
+compiler fuses the function calls. E.g. for the function \fun{take} \fun{n}
+following \fun{badd64v2Run} with output shape \fun{[n+p]}; instead of first
+allocating a result array of size \fun{[n+p]} and then allocate and copy to a
+new array of size \fun{[n]}, the compiler knows to simply allocate an array of
+size \fun{[n]} and ignore the remaining \fun{p} elements. In this example,
+calling \fun{take} is free. {\color{red} TODO find reference for this claim}
+
+Lastly, \texttt{V3} is implemented almost identically to \texttt{V2}, except for
+using a segmented scan. However, when calling this version, we must take care to
+flatten it properly. We can use the builtin functions \fun{flatten} and
+\fun{unflatten}, much in the same way we used \fun{take} and concatenation for
+padding. The following listing is a wrapper that handles the flattening:
+
+\lstinputlisting[language=futhark,firstline=289,lastline=295,caption={\footnotesize
+  Futhark function handling the flattening of \texttt{badd64v3} from file
+  \texttt{add.fut}.},label={addfutpad},firstnumber=289]{../futhark/add.fut}
+
+{\color{red} TODO I noticed the Futhark version uses flag array instead of including it in the bitwise operations - try both and see whats fastest.}
+
+{\color{red} TODO the code of the above listing is a bit lazy, it avoids the problem of sizes $n$ that does not divide $ipb$ exact.}
+
+
 
 %%% Local Variables:
 %%% mode: LaTeX

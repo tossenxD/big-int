@@ -47,7 +47,7 @@ threads.
         \hline
       \end{tabular}\\
     \end{minipage}
-    \caption{Example of sequentialization within workthreads.}
+    \caption{Example of sequentialization within parallel threads.}
     \label{fig:seqexa}
 \end{figure}
 
@@ -69,9 +69,13 @@ have access to 512 cores. Then, each core must compute two blocks, and within
 each block, half of threads are idle.
 
 Again, this is an artificial barrier, as we can conjoin two big integers and
-handle them segmented by 32 threads. Thus, in this example, we now get 512
+handle them segmented by 32 threads. This process is called
+\textit{flattening}\footnote{Specifically \textit{regular flattening} as the
+  nested data structures we flatten are of the same shape.} and operations
+working on flattened data structures are called \textit{segmented operations}
+\cite{Henriksen:2017:FPF:3062341.3062354}. Thus, in this example, we now get 512
 blocks, which can be computed by the 512 cores in one sweep. This is not
-necessarily double the performance, as conjoining, splitting and segmented
+necessarily double the performance, as flattening, splitting and segmented
 operations comes with a cost, but, in most cases, the cost is constant, and can
 be neglected when handling many arithmetic instances.
 
