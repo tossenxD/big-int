@@ -478,22 +478,31 @@ versions \texttt{V2} and \texttt{V3} reveals the weakness. Since we want to
 compute four sub-additions for each thread, it is crucial that we first fetch
 the eight input-digits into registers of the threads, reducing eight reads to
 two reads from global memory. However, while we can control this in a low-level
-language like CUDA, we are at the mercy of the Futhark compiler to do this
-optimization, and as of writing this Thesis, it will not do it.
+language like CUDA, we are at the mercy of the Futhark compiler perform this
+optimization, and as of writing this Thesis, it will not optimize this behaviour.
 
-However, while the compiler will not optimize this behaviour by default, we can
-trick it to do it by utilizing short-circuiting. {\color{red} TODO explain
-  short-circuiting and cite paper}.
+Instead, we can utilize the principle of temporal locality to e.g. read input
+array $u$ into array $w$ in a coalesced fashion, and then use $w$ as if it were
+the input $u$. Normally, we avoid such redundant computations because the
+compiler constructs and copies to intermediate arrays when resolving array
+operations (, since data is immutable as per usual for functional
+languages). However, the Futhark compiler use a memory optimization called array
+short-circuiting, where it performs a short-circuit analysis that reveals
+whether it can skip constructing intermediate arrays and execute the operation
+in-place instead \cite{futhark/sc22mem}.
 
-Thus, the zips, unzips and concatenations in Listing \ref{addfutcpy} below
-becomes NOPs (no operation), but they serve to copy the input from global to
-shared memory in a coalesced fashion. The function call at the end
-(\texttt{badd64v2Run0}) is defined straightforward using tuples of four elements
-and the same sequentialized prefix sum as the CUDA implementation (Listing
-\ref{addopcuda}).
+We copy from global to shared memory coalesced utilizing short-circuiting with
+the code in Listing \ref{addfutcpy} below. Hence, the zips, unzips and
+concatenations of the code becomes no-ops and \texttt{ash} is a in-place read of
+\texttt{as} (i.e. they occupy the same memory region).
+
+The function \texttt{badd64v2Run0} called at the end of the code is our addition
+with sequentialization of excess parallelism, defined straightforward using
+tuples of four elements and the same sequentialized prefix sum as the CUDA
+implementation (Listing \ref{addopcuda}).
 \lstinputlisting[language=futhark,firstline=154,lastline=166,caption={\footnotesize
-  Futhark code to copy from global to shared memory using short-circuiting from file
-  \texttt{add.fut}.},label={addfutcpy},firstnumber=154]{../futhark/add.fut}
+  Futhark code to copy from global to shared memory using short-circuiting from
+  file \texttt{add.fut}.},label={addfutcpy},firstnumber=154]{../futhark/add.fut}
 
 The type signature of the function \texttt{badd64v2Run} above enforces the size
 of the big integers to be a multiple of four, but for the sake of generality, we
