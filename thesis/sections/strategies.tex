@@ -1,19 +1,19 @@
 \section{Implementation and Optimization Strategy}
 \label{sec:strat}
 
-For the arithemetics to be efficient, they must be implemented at a CUDA
+For the arithmetics to be efficient, they must be implemented at a CUDA
 block-level. I.e., the arithmetic operations are confined to run on at most 1024
-workthreads. This reduces the communication overhead by utilizing the faster
-block-level shared memory for intermidiate results, meaning that, in principle,
-any airhtmetic program only have access global memory when reading the input big
+threads. This reduces the communication overhead by utilizing the faster
+block-level shared memory for intermediate results, meaning that, in principle,
+any arithmetic program only have access global memory when reading the input big
 integer(s) and writing the output big integer.
 
-Hence, the implementation is moreso aimed at medium-sized big integers, as when
+Hence, the implementation is more so aimed at medium-sized big integers, as when
 the size exceeds 1024, the arithmetics is not able to run. This is an artificial
 barrier, as we can simply introduce sequentialization within each thread to up
 the size. E.g. consider the example given in Figure \ref{fig:seqexa}. In the
 left illustration, each of the $512$ digits of the big integer is handled by a
-seperate thread, giving us $512$ threads. On the right, each thread instead
+separate thread, giving us $512$ threads. On the right, each thread instead
 handle two digits by doing some sequential computations, giving us only $256$
 threads.
 
@@ -58,11 +58,11 @@ block limits).
 
 Likewise, we can also have big integer sizes that are too small to efficiently
 compute in parallel. Consider again the example of Figure \ref{fig:seqexa} and
-supose $w$ only consists of 16 digits instead of 512 - then we have at most 16
+suppose $w$ only consists of 16 digits instead of 512 - then we have at most 16
 threads to handle $w$. A CUDA warp is 32 threads, meaning, that we have 16
 threads that remain idle throughout the computation of $w$.
 
-This is not a problem when we only compute arithemtics on a single big integer,
+This is not a problem when we only compute arithmetics on a single big integer,
 but suppose we have 1024 big integers instead. This means that we launch 1024
 CUDA blocks - one for each digit - consisting of one warp each. Suppose we only
 have access to 512 cores. Then, each core must compute two blocks, and within
@@ -71,7 +71,7 @@ each block, half of threads are idle.
 Again, this is an artificial barrier, as we can conjoin two big integers and
 handle them segmented by 32 threads. Thus, in this example, we now get 512
 blocks, which can be computed by the 512 cores in one sweep. This is not
-neccessarilly double the performance, as conjoining, splitting and segmented
+necessarily double the performance, as conjoining, splitting and segmented
 operations comes with a cost, but, in most cases, the cost is constant, and can
 be neglected when handling many arithmetic instances.
 
@@ -83,7 +83,7 @@ based on the current size \cite{GMP}.
 Inspired by their strategy, we will implement multiple \textit{versions} of the
 algorithms presented in this Thesis. We determine what version outperformes the
 others in an experimental approach over the integer size and number of
-arithmetic instances, and will incoorporate the results into the produced
+arithmetic instances, and will incorporate the results into the produced
 Futhark library.
 
 %%% Local Variables:

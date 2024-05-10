@@ -33,7 +33,7 @@ carry, then we add $0$ and the carry to $9$ giving $0$ and another carry, which
 we then add to $1$, resulting in the number $200$.
 
 A sequential algorithm and illustration thereof is given in Figure
-\ref{fig:addseq}. It is immidiate from the figure that the additions of digits
+\ref{fig:addseq}. It is immediate from the figure that the additions of digits
 can be independently computed, and thus, trivially parallelizable. However, the
 carries are dependent on all additions and carries before it.
 
@@ -256,7 +256,7 @@ these are faster.
 In turn, instead of using pairs of integer words with only one indicator bit for
 boolean values each, we combine them to one word with two bits used to each
 indicate both boolean value. Not only does this halve the memory usage
-w.r.t. the prefix sum, it also increases memory utilization as each workthread
+w.r.t. the prefix sum, it also increases memory utilization as each thread
 only having to fetch and write one word.
 
 The formalization of these optimizations, where the least and second least
@@ -278,7 +278,7 @@ Equation (\ref{eq:otimesopt}) is a conversion of equation (\ref{eq:otimes}),
 where I) the pair is replaced with bitwise or-operator, II) the first clause is checked
 in the least significant bit and zeroes out the second bit with ``$\&~1$'', and
 III) the second clause is checked in the second least significant bit and zeroes
-out the first bit with ``$\&~2$''. Associtivity naturally still holds:
+out the first bit with ``$\&~2$''. Associativity naturally still holds:
 
 \begin{proof}
   We want to show $x \otimes (y \otimes z) = (x \otimes y) \otimes z$. From left-to-right we have:
@@ -297,7 +297,7 @@ From right-to-left we have:
 \end{align}
 We must now show that equation (\ref{eq:otimesproofltr}) is equal to
 (\ref{eq:otimesproofrtl}). Consider the second clause. Since $(1~\&~2)$ is $0$,
-so is the first clause of both $(\alpha~\&~2)$ and $(\beta~\&~2)$. Futhermore, we have
+so is the first clause of both $(\alpha~\&~2)$ and $(\beta~\&~2)$. Furthermore, we have
 that $2~\&~2$ is the same as $2$. Thus, we have:
 \begin{align}
   (\alpha~\&~2)~\&~z &= (x~\&~y~\&~2)~\&~z\\
@@ -320,7 +320,7 @@ We have $((y \gg 1)~\&~(z \gg 1)) = (y~\&~z \gg 1) = (y~\&~z~\&~2 \gg 1)$ and ge
 Thus, equations (\ref{eq:otimesproofltr}) and (\ref{eq:otimesproofrtl}) are equal, and hence, $x \otimes (y \otimes z) = (x \otimes y) \otimes z$.
 \end{proof}
 
-Likewise, the netrual element \texttt{e} of Equation (\ref{eq:otimesneopt}) is
+Likewise, the neutral element \texttt{e} of Equation (\ref{eq:otimesneopt}) is
 the corresponding indicator bits of Equation (\ref{eq:otimesne}), and so
 \texttt{e} remains a left-associative neutral element of $\otimes$ after the
 optimizations:
@@ -353,7 +353,7 @@ algorithm presented in Figure \ref{fig:addpar} closely. The second version
 (\texttt{V2}) attempts to efficiently sequentialize the parallelism in excess:
 Since the operation runs in sublinear time, with two of the three steps being a
 constant time, we expect the threads to have an excess amount of parallelism
-spent on communication (waiting for memory and syncronizations). Upping the
+spent on communication (waiting for memory and synchronizations). Upping the
 sequentialization factor decreases the amount of communication, which may up the
 performance. This version also serves to compute addition for integers of
 greater size than a CUDA block. The third version (\texttt{V3}) conjoins
@@ -378,7 +378,7 @@ dim3 grid (num_instances/ipb, 1, 1);
 
 Step 1. and step 3. are implemented straightforward for all three versions, by
 simply computing the mapped functions. Step 2. on the other hand is a bit more
-interresting.
+interesting.
 
 For the \fun{scan} function, we have used the warp-level inclusive scan
 presented in course \textit{Programming Massively Parallel Hardware}
@@ -422,14 +422,14 @@ $\mathtt{CarryProp}$, we have:
 
 Lastly, $\mathtt{V3}$ is implemented in the same manner as $\mathtt{V2}$, but
 segmented. A segmented scan is a scan with a flag array (indicating where new
-segments starts) s.t. if we are at the begining of a segment, the neutral
+segments starts) s.t. if we are at the beginning of a segment, the neutral
 element is used as the second operand rather than the left sum.
 
 We can implement it as a normal scan, but with an extended operator that checks
-segment beginings. Just like we combined the overflow-indicator and
+segment beginnings. Just like we combined the overflow-indicator and
 maximum-integer-indicator, we can also combine them with the
 segment-start-indicator (flag array). Thus, in the implementation, we use the
-third least-significant bit to indicate segment beginings, and we get the
+third least-significant bit to indicate segment beginnings, and we get the
 segmented scan operator $\otimes$ (still with neutral element $2$):
 \begin{align}
   \label{eq:segscanop}

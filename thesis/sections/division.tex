@@ -42,7 +42,7 @@
 % \[l = l + n - 1 = 1 + 1 - 1 = 1\]
 
 \subsection{Prototype}
-We startet by writing a prototype of the algorithm in C to better understand the
+We started by writing a prototype of the algorithm in C to better understand the
 inner workings of the algorithm. In its creation, we discovered some
 optimization with respect to our big integer data structure. Here are some
 notable subroutines and how we handle them.
@@ -51,7 +51,7 @@ notable subroutines and how we handle them.
 \item \textbf{Base Powers}\\
   These are prominent throughout the algorithm, and comes in a multitude of
   usecases. However, most of the time they express something structural about a
-  big integer, and hence, can be optmized to a constant work check on the
+  big integer, and hence, can be optimized to a constant work check on the
   integer.
 
   E.g. consider the comparison $v > B^h$ for a big integer $v$ of precision $m$
@@ -72,7 +72,7 @@ notable subroutines and how we handle them.
 
 \item \textbf{Initial Approximation}\\
   The initial approximation is 4 digits divided by 2 digits and can be computed
-  effeciently using register arithmetics, if we have access to registers of
+  efficiently using register arithmetics, if we have access to registers of
   4$\times$ base size.
 
 \item \textbf{PowDiff}\\

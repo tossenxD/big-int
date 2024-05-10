@@ -17,9 +17,9 @@ state of the art CUDA library CGBN.
 
 Efficient computation means multiple things; a low power consumption, good
 memory usage, good thread utilization, low running time, high bandwidth,
-operations per second, etc. In the spirit of Futhark, we are interrested in the
+operations per second, etc. In the spirit of Futhark, we are interested in the
 hardware-agnostic performance. A good ground is benchmarking the running time,
-as the relative running times should be similiar across hardware (assuming it
+as the relative running times should be similar across hardware (assuming it
 scales linearly on the specifications of the underlying GPUs).
 
 However, running times are not directly comparable unless we keep the data size
@@ -35,12 +35,12 @@ Subsection \ref{subsec:benchset} describes the benchmark setup, subsection
 \label{subsec:benchset}
 
 In order to understand the performance and scaling thereof, two benchmark
-structures are defined for each arithemtic function. The first structure is
+structures are defined for each arithmetic function. The first structure is
 simply the functions themselves, which serves as the basis for judging the
 performance. The second structure is multiple consecutive calls to the
 functions, designed to give insight in the scaling of the functions in
 semi-realistic usecases. These structures are generic over the big integer
-precision and number of arithemtic instances.
+precision and number of arithmetic instances.
 
 While we want to vary the number of instances and precision, the benchmark
 results are only directly comparable if we keep the total amount of work
