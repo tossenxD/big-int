@@ -8,7 +8,7 @@
 \usepackage{parskip}
 \usepackage{url}
 \usepackage{hyperref}
-\usepackage[svgnames]{xcolor}
+\usepackage[svgnames,table]{xcolor}
 \usepackage{color}
 \usepackage{graphicx}
 \usepackage{stmaryrd}
@@ -94,7 +94,12 @@
   language = C++,
   morekeywords = {
     uint32_t,
-    uint64_t
+    uint64_t,
+    uint_t,
+    carry_t,
+    __syncthreads,
+    Base,
+    dim3
   },
 }
 
@@ -120,8 +125,8 @@
 {
   frame=tb,
   basicstyle=\footnotesize\ttfamily,
-  keywordstyle = \color{blue},
-  commentstyle = \color{green},
+  keywordstyle = \color{RoyalBlue},
+  commentstyle = \color{ForestGreen},
   stringstyle = \color{purple},
   numberstyle=\scriptsize\color{darkgray},
   captionpos=t,
