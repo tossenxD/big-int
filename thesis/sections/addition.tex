@@ -9,11 +9,12 @@ Former work has been carried out by students as part of a parallel course
 project, which will serve as a stepping stone for the algorithm and
 implementation of our addition \cite{DPPproject}.
 
-This section is as follows: In subsection \ref{subsec:addalg} we present an
-algorithm to compute big integer addition in parallel. In subsection
+This section is as follows: In section \ref{subsec:addalg} we present an
+algorithm to compute big integer addition in parallel. In section
 \ref{subsec:addcud} we discuss how to efficiently implement the algorithm on a
-GPU in CUDA, and in subsection \ref{subsec:addfut} how to translate this
-implementation to Futhark.
+GPU in CUDA, and in section \ref{subsec:addfut} how to translate this
+implementation to Futhark. Lastly, in section \ref{subsec:sub} we show how to
+define subtraction from addition.
 
 \subsection{Algorithm}
 \label{subsec:addalg}
@@ -350,7 +351,7 @@ $O(m)$ and the span is $O(\log m)$.
 \subsection{CUDA Implementation}
 \label{subsec:addcud}
 
-In this subsection we introduce three versions of addition in CUDA. The first
+In this section we introduce three versions of addition in CUDA. The first
 version (\texttt{V1}) is the fundamental implementation that follows the
 algorithm presented in Figure \ref{fig:addpar} closely. The second version
 (\texttt{V2}) attempts to efficiently sequentialize the parallelism in excess:
@@ -448,14 +449,14 @@ parallel addition algorithm.
 \subsection{Futhark Implementation}
 \label{subsec:addfut}
 
-In this subsection, we introduce four versions of addition in Futhark. The first
+In this section, we introduce four versions of addition in Futhark. The first
 version (\texttt{V0}) is the original version formulated by Olesen et
 al. \cite{DPPproject}, i.e., with boolean representation and logical
 operators. In turn, the second version (\texttt{V1}) uses bitwise
 representation. The third version (\texttt{V2}) introduces a fixed
 sequentialization factor of four\footnote{From the CUDA implementation, we found
-  this to be optimal (see subsection \ref{subsec:addcud}).}, and the fourth
-version (\texttt{V3}) introduces a parameterized number of instances per block.
+  this to be optimal (see section \ref{subsec:addcud}).}, and the fourth version
+(\texttt{V3}) introduces a parameterized number of instances per block.
 
 Version \texttt{V0} and \texttt{V1} are defined straightforward, and due to
 Futharks high-level design, looks almost identical to the pseudocode of the
@@ -544,7 +545,25 @@ padding. The following listing is a wrapper that handles the flattening:
 
 {\color{red} TODO the code of the above listing is a bit lazy, it avoids the problem of sizes $n$ that does not divide $ipb$ exact.}
 
+\subsection{Subtraction}
+\label{subsec:sub}
 
+Subtraction is also a cornerstone of arithmetics, but arguably not as important
+as addition. The reason is that subtracting a term is the same as adding the
+signed term. While we do not use signs in our underlying representation, we can
+still define subtraction using the addition. In fact, it is easy to see that a
+``reverse'' addition gives us subtraction.
+
+We define it using the generic algorithm of Figure \ref{fig:addpar} where line 3
+subtract instead of add, and with the same $\otimes$, $\mathtt{e}$ and
+$\mathtt{f}$ as in \textit{badd}. Operator $\oplus$ then becomes:
+\begin{align}
+  \label{eq:oplusopt}
+  x \oplus y &\coloneq (x - y > x)~|~((x - y = 0) \ll 1)
+\end{align}
+
+Since it is the same algorithm as addition, we will not benchmark it or discuss
+it further.
 
 %%% Local Variables:
 %%% mode: LaTeX

@@ -1,6 +1,122 @@
 \section{Multiplication}
 \label{sec:mul}
 
+Multiplication is the next of the basic arithmetic operators. It is more
+complicated than addition, since all digits of the multiplicand have to be
+multiplied by all digits of the multiplier, leading to assymptoticly quadratic
+runtimes. Multiple assymptotically faster algorithms exists, such as Karatsuba
+and Fast Fourier Transform (FFT), both of which are mentioned by Knuth and part
+of GMP \cite{knuth97} \cite{GMP}.
+
+In section \ref{subsec:mulalg}, we present the classical multiplication
+algorithm that convolutes the digits of the operands, and discuss how to
+parallelize it. We also discuss the Karatsuba and FFT algorithm, where
+especially the FFT is promising in a GPGPU setting. In sections
+\ref{subsec:mulcud} and \ref{subsec:mulfut} we present our CUDA and Futhark
+implementations, respectively, and any further optimizations related to the
+implementations. Lastly, in section \ref{subsec:mulsin} we go over the special
+case of multiplication by a single precision factor and present an algorithm to
+handle it.
+
+\subsection{Algorithm}
+\label{subsec:mulalg}
+
+
+\subsection{CUDA Implementation}
+\label{subsec:mulcud}
+
+
+\subsection{Futhark Implementation}
+\label{subsec:mulfut}
+
+
+\subsection{Single Precision Factor}
+\label{subsec:mulsin}
+
+Integer multiplication has some special cases; we have multiplication by 0, by 1
+and by the radix. Respectively, this is equivalent to 0, identity and a shift
+(e.g. $4 \cdot 10^1$ in decimal system is equivalent to $4 \ll 1$ and
+$4\cdot 10^2$ to $4\ll 2$ and so forth). Multiplying of big integers has another
+special case; multiplication by a single precision factor.
+
+This case can be computed in parallel as an addition with two extra step: I)
+Multiply each digit with by the factor giving two arrays with the low and high
+parts, respectively. II) Shift the high part array by 1. III) Add the two arrays
+using the addition algorithm. Figure \ref{fig:muld} contains the pseudo-code and
+illustration of this algorithm.
+
+\begin{figure}
+  \centering
+  \begin{minipage}{0.45\textwidth}
+    \small
+    \texttt{Input:} $u$ and of size $m$ base $B$ and digit $d$\\
+    \texttt{Output:} $w$ of size $m$ in base $B$\\
+    \texttt{Using:} Function \texttt{ADD} for adding big ints
+\begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)}]
+l = map (mul(*$_{low}$*) d) u
+h = map (mul(*$_{high}$*) d) u
+h = shift h 1
+w = ADD l h
+\end{lstlisting}
+  \end{minipage}
+  \begin{minipage}{0.45\textwidth}
+    \centering
+    \footnotesize
+    \begin{tabular}{c}
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $u_0$ & $u_1$ & $u_2$ & $\cdots$ & $u_{m-1}$\\ 
+        \hline
+      \end{tabular}\\[-0.3ex]
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
+        $\cdot$ & $\cdot$ & $\cdot$ & & $\cdot$\\ 
+      \end{tabular}\\[-0.7ex]
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
+        $d$ & $d$ &  $d$ & $\cdots$ &$d$ \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.8cm}C{0.7cm}C{0.7cm}}
+        $=$ & $=$ & $=$ &  & $=$  
+      \end{tabular}\\
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $h_{0}$ & $h_1$ & $h_2$ & $\cdots$ & $h_{m-1}$\\
+        \hline
+      \end{tabular}\\
+      \begin{tabular}{C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}}
+        \diagonalarrowdown{}$_+$ & & \diagonalarrowdown{}$_+$ &  & \diagonalarrowdown{}$_+$  &  & \diagonalarrowdown{}$_+$ \\
+      \end{tabular}\\
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $l_{0}$ & $l_1$ & $l_2$ & $\cdots$ & $l_{m-1}$\\
+        \hline
+      \end{tabular}\\
+      \begin{tabular}{C{0.7cm}C{0.7cm}C{0.8cm}C{0.7cm}C{0.7cm}}
+        $=$ & $=$ & $=$ &  & $=$  
+      \end{tabular}\\
+      \begin{tabular}{|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|C{0.7cm}|}
+        \hline
+        $w_{0}$ & $w_1$ & $w_2$ & $\cdots$ & $w_{m-1}$\\
+        \hline
+      \end{tabular}
+    \end{tabular}
+  \end{minipage}
+  \caption{\footnotesize Pseudo-code and illustration of algorithm for parallel multiplication by single precision.}
+  \label{fig:muld}
+\end{figure}
+
+We could integrate this into the multiple precision multiplication
+implementation, by simply checking whether we are in the special case (or any of
+the others for that matter). However there are two problems with this: First, we
+expect multiple precision to be more dominant than single precision for a
+multiple precision arithmetic library, and so it is not deemed worth the extra
+computation. Second, this introduces branching into the multiplication, which is
+especially troublesome for working with multiple instances per block (as
+diverging branches within a block results in unbalanced work among the threads).
+
+Instead, we write a function for \textit{mul}tiplying a big integer by a
+\textit{d}igit, called \textit{muld}. Since it is essentially an addition, we
+will not benchmark it or discuss it further.
+
 %%% Local Variables:
 %%% mode: LaTeX
 %%% TeX-master: "../main"
