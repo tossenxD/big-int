@@ -21,10 +21,229 @@ handle it.
 \subsection{Algorithm}
 \label{subsec:mulalg}
 
+In this section, we first assess the \textit{classical} multiplication algortihm
+in section \ref{subsubsec:classical}, before we move on to more advanced
+algorithms in section \ref{subsubsec:fft}.
+
+\subsubsection{Classical}
+\label{subsubsec:classical}
+The classical multiplication multiplication algorithm handles one digit of the
+multiplier at a time. E.g. in decimal sytem, $42\cdot 21$ becomes
+$1 \cdot 42 + 2 \cdot 42 \cdot 10$. In the positional number system of our big integers, the
+definition of classical multiplication is:
+\begin{equation}
+  \label{eq:clasmul0}
+  u \cdot v = \sum_{i=0}^{m-1}u_i\cdot \left( \sum_{j=0}^{m-1}v_j\cdot B^{j} \right)B^{i}
+\end{equation}
+Two observations: We cannot store the inner sum in a single word and we only
+care about the first $m$ digits of the result\footnote{The result of
+  multiplication is up to twice the size of the inputs. In order to not loose
+  precision in our setting, a memory region of double size should be
+  preallocated before the multiplication function call.}.  Hence, we can define
+it making use of tiling, as illustrated by Figure \ref{fig:tiledmult}, s.t. the
+inner multiplications can make use of native hardware arithmetics:
+
+{
+\begin{minipage}{0.5\textwidth}
+  \centering
+  \begin{figure}[H]
+  \centering
+  \footnotesize
+  \begin{tabular}{c}
+    \begin{tabular}{|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.5cm}|C{0.8cm}|}
+      \hline
+      $w_0$ & $w_1$ & $w_2$ & $\ldots$ & $w_{m-1}$\\
+      \hline
+    \end{tabular}\\
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+      $=$ & $=$ & $=$ &  & $=$
+    \end{tabular}\\[-2ex]
+    \begin{tabular}{C{0.2cm}C{0.2cm}C{0.2cm}C{0.2cm}C{0.2cm}C{0cm}C{0.7cm}C{0.2cm}C{0.2cm}C{0.2cm}C{0.2cm}}
+      & & $\diagonalarrowdown$ & & $\diagonalarrowdown$ & & $\diagonalarrowdown$ & $\diagonalarrowdown$ & &
+    \end{tabular}\\[-1.4ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+      $0$ & $c_0$ & $c_1$ & $\ldots$ & $c_{m-2}$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+      $+$ & $+$ & $+$ &  & $+$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+      $u_0 v_0$ & $u_0 v_1$ & $u_0 v_2$ & $\ldots$ & $u_0v_{m-1}$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+       & $+$ & $+$ &  & $+$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{0cm}C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}C{0cm}}
+       & & $u_1v_0$ & $u_1v_1$ & $\ldots$ & $u_1v_{m-2}$ & $\ldots$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+       & & $+$ &  & $+$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{0cm}C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}C{0cm}}
+       & & & $u_2v_0$ & $\ldots$ & $u_2v_{m-3}$ & $\ldots$
+    \end{tabular}\\[-0.6ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+       & & & $\ddots$ & $\vdots$
+    \end{tabular}\\[-0.6ex]
+    \begin{tabular}{C{0cm}C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}C{0cm}}
+       & & & & & $u_{m-1}v_0$ & $\ldots$
+    \end{tabular}
+  \end{tabular}
+  \caption{\footnotesize Visualization of classical multiplication}
+  \label{fig:tiledmult}
+  \end{figure}
+\end{minipage}
+\begin{minipage}{0.49\textwidth}
+    \centering
+\begin{equation}
+\label{eq:clasmul}
+u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cdot v_j \right)B^{k}
+\end{equation}
+\end{minipage}
+}
+
+Now, sequentialization is straightforward, but in order to parallelize it, we
+make three new observations: All of the tiled multiplications are unique
+(i.e. $O(m^2)$ multiplications are necessary), the number of multiplications is
+linear in $k$, and the overflows can be added as a seperate step after the
+convolutions (e.g. using \textit{badd}).
+
+Since we parallelize at block-level (i.e. with dimensions over the size $m$),
+the first observation tells us that each thread must run $O(m)$ multiplications
+with no parallelism. However, from the second observation, letting thread
+$t_{k\in\{0,..,m-1\}}$ compute digit $w_k$ gives unbalanced amount of sequential
+work. Instead, we make a new observation; the work of digits $w_0$ and $w_{m-1}$
+is equal to that of $w_1$ and $w_{m-2}$, $w_2$ and $w_{m-3}$, etc. Thus, by
+introducing a fixed sequentialization factor of $2$, we can balance the work
+amongst threads.
+
+In order to propagate the overflows in a seperate sweep, we must keep track of
+them while computing the convolutions. Each thread computes $m+1$
+multiplications (when the sequentialization factor is 2). It is a known rule
+that; given any two factors, their product fit in their combined
+precision. E.g. in decimal system, $9$ (precision 1) times $99$ (precision 2) is
+$891$ (precision 3). From this rule, each product can fit in two words. We say
+the least significant word is the \textit{low part} and the most significant the
+\textit{high part}. Since we add $m+1$ products, each part may overflow at most
+$m$ times, s.t. low part overflows carry over to the high part, and high part
+overflows carry over to the \textit{carry part}. Hence, we need three words to
+keep track of each convolution (assuming B is big enough to hold the carry
+part).
+
+Thus, we define the parallel algorithm for classical \textit{mul}tiplication by
+\textit{conv}olution given in Figure \ref{fig:mulparalg}, from now on called
+\textit{convmul}. This algorithm has work $O(m^2)$ and span $O(m)$, where the
+sequential convolution is the dominant factor of the span.
+
+\begin{figure}
+\begin{lstlisting}[language=pseudo,escapeinside={(*}{*)},frame=single]
+fun conv t = -- Parameter `t` represents current index of the m/2 threads
+    k1 = t
+    k2 = m - 1 - k1            -- The indices `k1` and `k2` represents the
+    l1, l2, h1, h2, c1, c2 = 0 -- upper and lower `k` handled by thread `t`
+
+    for i in (0..k1)        -- The indices `i` and `j` are computed
+        j = k1 - i          -- straightforward w.r.t. Equation ((*{\hypersetup{allcolors=ForestGreen}\ref{eq:clasmul}}*))
+        l1 += u[i] *(*$_{\mathtt{low}}$*) v[j]
+        h1 += u[i] *(*$_{\mathtt{high}}$*) v[j] + overflow(*$_{\mathtt{l1}}$*)
+        c1 += overflow(*$_{\mathtt{h1}}$*)
+
+    for i in (0..k2)
+        j = k2 - i
+        l2 += u[i] *(*$_{\mathtt{low}}$*) v[j]
+        h2 += u[i] *(*$_{\mathtt{high}}$*) v[j] + overflow(*$_{\mathtt{l2}}$*)
+        c2 += overflow(*$_{\mathtt{h2}}$*)
+
+    return (l1, l2, h1, h2, c1, c2)
+
+(l1, l2, h1, h2, c1, c2) = map conv (0..(m/2)-1)
+l = concat l1 (reverse l2)           -- The second half of the
+h = shift (concat h1 (reverse h2)) 1 -- convolutions are computed in
+c = shift (concat c1 (reverse c2)) 2 -- reverse order due to work balancing
+r = ADD l h
+w = ADD r c
+\end{lstlisting}
+  \caption{\footnotesize Pseudocode of work balanced parallel algorithm for classical multiplication by convolution of big integers. \texttt{Input:} $u$ and $v$ of size $m$. \texttt{Output:} $w$ of size $m$. \texttt{Use:} Big integer addition function \texttt{ADD}.}
+  \label{fig:mulparalg}
+\end{figure}
+
+While we cannot optimize the assymptotics of the algorithm, we can eliminate one
+of the additions, increasing the parallelism by eliminating a scan.
+
+The intuition is to compute two lower and upper indices of $k$ in Equation
+(\ref{eq:clasmul}) per thread, four indices in total. This allows premature
+computation of half the additions before the values leave register memory
+(i.e. computed by \texttt{conv}), thus, necessitating only one addition after
+the convolutions. This optimization also reduces memory usage.
+
+Figure \ref{fig:muloptmem} contains an illustration of the tiling layout of this
+optimization w.r.t. threads. Now, the memory layout is trickier to construct
+compared to that of Figure \ref{fig:tiledmult}, requiring threads to alternate
+writing to the additive arrays. E.g. with four threads ($m = 16$) the addition
+corresponds to memory layout:\\
+
+\begin{center}
+  \small
+  \begin{tabular}{c}
+    \begin{tabular}{|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|}
+      \hline
+      \color{Crimson}$t^0_{00}$ & \color{Crimson}$t^0_{01}$ & \color{Crimson}$t^0_{02}$ & \color{Crimson}$t^0_{03}$ & \color{ForestGreen}$t^2_{00}$ & \color{ForestGreen}$t^2_{01}$ & \color{ForestGreen}$t^2_{02}$ & \color{ForestGreen}$t^2_{03}$ & \color{Chocolate}$t^3_{10}$ & \color{Chocolate}$t^3_{11}$ & \color{Chocolate}$t^3_{12}$ & \color{Chocolate}$t^3_{13}$ & \color{RoyalBlue}$t^1_{10}$ & \color{RoyalBlue}$t^1_{11}$ & \color{RoyalBlue}$t^1_{12}$ & \color{RoyalBlue}$t^1_{13}$\\
+      \hline
+    \end{tabular}\\
+    \begin{tabular}{C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}}
+      $+$ & $+$ & $+$ & $+$  & $+$ & $+$ & $+$ & $+$  & $+$ & $+$ & $+$ & $+$  & $+$ & $+$ & $+$ & $+$
+    \end{tabular}\\
+    \begin{tabular}{|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|}
+      \hline
+      0 & 0 & \color{RoyalBlue}$t^1_{00}$ & \color{RoyalBlue}$t^1_{01}$ & \color{RoyalBlue}$t^1_{02}$ & \color{RoyalBlue}$t^1_{03}$ & \color{Chocolate}$t^3_{00}$ & \color{Chocolate}$t^3_{01}$ & \color{Chocolate}$t^3_{02}$ & \color{Chocolate}$t^3_{03}$ & \color{ForestGreen}$t^2_{10}$ & \color{ForestGreen}$t^2_{11}$ & \color{ForestGreen}$t^2_{12}$ & \color{ForestGreen}$t^2_{13}$ & \color{Crimson}$t^0_{10}$ & \color{Crimson}$t^0_{11}$\\
+      \hline
+    \end{tabular}
+  \end{tabular}
+\end{center}~
+
+The memory layout perfectly partitions into an addition operator with
+sequentialization factor of 4, and thus, the optimization efficiently apply at
+CUDA block level, yielding both faster addition\footnote{Experimentally, we
+  found addition with sequentialization factor of 4 to be the fastest (see
+  section \ref{sec:per}).} and elimination of a scan.
+
+\begin{figure}
+  {
+  \begin{center}
+  \small
+  \begin{tabular}{C{0.5cm}}
+  \Large{\color{Crimson} $t_0$}~)\\\\
+    \Large{\color{RoyalBlue} $t_1$}~)
+\end{tabular}
+  \begin{tabular}{cccccc}
+    \color{Crimson}$l_0$ & \color{Crimson}$h_0$ & \color{Crimson}$c_0$ & & & \\
+    & \color{Crimson}$l_1$ & \color{Crimson}$h_1$ & \color{Crimson}$c_1$ & & \\
+    & & \color{RoyalBlue}$l_2$ & \color{RoyalBlue}$h_2$ & \color{RoyalBlue}$c_2$ & \\
+    & & & \color{RoyalBlue}$l_3$ & \color{RoyalBlue}$h_3$ & \color{RoyalBlue}$c_3$
+  \end{tabular}
+$\xrightarrow{\text{combines to}}$
+\begin{tabular}{cccccc}
+     & $\xrightarrow{\scriptsize \color{Crimson} \text{carry}}$ & $\xrightarrow{\scriptsize \color{Crimson} \text{carry}}$ &  &  &  \\
+    \color{Crimson}$l_0$ & \color{Crimson}$h_0 + l_1$ & \color{Crimson}$c_0 + h_1$ & \color{Crimson}c$_1$ & & \\
+    & & \color{RoyalBlue}$l_2$ & \color{RoyalBlue}$h_2+l_3$ & \color{RoyalBlue}$c_2+h_3$ & \color{RoyalBlue} $c_3$\\
+  & & & $\color{RoyalBlue}\xrightarrow[\scriptsize \text{carry}]{}$ & $\color{RoyalBlue}\xrightarrow[\scriptsize \text{carry}]{}$ & \\
+\end{tabular}
+\end{center}
+}
+
+~~~~$\vdots$\qquad\qquad\qquad\qquad\qquad $\ddots$ \qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad  $\ddots$
+  \caption{\footnotesize Illustration of optimized memory layout of \textit{convmul} with sequentialization factor of 4.}
+  \label{fig:muloptmem}
+\end{figure}
+
+
+\subsubsection{FFT}
+\label{subsubsec:fft}
 
 \subsection{CUDA Implementation}
 \label{subsec:mulcud}
 
+\pagebreak
 
 \subsection{Futhark Implementation}
 \label{subsec:mulfut}
@@ -51,10 +270,10 @@ illustration of this algorithm.
     \small
     \texttt{Input:} $u$ and of size $m$ base $B$ and digit $d$\\
     \texttt{Output:} $w$ of size $m$ in base $B$\\
-    \texttt{Using:} Function \texttt{ADD} for adding big ints
+    \texttt{Use:} Function \texttt{ADD} for adding big ints
 \begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)}]
-l = map (mul(*$_{low}$*) d) u
-h = map (mul(*$_{high}$*) d) u
+l = map (*(*$_{\mathtt{low}}$*) d) u
+h = map (*(*$_{\mathtt{high}}$*) d) u
 h = shift h 1
 w = ADD l h
 \end{lstlisting}

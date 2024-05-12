@@ -72,7 +72,7 @@ for i in (0..m-1)
         $+$ & $+$ & $+$ &  & $+$\\
       \end{tabular}\\
       \begin{tabular}{C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}C{0.7cm}}
-        $0$ & $c_1$ &  $c_2$ & $\cdots$ &$c_{m-1}$ \\
+        $0$ & $c_0$ &  $c_1$ & $\cdots$ &$c_{m-2}$ \\
       \end{tabular}\\[-0.8ex]
       \begin{tabular}{C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}C{0.15cm}}
        \diagonalarrow{} & & \diagonalarrow{} &  & \diagonalarrow{} &  & \diagonalarrow{}\\
@@ -87,7 +87,7 @@ for i in (0..m-1)
       \end{tabular}
     \end{tabular}
   \end{minipage}
-  \caption{Pseudo-code and illustration of sequential addition algorithm.}
+  \caption{\footnotesize Pseudo-code and illustration of sequential addition algorithm.}
   \label{fig:addseq}
 \end{figure}
 
@@ -114,7 +114,7 @@ neutral element \texttt{e}. Third, it extracts the carries from the prefix sum
     \footnotesize
     \texttt{Input:} $u$ and $v$ of size $m$ base $B$\\
     \texttt{Output:} $w$ of size $m$ in base $B$\\
-    \texttt{Uses:} $f$ to extract carry from augmented carry
+    \texttt{Use:} $f$ to extract carry from augmented carry
 \begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)},name=paradd,backgroundcolor=\color{LightGray},]
 (r, a) = map2 (*$\oplus$*) u v
 \end{lstlisting}
@@ -217,7 +217,7 @@ w = map2 ((*$\lambda$*) x y (*$\rightarrow$*) x + f y) r c
     \end{tabular}
   \end{minipage}
   }
-  \caption{Pseudo-code and illustration of parallel addition algorithm.}
+  \caption{\footnotesize Pseudo-code and illustration of parallel addition algorithm.}
   \label{fig:addpar}
 \end{figure}
 
@@ -373,7 +373,7 @@ trick; $(a + b - 1) / b = \lceil a / b \rceil$. The sequentialization factor
 $q=4$ is determined experimentally to be the most efficient, and likewise for
 $\mathit{ipb} = \lceil 256 / (m/q) \rceil$, which rounds the number of threads per block
 up to 256.
-\begin{lstlisting}[language=CPP,caption={CUDA addition parameters and kernel dimensions.},label={addparams}]
+\begin{lstlisting}[language=CPP,caption={\footnotesize CUDA addition parameters and kernel dimensions.},label={addparams}]
 const uint32_t q = (v == 1) ? 1 : (m <= 1024) ? 4 : (m+1024-1) / 1024;
 const uint32_t ipb = (v == 3) ? (256 + m/q - 1) / (m/q) : 1;
 dim3 block(ipb*(m/q), 1, 1);
@@ -395,7 +395,7 @@ over the results "I)".
 \begin{figure}
   \centering
   \includegraphics[width=0.8\textwidth]{img/warp-level-scan.png}
-  \caption{Illustration of a warp-level inclusive scan with warp-size 4 and 16 threads}
+  \caption{\footnotesize Illustration of a warp-level inclusive scan with warp-size 4 and 16 threads}
   \label{fig:warpscan}
 \end{figure}
 
@@ -461,7 +461,7 @@ sequentialization factor of four\footnote{From the CUDA implementation, we found
 Version \texttt{V0} and \texttt{V1} are defined straightforward, and due to
 Futharks high-level design, looks almost identical to the pseudocode of the
 parallel algorithm (Figure \ref{fig:addpar}). E.g. for base \texttt{u64}:
-\begin{lstlisting}[language=futhark,caption={Futhark addition \texttt{V1} using base \texttt{u64} (from file \texttt{add.fut} slightly edited).}]
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark addition \texttt{V1} using base \texttt{u64} (from file \texttt{add.fut} slightly edited).}]
 def carry_prop64 (c1: u64) (c2: u64) : u64 =
   (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1)
 
@@ -555,7 +555,7 @@ still define subtraction using the addition. In fact, it is easy to see that a
 ``reverse'' addition gives us subtraction.
 
 We define it using the generic algorithm of Figure \ref{fig:addpar} where line 3
-subtract instead of add, and with the same $\otimes$, $\mathtt{e}$ and
+subtracts instead of adding the carry, and with the same $\otimes$, $\mathtt{e}$ and
 $\mathtt{f}$ as in \textit{badd}. Operator $\oplus$ then becomes:
 \begin{align}
   \label{eq:oplusopt}
