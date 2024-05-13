@@ -3,8 +3,8 @@
 
 Multiplication is the next of the basic arithmetic operators. It is more
 complicated than addition, since all digits of the multiplicand have to be
-multiplied by all digits of the multiplier, leading to assymptoticly quadratic
-runtimes. Multiple assymptotically faster algorithms exists, such as Karatsuba
+multiplied by all digits of the multiplier, leading to asymptoticly quadratic
+runtimes. Multiple asymptotically faster algorithms exists, such as Karatsuba
 and Fast Fourier Transform (FFT), both of which are mentioned by Knuth and part
 of GMP \cite{knuth97} \cite{GMP}.
 
@@ -21,14 +21,14 @@ handle it.
 \subsection{Algorithm}
 \label{subsec:mulalg}
 
-In this section, we first assess the \textit{classical} multiplication algortihm
+In this section, we first assess the \textit{classical} multiplication algorithm
 in section \ref{subsubsec:classical}, before we move on to more advanced
 algorithms in section \ref{subsubsec:fft}.
 
 \subsubsection{Classical}
 \label{subsubsec:classical}
 The classical multiplication multiplication algorithm handles one digit of the
-multiplier at a time. E.g. in decimal sytem, $42\cdot 21$ becomes
+multiplier at a time. E.g. in decimal system, $42\cdot 21$ becomes
 $1 \cdot 42 + 2 \cdot 42 \cdot 10$. In the positional number system of our big integers, the
 definition of classical multiplication is:
 \begin{equation}
@@ -105,7 +105,7 @@ u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cd
 Now, sequentialization is straightforward, but in order to parallelize it, we
 make three new observations: All of the tiled multiplications are unique
 (i.e. $O(m^2)$ multiplications are necessary), the number of multiplications is
-linear in $k$, and the overflows can be added as a seperate step after the
+linear in $k$, and the overflows can be added as a separate step after the
 convolutions (e.g. using \textit{badd}).
 
 Since we parallelize at block-level (i.e. with dimensions over the size $m$),
@@ -117,7 +117,7 @@ is equal to that of $w_1$ and $w_{m-2}$, $w_2$ and $w_{m-3}$, etc. Thus, by
 introducing a fixed sequentialization factor of $2$, we can balance the work
 amongst threads.
 
-In order to propagate the overflows in a seperate sweep, we must keep track of
+In order to propagate the overflows in a separate sweep, we must keep track of
 them while computing the convolutions. Each thread computes $m+1$
 multiplications (when the sequentialization factor is 2). It is a known rule
 that; given any two factors, their product fit in their combined
@@ -167,7 +167,7 @@ w = ADD r c
   \label{fig:mulparalg}
 \end{figure}
 
-While we cannot optimize the assymptotics of the algorithm, we can eliminate one
+While we cannot optimize the asymptotics of the algorithm, we can eliminate one
 of the additions, increasing the parallelism by eliminating a scan.
 
 The intuition is to compute two lower and upper indices of $k$ in Equation
@@ -253,6 +253,18 @@ factor of four according to the optimization described in Section
 \ref{subsubsec:classical}, and the fifth (\texttt{V5}) add multiple instances
 per block to \texttt{V4}.
 
+We decide the CUDA kernel dimensions and parameters with the following code in
+Listing \ref{mulparams}. Akin to Listing \ref{addparams} regarding addition, but
+with the blocksize rounded up to $128$ rather than $256$, which we
+experimentally found to be faster.
+
+\begin{lstlisting}[language=CPP,caption={\footnotesize CUDA multiplication parameters and kernel dimensions.},label={mulparams}]
+const uint32_t q = (v >= 1 && v <= 3) ? 2 : 4;
+const uint32_t ipb = (v == 3 || v == 5) ? (128 + (m/q) - 1) / (m/q) : 1;
+dim3 block(ipb*(m/q), 1, 1);
+dim3 grid (num_instances/ipb, 1, 1);
+\end{lstlisting}
+
 The section is divided in three paragraphs, describing the implementations of
 convolutions, memory layouts, and multiple instances per block,
 respectively. Combined, they describe how we implement the kernels of CUDA
@@ -334,7 +346,7 @@ we can reuse a digit of $u$, reducing memory usage.
 
 \paragraph{Memory layout.}
 Constructing the memory layout of the original algorithm (Figure
-\ref{fig:mulparalg}) is straightforward; the shared memory is partioned in three
+\ref{fig:mulparalg}) is straightforward; the shared memory is partitioned in three
 equal parts, and each thread write their two convolution parts to each of the
 three memory parts. The writes are coalesced by design. E.g. for eight elements
 and four threads, we write:
@@ -356,7 +368,7 @@ Now, reading and adding the three sub-arrays is trivial.
 
 On the other hand, when we optimize the additions for \texttt{V4}, we get a
 complicated memory layout (if we are to write/read coalesced). The write is
-fairly straighforward, but the read requires more care. E.g. for eight elements and two threads, suppose thread $t^i$ reads four elements to registers $t^i_0$ and four to
+fairly straightforward, but the read requires more care. E.g. for eight elements and two threads, suppose thread $t^i$ reads four elements to registers $t^i_0$ and four to
 $t^i_1$. Then, in order to add the parts correctly, the threads writes and reads in this
 pattern:
 \begin{center}
@@ -369,7 +381,7 @@ pattern:
       \hline
       \color{Crimson}$l^0_{0}$ & \color{RoyalBlue}$l^1_{0}$ & \color{RoyalBlue}$l^1_{1}$ & \color{Crimson}$l^0_{1}$ & \color{Crimson}$\mathit{lh}^0_{0}$ & \color{RoyalBlue}$\mathit{lh}^1_{0}$ & \color{RoyalBlue}$\mathit{lh}^1_{1}$ & \color{Crimson}$\mathit{lh}^0_{1}$ & \color{Crimson}$\mathit{hc}^0_{0}$ & \color{RoyalBlue}$\mathit{hc}^1_{0}$ & \color{RoyalBlue}$\mathit{hc}^1_{1}$ & \color{Crimson}$\mathit{hc}^0_{1}$ & \color{Crimson}$\mathit{cc}^0_{0}$ & \color{RoyalBlue}$\mathit{cc}^1_{0}$ & \color{RoyalBlue}$\mathit{cc}^1_{1}$ & \color{Crimson}$\mathit{cc}^0_{1}$ \\
       \hline
-    \end{tabular}\\[-0.4ex]
+    \end{tabular}\\[-0.5ex]
     \begin{tabular}{C{3.2cm}C{3.2cm}C{3.2cm}C{3.2cm}}
       \upbracefill & \upbracefill & \upbracefill & \upbracefill\\[-0.3ex]
       $\mathit{ls}$ & $\mathit{hls}$ & $\mathit{chs}$ & $\mathit{ccs}$
@@ -377,15 +389,117 @@ pattern:
   \end{tabular}
 \end{center}~
 
-Listing \ref{cudamulmem} in the appendix contains CUDA code for reading and
+Appendix Listing \ref{cudamulmem} contains CUDA code for reading and
 writing in this pattern.
 
 \paragraph{Multiple instances per block.}
+When handling multiple arithmetic instances in a cuda block, e.g. for 4
+instances of size 4, we have the following convolution pattern:
+\begin{center}
+  \begin{tabular}{r}
+    \begin{tabular}{|C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+      \hline
+       \cgray & \cgray &\cgray  &\cgray \\
+      \hline
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+       & \cgray & \cgray & \cgray\\
+      \cline{2-4}
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+       &  & \cgray & \cgray\\
+      \cline{3-4}
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}C{0.1cm}C{0.1cm}|C{0.1cm}|}
+       &  &  & \cgray \\
+      \cline{4-4}
+    \end{tabular}
+  \end{tabular}
+  \kern-1.4em
+  \begin{tabular}{r}
+    \begin{tabular}{C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+      \hline
+      \cbeige &\cbeige  &\cbeige  &\cbeige \\
+      \hline
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+       & \cbeige & \cbeige & \cbeige\\
+      \cline{2-4}
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+       &  & \cbeige &\cbeige \\
+      \cline{3-4}
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}C{0.1cm}C{0.1cm}|C{0.1cm}|}
+       &  &  &\cbeige \\
+      \cline{4-4}
+    \end{tabular}
+    \end{tabular}
+  \kern-1.4em
+  \begin{tabular}{r}
+    \begin{tabular}{C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+      \hline
+       \csteelblue& \csteelblue &\csteelblue  &\csteelblue \\
+      \hline
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+       & \csteelblue & \csteelblue & \csteelblue\\
+      \cline{2-4}
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+       &  & \csteelblue & \csteelblue\\
+      \cline{3-4}
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}C{0.1cm}C{0.1cm}|C{0.1cm}|}
+       &  &  & \csteelblue\\
+      \cline{4-4}
+    \end{tabular}
+    \end{tabular}
+  \kern-1.4em
+  \begin{tabular}{r}
+    \begin{tabular}{C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+      \hline
+       \cpurple& \cpurple &\cpurple  &\cpurple \\
+      \hline
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+       & \cpurple & \cpurple & \cpurple\\
+      \cline{2-4}
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}C{0.1cm}|C{0.1cm}|C{0.1cm}|}
+       &  & \cpurple & \cpurple\\
+      \cline{3-4}
+    \end{tabular}\\[0.1ex]
+    \begin{tabular}{C{0.1cm}C{0.1cm}C{0.1cm}|C{0.1cm}|}
+       &  &  &\cpurple \\
+      \cline{4-4}
+    \end{tabular}
+    \end{tabular}
+\end{center}
+We see that the balancing pattern still applies, i.e., indexing from both
+ends is workbalanced.
 
+Thus, we also use this pattern for \texttt{V3} and \texttt{V5}. In turn, the
+memory layout also applies. However, we have to be careful when reading from the
+memory buffer, as "shifting" the layout is not sufficient get the correct
+tiling. Instead, we compute the thread-index w.r.t. segments and, if we are at
+the first thread of a segment, we fetch "0" rather than indexing to the previous
+segment. The aforementioned Listing \ref{cudamulmem} of the appendix includes
+this check.
 
 \subsection{Futhark Implementation}
 \label{subsec:mulfut}
 
+The implementation of \textit{convmul} in Futhark has one significant change
+from CUDA: There may not be a double-size type for the base type, and so we
+cannot always apply the optimization of postponing the carry propagation. In
+Futharks high-level design, we do not get all the low-level C primitives, and
+that means no efficient 128-bit words.
+
+Hence, the Futhark implementation in base \texttt{u32} use this optimization,
+while base \texttt{u64} does not. The first version (\texttt{V1}) implements the
+algorithm with sequentialization factor of 2, the second (\texttt{V2}) with a
+factor of 4, and the third (\texttt{V3}) allows segmented multiplication.
 
 \subsection{Single Precision Factor}
 \label{subsec:mulsin}
