@@ -89,7 +89,7 @@ inner multiplications can make use of native hardware arithmetics:
        & & & & & $u_{m-1}v_0$ & $\ldots$
     \end{tabular}
   \end{tabular}
-  \caption{\footnotesize Visualization of classical multiplication}
+  \caption{\footnotesize Visualization of classical multiplication.}
   \label{fig:tiledmult}
   \end{figure}
 \end{minipage}
@@ -243,7 +243,145 @@ $\xrightarrow{\text{combines to}}$
 \subsection{CUDA Implementation}
 \label{subsec:mulcud}
 
-\pagebreak
+In this section, we introduce five CUDA versions, of which two turns out to be
+competitive (see Section \ref{sec:per}). The first version (\texttt{V1})
+implement the \textit{convmul} algorithm straightforward. The second version
+(\texttt{V2}) introduces data type optimization w.r.t. doubling wordsize for
+products, and the third version (\texttt{V3}) handles multiple instances per
+block to \texttt{V2}. Version four (\texttt{V4}) implements a sequentialization
+factor of four according to the optimization described in Section
+\ref{subsubsec:classical}, and the fifth (\texttt{V5}) add multiple instances
+per block to \texttt{V4}.
+
+The section is divided in three paragraphs, describing the implementations of
+convolutions, memory layouts, and multiple instances per block,
+respectively. Combined, they describe how we implement the kernels of CUDA
+source file \texttt{ker-mul.cu.h}.
+
+\paragraph{Convolutions.}
+The implementations use the type \texttt{ubig\_t} of the generic base class,
+which is double the base radix (twice the bits of type \texttt{uint\_t}). The
+type is used to compute the inner products of the convolution, but it also
+allows the optimization of \texttt{V2}. The idea is to postpone the combining of
+the low and high parts of the multiplication till after the sequential
+loops. Then, the carries can propagate once instead of $i$ times for convolution
+$k_i$. The first two convolutions of Listing \ref{cudaconvs} shows the
+difference of storing intermediate convolution parts in type \texttt{uint\_t}
+(\texttt{V1}) and \texttt{ubig\_t} (\texttt{V2}). The third convolution of
+Listing \ref{cudaconvs} shows how to compute and combine two consecutive
+convolutions \texttt{(V4)}. It also reveals another upside of this optimization;
+we can reuse a digit of $u$, reducing memory usage.
+
+\begin{lstlisting}[language=CPP,escapeinside={(*}{*)},caption={\footnotesize The three convolutions used in the CUDA multiplication kernels of file \texttt{ker-mul.cu.h}.},label={cudaconvs}]
+(*{\color{Crimson}$\bullet$ \texttt{Convolution over index k as described in Figure {\hypersetup{allcolors=Crimson}\ref{fig:mulparalg}}}*)
+    for (int i=0; i<=k; i++) {
+        // compute high and low part of product
+        int j = k - i;
+        ubig_t uv = ((ubig_t) u[i]) * ((ubig_t) v[j]);
+        uint_t l = (uint_t) uv;
+        uint_t h = (uint_t) (uv >> Base::bits);
+        // update lows, highs, and carries
+        ls += l;
+        hs += h + (ls < l);
+        cs += hs < (h + (ls < l));
+    }
+
+(*{\color{Crimson}$\bullet$ \texttt{Convolution over index k optimized for data type ubig\_t}}*)
+    ubig_t l = 0;
+    ubig_t h = 0;
+    for (int i=0; i<=k; i++) {
+        // compute high and low part of product
+        int j = k - i;
+        ubig_t uv = ((ubig_t) u[i]) * ((ubig_t) v[j]);
+        l += uv & ((ubig_t) Base::HIGHEST);
+        h += uv >> Base::bits;
+    }
+    // update lows, highs, and carries
+    ls = (uint_t) l;
+    hs = ((uint_t) h) + ((uint_t) (l >> Base::bits));
+    cs = ((uint_t) (h >> Base::bits)) + (hs < ((uint_t) h));
+
+(*{\color{Crimson}$\bullet$ \texttt{Convolution over index k and k+1 optimized for ubig\_t and sequentialization factor of 4}}*)
+    ubig_t l1 = 0; ubig_t h1 = 0;
+    ubig_t l2 = 0; ubig_t h2 = 0;
+    for (int i=0; i<=k; i++) {
+        // compute high and low part of product
+        int j = k - i;
+        ubig_t uv1 = ((ubig_t) u[i]) * ((ubig_t) v[j]);
+        ubig_t uv2 = ((ubig_t) u[i]) * ((ubig_t) v[j+1]);
+        l1 += uv1 & ((ubig_t) Base::HIGHEST);
+        h1 += uv1 >> Base::bits;
+        l2 += uv2 & ((ubig_t) Base::HIGHEST);
+        h2 += uv2 >> Base::bits;
+    }
+    // remaining computation where i = k+1
+    ubig_t uv = ((ubig_t) u[k+1]) * ((ubig_t) v[0]);
+    l2 += uv & ((ubig_t) Base::HIGHEST);
+    h2 += uv >> Base::bits;
+    // update lows, highs, and carries
+    ls1 = (uint_t) l1;
+    hs1 = ((uint_t) h1) + ((uint_t) (l1 >> Base::bits));
+    cs1 = ((uint_t) (h1 >> Base::bits)) + (hs1 < ((uint_t) h1));
+    ls2 = (uint_t) l2;
+    hs2 = ((uint_t) h2) + ((uint_t) (l2 >> Base::bits));
+    cs2 = ((uint_t) (h2 >> Base::bits)) + (hs2 < ((uint_t) h2));
+    // combine the lows, highs and carries
+    ls = ls1;
+    hsls = hs1 + ls2;
+    cshs = cs1 + hs2 + (hsls < hs1);
+    cscs = cs2 + (cshs < hs2);
+\end{lstlisting}
+
+\paragraph{Memory layout.}
+Constructing the memory layout of the original algorithm (Figure
+\ref{fig:mulparalg}) is straightforward; the shared memory is partioned in three
+equal parts, and each thread write their two convolution parts to each of the
+three memory parts. The writes are coalesced by design. E.g. for eight elements
+and four threads, we write:
+\begin{center}
+  \small
+  \begin{tabular}{c}
+    \begin{tabular}{|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}?C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}?C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|C{0.17cm}|}
+      \hline
+      \color{Crimson}$l^0_{0}$ & \color{RoyalBlue}$l^1_{0}$ & \color{ForestGreen}$l^2_{0}$ & \color{Chocolate}$l^3_{0}$ & \color{Chocolate}$l^3_{1}$ & \color{ForestGreen}$l^2_{1}$ & \color{RoyalBlue}$l^1_{1}$ & \color{Crimson}$l^0_{1}$ & \color{Crimson}$h^0_{0}$ & \color{RoyalBlue}$h^1_{0}$ & \color{ForestGreen}$h^2_{0}$ & \color{Chocolate}$h^3_{0}$ & \color{Chocolate}$h^3_{1}$ & \color{ForestGreen}$h^2_{1}$ & \color{RoyalBlue}$h^1_{1}$ & \color{Crimson}$h^0_{1}$ & \color{Crimson}$c^0_{0}$ & \color{RoyalBlue}$c^1_{0}$ & \color{ForestGreen}$c^2_{0}$ & \color{Chocolate}$c^3_{0}$ & \color{Chocolate}$c^3_{1}$ & \color{ForestGreen}$c^2_{1}$ & \color{RoyalBlue}$c^1_{1}$ & \color{Crimson}$c^0_{1}$ \\
+      \hline
+    \end{tabular}\\[-0.4ex]
+    \begin{tabular}{C{4.45cm}C{4.45cm}C{4.45cm}}
+      \upbracefill & \upbracefill & \upbracefill\\[-0.3ex]
+      $\mathit{ls}$ & $\mathit{hs}$ & $\mathit{cs}$
+    \end{tabular}
+  \end{tabular}
+\end{center}
+Now, reading and adding the three sub-arrays is trivial.
+
+On the other hand, when we optimize the additions for \texttt{V4}, we get a
+complicated memory layout (if we are to write/read coalesced). The write is
+fairly straighforward, but the read requires more care. E.g. for eight elements and two threads, suppose thread $t^i$ reads four elements to registers $t^i_0$ and four to
+$t^i_1$. Then, in order to add the parts correctly, the threads writes and reads in this
+pattern:
+\begin{center}
+  \small
+  \begin{tabular}{c}
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      \color{Crimson}$t^0_{00}$ & \color{Crimson}$t^0_{12}$ & \color{RoyalBlue}$t^1_{00}$ & \color{RoyalBlue}$t^1_{12}$ & \color{Crimson}$t^0_{01}$ & \color{Crimson}$t^0_{13}$ & \color{RoyalBlue}$t^1_{01}$ & \color{RoyalBlue}$t^1_{13}$ & \color{Crimson}$t^0_{02}$ & \color{RoyalBlue}$t^1_{10}$ & \color{RoyalBlue}$t^1_{02}$ & & \color{Crimson}$t^0_{03}$ & \color{RoyalBlue}$t^1_{11}$ & \color{RoyalBlue}$t^1_{03}$ &
+    \end{tabular}\\
+    \begin{tabular}{|C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}?C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}?C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}?C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}|}
+      \hline
+      \color{Crimson}$l^0_{0}$ & \color{RoyalBlue}$l^1_{0}$ & \color{RoyalBlue}$l^1_{1}$ & \color{Crimson}$l^0_{1}$ & \color{Crimson}$\mathit{lh}^0_{0}$ & \color{RoyalBlue}$\mathit{lh}^1_{0}$ & \color{RoyalBlue}$\mathit{lh}^1_{1}$ & \color{Crimson}$\mathit{lh}^0_{1}$ & \color{Crimson}$\mathit{hc}^0_{0}$ & \color{RoyalBlue}$\mathit{hc}^1_{0}$ & \color{RoyalBlue}$\mathit{hc}^1_{1}$ & \color{Crimson}$\mathit{hc}^0_{1}$ & \color{Crimson}$\mathit{cc}^0_{0}$ & \color{RoyalBlue}$\mathit{cc}^1_{0}$ & \color{RoyalBlue}$\mathit{cc}^1_{1}$ & \color{Crimson}$\mathit{cc}^0_{1}$ \\
+      \hline
+    \end{tabular}\\[-0.4ex]
+    \begin{tabular}{C{3.2cm}C{3.2cm}C{3.2cm}C{3.2cm}}
+      \upbracefill & \upbracefill & \upbracefill & \upbracefill\\[-0.3ex]
+      $\mathit{ls}$ & $\mathit{hls}$ & $\mathit{chs}$ & $\mathit{ccs}$
+    \end{tabular}
+  \end{tabular}
+\end{center}~
+
+Listing \ref{cudamulmem} in the appendix contains CUDA code for reading and
+writing in this pattern.
+
+\paragraph{Multiple instances per block.}
+
 
 \subsection{Futhark Implementation}
 \label{subsec:mulfut}
