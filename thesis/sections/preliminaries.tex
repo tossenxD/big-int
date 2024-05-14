@@ -1,3 +1,139 @@
 \section{Preliminaries}
 \label{sec:pre}
-[Write something about GPU, Futhark and Cuda.]
+Parallel programming comes in two forms: Task parallelism and data
+parallelism. Task parallelism means single processor, multiple memory regions,
+where data parallelism means multiple processors, single memory region. In this
+Thesis, we are interrested in utilizing a data parallel programming environment
+to speedup traditionel arithmetics of big integers.
+
+A Central Processing Unit (CPU) is not suitable for data parallel execution, as
+it is specialized in task parallisism (i.e. controlling the many concurrent
+tasks often running on a computer). However, many modern computers have a
+Graphics Processing Unit (GPU) as well, which is a specialized hardware
+component for handling the many vectors that constitutes computer graphics.
+Vectorized computation is data parallel by nature, and thus, GPUs provides a
+suitable architecture for this Thesis. We call it General Purpose GPU (GPGPU)
+usage, since the intent is not to compute graphics.
+
+Compared to a CPU, GPGPU has the benefits of higher instruction throughput
+(e.g. by increasing the core count) and higher bandwidth (e.g. by decreasing
+memory management), but comes with the disadvantage of almost no dynamic control
+flow or memory management abstractions. For our purpose, we can thus achieve
+significant performance efficiency in exchange for more complex algorithms and
+programmability.
+
+In this section, we will go over the GPGPU hardware architecture and parallel
+execution, the CUDA programming language, and the Futhark programming language.
+
+\subsection{GPGPU Architecture}
+\label{subsec:gpgpu}
+
+There are two main interfaces for interacting with a GPU: OpenCL and CUDA, the
+former being an API for a open set of standards and instructions, and the latter
+a proprietary API for NVIDIA GPUs consisting of specialized instructions. In
+this Thesis, we focus on NVIDIA GPU architecture, as these are I) highly
+efficient, II) there exists a state-of-the-art big integer library in CUDA
+called CGBN \cite{CGBN}, which we can use as a base of comparison, and III) the
+Futhark contributions of this Thesis can be compiled to OpenCL arbitrarilly.
+
+GPGPU is inherently parallel, and consists of up to thousands of multithreaded
+cores. The architecture, according to NVIDIA's CUDA model and language manual
+\cite{cudaguide}, is as follows: Threads are grouped in 32 called
+\textit{warps}, where each warp executes one instruction at a time in lockstep,
+called Single Instruction, Multiple Threads (SIMT). A program, called
+\textit{kernel}, is executed with a \textit{grid} of \textit{blocks} (also
+called thread blocks) with a specific amount of threads per block. The number of
+threads in a block (block size) and the number of blocks in a grid (block count)
+must be statically known prior to kernel execution, with maximum block size of
+1024 threads.
+
+SIMT allows writing parallel programs of minimal overhead w.r.t. synchronization
+and memory management. Each wrap, block, and grid has its own memory called
+\textit{local}, \textit{shared}, and \textit{global} memory, respectively, with
+the former being the smallest and fastest, and the latter the largest and
+slowest. This urges to keep computations at wrap-level and the idea of coalesced
+memory accesses, where consecutive threads read consecutive memory locations,
+improving warp-level spatial locality. E.g. if we must read uncoalesced from
+global to local memory, it mght be faster to read coalesced from global to
+shared, and then uncoalsced from shared to local.
+
+An important side-effect of SIMT is no branch prediction and no divergent
+control flow within warps. I.e. suppose only 1 thread in a warp picks an
+\fun{if}-branch; then, the remaining 31 threads cannot proceed execution before
+the first thread has computed the branch. Futhermore, the 31 threads will also
+execute all instructions of the branch on dummy data.
+
+Thus, in order to write efficient parallel programs on a GPGPU, we must reduce
+the amount of branches and make use of fast memory, optimizing throughput and
+bandwidth.
+
+\subsection{The CUDA Programming Interface}
+\label{subsec:cuda}
+
+Programming in CUDA is by means of a C++ language extension that compiles to C
+using the CUDA driver API, as described in the CUDA manual \cite{cudaguide}. The
+CPU running the compiled program is called the \textit{host} and the target GPU
+is called the \textit{device}. The extension exports some functions in the
+\textit{alloc}-family, that allows the host to preallocate, read, and write
+memory to/from the device. Device functions (i.e. kernels) are called from the
+host and take parameters in form of pointers to memory that has been tranfered
+to the device.
+
+The extension exports some function execution- and variable memory- space
+specifiers. These infer to the compiler how to treat functions and memory
+(e.g. if it is a host function or device function, shared or local memory,
+etc.). It also exports some device functions, most notably
+\texttt{\_\_syncthreads()}, which prevents threads from continue execution until
+all threads of the block are at that function.
+
+To accomodate the GPU architecture, the types, data structures, and control flow
+of a kernel must be statically known before run time.  In order to keep kernels
+parametric, e.g. in the type or size of integers, we can use C++ templates. They
+provide generic programming over type and value parameters, which are then
+concretized at compile time \cite{stroustrup}. Since the control flow must be
+statically known, kernels have no error handling. Instead, the host can peek at
+the device error status and explicitly handle errors.
+
+Lastly, threads are implicit: Kernels are launched with an \textit{execution
+  configuration} of the form ``\fun{ker<<< grid, block >>>(params)}'', where
+\fun{grid} and \fun{block} specifies the grid and block dimensions,
+respectively, and are of type \fun{dim3} specifying dimensions in
+3D\footnote{For the remaining of this Thesis, we will consider kernel dimensions
+  as 1D.}. The kernel function then has access to a special set of built-in
+variables, notably \fun{threadIdx} and \fun{blockIdx}, containing the index of
+the current thread and block, respectively. Thus, when a kernel is executed, the
+code of the kernel function is run on each of the specified threads, and we must
+use these special variables to explicitly be aware of the executing thread.
+
+\subsection{The Futhark Programming Language}
+\label{subsec:futhark}
+
+Futhark is a high-level pure functional data-parallel array programming language
+\cite{futguide} \cite{ParallelProgrammingInFuthark}. It is hardware-agnostic and
+can compile to both sequential and parallel C, OpenCL, and CUDA code. The
+fundamentals of Futhark is \textit{Second-Order Array Combinators} (SOACS) that
+are I) easy to reason about and define in terms sequential semantics, and II)
+efficiently GPGPU executable. Most notable is the \fun{map} and \fun{reduce}
+functions that distribute a function over an array and reduce an array to a
+value, respectively.
+
+The expressiveness of Futhark is restricted compared to other high-level pure
+functional languages, such as Haskell. This includes only allowing regular
+arrays and explicitly writing array shapes. Without these restrictions, the
+compiler cannot map the arrays efficienctly to GPU. While we cannot write nested
+data structures such as algebraic data types, Futhark has an emphasis on using
+tuples to express nested structures, which are maped as two different arrays on
+the GPU, but treated as one for the programmer.
+
+{\red
+More upsides and downsides
+
+Futhark can be compiled to a libray (C API)
+
+Generic programming through modules
+}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "../main"
+%%% End:
