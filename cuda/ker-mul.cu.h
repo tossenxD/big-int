@@ -101,9 +101,7 @@ cpShm23Regs(typename Base::uint_t* shmem, typename Base::uint_t* lss,
     css[1] = (off_inst) ? shmem[off+2*str-1] : 0;
 }
 
-/* Memory associated with `k1` is written in a straightforward coalesced fashion with stride `str`.
-   However, for `k2` consecutive threads still access consecutive memory cells, but does so in
-   reversed order, which should still result in wrap-level memory hits.
+/* Registers are written in a coalesced fashion with stride `str`.
 */
 template<class Base, uint32_t m, uint32_t ipb>
 __device__ void
@@ -121,7 +119,7 @@ cp4Regs2Shm(typename Base::uint_t* lhc0, typename Base::uint_t* lhc1, typename B
     shmem[4*str-1-off] = lhc1[3];
 }
 
-/* Memory cells are read in groups of two, where each group is fetched coalesced.
+/* Memory is read in groups of two, where each group is fetched coalesced.
 */
 template<class Base, uint32_t m, uint32_t ipb>
 __device__ void
@@ -130,16 +128,14 @@ cpShm24Regs(typename Base::uint_t* shmem, typename Base::uint_t* lhc0, typename 
     uint32_t off_inst = 2*off % m;
     uint32_t str = ipb * m/2;
     lhc0[0] = shmem[off];
-    lhc1[2] = shmem[off+1];
-
     lhc0[1] = shmem[off+str];
-    lhc1[3] = shmem[off+str+1];
-
-    lhc1[0] = (off_inst) ? shmem[off+2*str-1] : 0;
     lhc0[2] = shmem[off+2*str];
-
-    lhc1[1] = (off_inst) ? shmem[off+3*str-1] : 0;
     lhc0[3] = shmem[off+3*str];
+
+    lhc1[2] = shmem[off+1];
+    lhc1[3] = shmem[off+str+1];
+    lhc1[0] = (off_inst) ? shmem[off+2*str-1] : 0;
+    lhc1[1] = (off_inst) ? shmem[off+3*str-1] : 0;
 }
 
 /****************************************************/

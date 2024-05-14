@@ -5,7 +5,7 @@
 using namespace std;
 
 #define GPU_RUNS_ADD      100
-#define GPU_RUNS_MUL      25
+#define GPU_RUNS_MUL      50
 #define VERSION           0
 
 #define ADD               1
@@ -376,7 +376,7 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
 
         gettimeofday(&t_end, NULL);
         timeval_subtract(&t_diff, &t_end, &t_start);
-        elapsed = (t_diff.tv_sec*1e6+t_diff.tv_usec) / GPU_RUNS_ADD;
+        elapsed = (t_diff.tv_sec*1e6+t_diff.tv_usec) / GPU_RUNS_MUL;
 
         // 4.3 print results
         gpuAssert( cudaPeekAtLastError() );
