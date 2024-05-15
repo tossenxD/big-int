@@ -1,5 +1,5 @@
 # SETUP
-BFLGS = --backend=opencl
+BFLGS = --backend=cuda
 BDIR  = bench/
 TDIR  = test/
 FORM  = | awk -f form-tool.awk -

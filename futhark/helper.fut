@@ -25,13 +25,18 @@ def fst 'a 'b (tp: (a, b)) : a =
 
 -- Big Integers
 
-def new (m: i64) : [m]u64 =
+def new64 (m: i64) : [m]u64 =
   replicate m 0u64
 
-def singleton (m: i64) (d: u64) : [m]u64 =
+def singleton64 (m: i64) (d: u64) : [m]u64 =
   map (\ i -> if i == 0 then d else 0u64) (iota m)
 
-def lt [m] (u: [m]u64) (v: [m]u64) : bool =
+def lt64 [m] (u: [m]u64) (v: [m]u64) : bool =
+  map2 (\ x y -> (x < y, x == y)) u v
+  |> reduce (\ (accl, _) (l, e) -> (l || (e && accl), true)) (false, true)
+  |> fst
+
+def lt32 [m] (u: [m]u32) (v: [m]u32) : bool =
   map2 (\ x y -> (x < y, x == y)) u v
   |> reduce (\ (accl, _) (l, e) -> (l || (e && accl), true)) (false, true)
   |> fst
@@ -39,7 +44,7 @@ def lt [m] (u: [m]u64) (v: [m]u64) : bool =
 def eq [m] 't (f: t -> t -> bool) (u: [m]t) (v: [m]t) : bool =
   map2 f u v |> reduce (&&) true
 
-def ez [m] (u: [m]u64) : bool =
+def ez64 [m] (u: [m]u64) : bool =
   map (0 ==) u |> reduce (&&) true
 
 def pad1d [m] 't (a: i64) (e: t) (u: [m]t) : []t =
