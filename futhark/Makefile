@@ -77,4 +77,4 @@ six-mul64:
 # CLEANUP
 
 clean:
-	find . -not -name '.' -not -name 'bench' -not -name 'test' -not -name '*.fut' -not -name '*.awk' -not -name '.gitignore' -not -name 'Makefile' -not -name 'gmp-validation.c' -delete
+	find . -not -name '.' -not -name 'bench' -not -name 'test' -not -name '*.fut' -not -name '*.awk' -not -name '.gitignore' -not -name 'Makefile' -not -name 'gmp-validation.c' -not -name 'README.txt' -delete
