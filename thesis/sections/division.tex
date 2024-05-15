@@ -92,25 +92,58 @@ notable subroutines and how we handle them.
 \end{itemize}
 
 \subsection{Single Precision Divisor}
-In the prototype, a standard Long Division algorithm is used. Another way to
-express the computation of long division is:
+\pagebreak
+% In the prototype, a standard Long Division algorithm is used. Another way to
+% express the computation of long division is:
+% \begin{equation}
+%   \label{eq:1}
+%   q_i = \dfrac{\sum_{j=i}^{m-1} u_j \cdot B^{j-i}}{v}\% B
+% \end{equation}
+% E.g. consider the decimal number 500 divided by 4: We have
+% $q_0 = (500 / 4) \% 10 = 5$, $q_1 = (50 / 4) \% 10 = 2$ and
+% $q_2 = (5 / 4) \% 10 = 1$, i.e., the number 125.
+
+% We have the following rule for division and modulus:
+% \begin{equation}
+% \label{eq:2}
+% \frac{a}{b} \% c = () \% c
+% \end{equation}
+% \begin{equation}
+%   \label{eq:1}
+%   q_i = \dfrac{\sum_{j=i}^{m-1} \left( (u_j \% v)\cdot B^{j-i}\right) }{v}\% B
+% \end{equation}
+% \begin{equation}
+%   \label{eq:1}
+%   r_i = \left( \sum_{j=i}^{m-1} u_j \cdot B^{j-i} \right) \% v
+% \end{equation}
+
+% ~
+
+The quotient of size $m$ big integer $u$ and digit $d$ in base $B$ can be
+computed as:
 \begin{equation}
   \label{eq:1}
-  q_i = \dfrac{\sum_{j=i}^{m-1} u_j \cdot B^{j-i}}{v}\% B
+  q_i = \dfrac{\sum_{j=i}^{m-1} u_j \cdot B^{j-i}}{d}\% B
 \end{equation}
 E.g. consider the decimal number 500 divided by 4: We have
 $q_0 = (500 / 4) \% 10 = 5$, $q_1 = (50 / 4) \% 10 = 2$ and
-$q_2 = (5 / 4) \% 10 = 1$, i.e., the number 125.
+$q_2 = (5 / 4) \% 10 = 1$, i.e., the number 125. This approach does not fit a
+wordsize, as it includes the big integer $u$.
 
-We have the following rule for division and modulus:
+In the sequential prototype, a standard Long Division algorithm is
+used\footnote{Since the divisor is single precision, it is called Short Division
+  instead of Long Division.}. The algorithm computes the partial quotient
+$q_{i\in\{0,..,m-1\}}$, using the partial remainder $r_{i\in\{0,..,m\}}$ as follows:
 \begin{equation}
-\label{eq:2}
-\frac{a}{b} \% c = () \% c
+  \label{eq:1}
+  q_i = \left( r_{i+1} \cdot B + u_i\right) / d
 \end{equation}
 \begin{equation}
   \label{eq:1}
-  q_i = \dfrac{\sum_{j=i}^{m-1} \left( (u_j \% v)\cdot B^{j-i}\right) }{v}\% B
+  r_i = \begin{cases} \left( r_{i+1} \cdot B + u_i\right) \% d & \text{if}~i<m \\ 0 & \text{otherwise} \end{cases}
 \end{equation}
+The intermideate results fits in a double word, and the algorithm is inherently
+sequential from left-to-right.
 
 % From the definition of modulo, $a \% b = a - \lfloor \frac{a}{c} \rfloor \cdot b$,
 
