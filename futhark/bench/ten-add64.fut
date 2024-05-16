@@ -1,7 +1,8 @@
 import "../add"
 
+-- Benchmarks with one instance per block and sequentialization factor of 1
 -- ==
--- entry: ten_add64
+-- entry: tenAddV0Bench tenAddV1Bench tenAddV2Bench
 -- compiled random input { [65536][1024]u64 [65536][1024]u64 }
 -- compiled random input { [131072][512]u64 [131072][512]u64 }
 -- compiled random input { [262144][256]u64 [262144][256]u64 }
@@ -10,44 +11,29 @@ import "../add"
 -- compiled random input { [2097152][32]u64 [2097152][32]u64 }
 -- compiled random input { [4194304][16]u64 [4194304][16]u64 }
 -- compiled random input { [8388608][8]u64  [8388608][8]u64  }
-entry ten_add64 [m][n] (ass: [m][n]u64) (bss: [m][n]u64) : [m][n]u64 =
-  loop rss = bss for i < 10 do map2 add64 ass rss
 
+-- Benchmarks with multiple instances per block and sequentialization factor 4
 -- ==
--- entry: ten_badd64v1
--- compiled random input { [65536][1024]u64 [65536][1024]u64 }
--- compiled random input { [131072][512]u64 [131072][512]u64 }
--- compiled random input { [262144][256]u64 [262144][256]u64 }
--- compiled random input { [524288][128]u64 [524288][128]u64 }
--- compiled random input { [1048576][64]u64 [1048576][64]u64 }
--- compiled random input { [2097152][32]u64 [2097152][32]u64 }
--- compiled random input { [4194304][16]u64 [4194304][16]u64 }
--- compiled random input { [8388608][8]u64  [8388608][8]u64  }
-entry ten_badd64v1 [m][n] (ass: [m][n]u64) (bss: [m][n]u64) : [m][n]u64 =
-  loop rss = bss for i < 10 do map2 badd64v1 ass rss
+-- entry: tenAddV3Bench
+-- compiled random input { [65536][1][1024]u64 [65536][1][1024]u64 }
+-- compiled random input { [131072][1][512]u64 [131072][1][512]u64 }
+-- compiled random input { [262144][1][256]u64 [262144][1][256]u64 }
+-- compiled random input { [262144][2][128]u64 [262144][2][128]u64 }
+-- compiled random input { [262144][4][64]u64  [262144][4][64]u64  }
+-- compiled random input { [262144][8][32]u64  [262144][8][32]u64  }
+-- compiled random input { [262144][16][16]u64 [262144][16][16]u64 }
+-- compiled random input { [262144][32][8]u64  [262144][32][8]u64  }
 
--- ==
--- entry: ten_badd64v2
--- compiled random input { [65536][1024]u64 [65536][1024]u64 }
--- compiled random input { [131072][512]u64 [131072][512]u64 }
--- compiled random input { [262144][256]u64 [262144][256]u64 }
--- compiled random input { [524288][128]u64 [524288][128]u64 }
--- compiled random input { [1048576][64]u64 [1048576][64]u64 }
--- compiled random input { [2097152][32]u64 [2097152][32]u64 }
--- compiled random input { [4194304][16]u64 [4194304][16]u64 }
--- compiled random input { [8388608][8]u64  [8388608][8]u64  }
-entry ten_badd64v2 [m][n] (ass: [m][n]u64) (bss: [m][n]u64) : [m][n]u64 =
-  loop rss = bss for i < 10 do map2 badd64v2 ass rss
+entry tenAddV0Bench [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
+  tenAddV0 uss vss
 
--- ==
--- entry: ten_badd64v3
--- compiled random input { [65536][1024]u64 [65536][1024]u64 }
--- compiled random input { [131072][512]u64 [131072][512]u64 }
--- compiled random input { [262144][256]u64 [262144][256]u64 }
--- compiled random input { [524288][128]u64 [524288][128]u64 }
--- compiled random input { [1048576][64]u64 [1048576][64]u64 }
--- compiled random input { [2097152][32]u64 [2097152][32]u64 }
--- compiled random input { [4194304][16]u64 [4194304][16]u64 }
--- compiled random input { [8388608][8]u64  [8388608][8]u64  }
-entry ten_badd64v3 [m][n] (ass: [m][n]u64) (bss: [m][n]u64) : [m][n]u64 =
-  loop rss = bss for i < 10 do badd64v3Wrapper ass rss
+entry tenAddV1Bench [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
+  tenAddV1 uss vss
+
+entry tenAddV2Bench [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
+  tenAddV2 (m/4) (uss :> [n][4*(m/4)]u64) (vss :> [n][4*(m/4)]u64) :> [n][m]u64
+
+entry tenAddV3Bench
+[n][ipb][m] (usss: [n][ipb][m]u64) (vsss: [n][ipb][m]u64) : [n][ipb][m]u64 =
+  tenAddV3 (m/4) (usss :> [n][ipb][4*(m/4)]u64) (vsss :> [n][ipb][4*(m/4)]u64)
+           :> [n][ipb][m]u64
