@@ -126,6 +126,7 @@ baddKer2Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
     // 1. compute result, carry and thread-level (register) scan
     carry_t css[q];
     carry_t acc = CarryProp<Base>::identity();
+    #pragma unroll
     for(int i=0; i<q; i++) {
         rss[i] = ass[i] + bss[i];
         css[i] = ((carry_t) (rss[i] < ass[i])) | (((carry_t) (rss[i] == Base::HIGHEST)) << 1);
@@ -138,6 +139,7 @@ baddKer2Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
     acc = scanExcBlock< CarryProp<Base> >(shmem, threadIdx.x);
 
     // 3. add carries to results
+    #pragma unroll
     for(int i=0; i<q; i++) {
         rss[i] += acc & 1;
         acc = CarryProp<Base>::apply(acc, css[i]);
@@ -209,10 +211,11 @@ baddKer3Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
     using carry_t = typename Base::carry_t;
     const bool new_segm = threadIdx.x % (m/q) == 0;
 
-    // 1. compute result, carry, thread-level (register) scan and segment flags
+    // 1. compute result, carry, register-level scan, and segment flags
     uint_t css[q];
     carry_t acc = new_segm ? SegCarryProp<Base>::setFlag( SegCarryProp<Base>::identity() )
                            : SegCarryProp<Base>::identity();
+    #pragma unroll
     for(int i=0; i<q; i++) {
         rss[i] = ass[i] + bss[i];
         css[i] = ((carry_t) (rss[i] < ass[i])) | (((carry_t) (rss[i] == Base::HIGHEST)) << 1);
@@ -226,6 +229,7 @@ baddKer3Run(typename Base::uint_t* ass, typename Base::uint_t* bss,
     acc = new_segm ? SegCarryProp<Base>::identity() : acc;
 
     // 3. add carries to results
+    #pragma unroll
     for(int i=0; i<q; i++) {
         rss[i] += (acc & 1);
         acc = SegCarryProp<Base>::apply(acc, css[i]);
