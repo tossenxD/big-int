@@ -10,29 +10,6 @@ import "helper"
 
 
 --------------------------------------------------------------------------------
--- Data Structures
---------------------------------------------------------------------------------
-
-type ui = u64
-type ct = u32
-
-def HIGHEST  : ui            = u64.highest
-def bits     : i64           = 64
-def fromBool : (bool -> ui)  = u64.bool
-def boolToCt : (bool -> ct)  = u32.bool
-def fromCt   : (ct -> ui)    = u64.u32
-
--- type ui = u32
--- type ct = u32
-
--- def HIGHEST  : ui            = u32.highest
--- def bits     : i64           = 32
--- def fromBool : (bool -> ui)  = u32.bool
--- def boolToCt : (bool -> ct)  = u32.bool
--- def fromCt   : (ct -> ui)    = u32.u32
-
-
---------------------------------------------------------------------------------
 -- Operators and helpers
 --------------------------------------------------------------------------------
 
@@ -118,13 +95,14 @@ def baddV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui =
     let pcs = scanExc carryProp carryPropE accs
 
     -- 3. distribute carries over register-level prefix sum, and add them to sum
-    in flatten <| imap3 ws cs pcs
+    let (w1s, w2s, w3s, w4s) = unzip4 <| imap3 ws cs pcs
       (\ (w1, w2, w3, w4) (c1, c2, c3, _) acc1 ->
          let acc2 = carryProp acc1 c1
          let acc3 = carryProp acc2 c2
          let acc4 = carryProp acc3 c3
-         in [w1 + fromCt (acc1 & 1), w2 + fromCt (acc2 & 1),
-             w3 + fromCt (acc3 & 1), w4 + fromCt (acc4 & 1)])
+         in (w1 + fromCt (acc1 & 1), w2 + fromCt (acc2 & 1),
+             w3 + fromCt (acc3 & 1), w4 + fromCt (acc4 & 1)))
+    in w1s ++ w2s ++ w3s ++ w4s
 
   -- COPY TO SHARED MEMORY
   let cp2sh (i : i32) = #[unsafe]
@@ -165,13 +143,14 @@ def baddV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui =
     let pcs = scanExc carryPropSeg carryPropE accs
 
     -- 3. distribute carries over register-level prefix sum, and add them to sum
-    in flatten <| imap3 ws cs pcs
+    let (w1s, w2s, w3s, w4s) = unzip4 <| imap3 ws cs pcs
       (\ (w1, w2, w3, w4) (c1, c2, c3, _) acc1 ->
          let acc2 = carryProp acc1 c1
          let acc3 = carryProp acc2 c2
          let acc4 = carryProp acc3 c3
-         in [w1 + fromCt (acc1 & 1), w2 + fromCt (acc2 & 1),
-             w3 + fromCt (acc3 & 1), w4 + fromCt (acc4 & 1)])
+         in (w1 + fromCt (acc1 & 1), w2 + fromCt (acc2 & 1),
+             w3 + fromCt (acc3 & 1), w4 + fromCt (acc4 & 1)))
+    in w1s ++ w2s ++ w3s ++ w4s
 
   -- COPY TO SHARED MEMORY
   let cp2sh (i : i32) = #[unsafe]

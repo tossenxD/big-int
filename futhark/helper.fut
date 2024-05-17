@@ -1,3 +1,30 @@
+--------------------------------------------------------------------------------
+-- Data Structures
+--------------------------------------------------------------------------------
+
+type ui = u64
+type ct = u32
+
+def HIGHEST  : ui               = u64.highest
+def bits     : i64              = 64
+def fromBool : (bool -> ui)     = u64.bool
+def boolToCt : (bool -> ct)     = u32.bool
+def fromCt   : (ct -> ui)       = u64.u32
+def mulHigh  : (ui -> ui -> ui) = u64.mul_hi
+
+-- type ui = u32
+-- type ct = u32
+
+-- def HIGHEST  : ui            = u32.highest
+-- def bits     : i64           = 32
+-- def fromBool : (bool -> ui)  = u32.bool
+-- def boolToCt : (bool -> ct)  = u32.bool
+-- def fromCt   : (ct -> ui)    = u32.u32
+-- def mulHigh  : (ui -> ui)    = u32.mul_hi
+
+
+
+
 -- Functions
 
 def imap as g = map g as
