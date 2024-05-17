@@ -1,4 +1,4 @@
-\section{Multiplication}
+\section{Classical Multiplication}
 \label{sec:mul}
 
 Multiplication is the next of the basic arithmetic operators. It is more
@@ -8,52 +8,63 @@ runtimes. Multiple asymptotically faster algorithms exists, such as Karatsuba
 and Fast Fourier Transform (FFT), both of which are mentioned by Knuth and part
 of GMP \cite{knuth97} \cite{GMP}.
 
-In section \ref{subsec:mulalg}, we present the classical multiplication
-algorithm that convolutes the digits of the operands, and discuss how to
-parallelize it. We also discuss the Karatsuba and FFT algorithm, where
-especially the FFT is promising in a GPGPU setting. In sections
-\ref{subsec:mulcud} and \ref{subsec:mulfut} we present our CUDA and Futhark
-implementations, respectively, and any further optimizations related to the
-implementations. Lastly, in section \ref{subsec:mulsin} we go over the special
-case of multiplication by a single precision factor and present an algorithm to
-handle it.
+In section \ref{subsec:mulalg}, we present a classical quadratic multiplication
+algorithm that convolutes the digits of the operands, and we discuss how to
+parallelize it. In sections \ref{subsec:mulcud} and \ref{subsec:mulfut} we
+present our CUDA and Futhark implementations, respectively, and any further
+optimizations related to the implementations. Penultimately, in section
+\ref{subsec:mulsin} we go over the special case of multiplication by a single
+precision factor and present an algorithm to handle it. Lastly, in section
+\ref{subsec:mulother} we address some assymptoticly better algorithms, namely
+the Karatsuba and FFT algorithm, where especially the FFT is promising in a
+GPGPU setting.
 
 \subsection{Algorithm}
 \label{subsec:mulalg}
 
-In this section, we first assess the \textit{classical} multiplication algorithm
-in section \ref{subsubsec:classical}, before we move on to more advanced
-algorithms in section \ref{subsubsec:fft}.
+The classical multiplication algorithm handles one digit of the multiplier at a
+time. E.g. in decimal system, $42\cdot 21$ becomes
+$1 \cdot 42 + 2 \cdot 42 \cdot 10$. For our big integers, we have:
 
-\subsubsection{Classical}
-\label{subsubsec:classical}
-The classical multiplication multiplication algorithm handles one digit of the
-multiplier at a time. E.g. in decimal system, $42\cdot 21$ becomes
-$1 \cdot 42 + 2 \cdot 42 \cdot 10$. In the positional number system of our big integers, the
-definition of classical multiplication is:
+\begin{definition}[classical multiplication]\label{def:clasmul}
+  Multiplying integer $u\in \mathbb{N}$ by $v \in \mathbb{N}$ in the positional number system of base
+  $B$ and $m$ digits, is classicaly computed as:
 \begin{equation}
   \label{eq:clasmul0}
-  u \cdot v = \sum_{i=0}^{m-1}u_i\cdot \left( \sum_{j=0}^{m-1}v_j\cdot B^{j} \right)B^{i}
+  u \cdot v = \sum_{i=0}^{m-1}u_i\left( \sum_{j=0}^{m-1}v_j\cdot B^{j} \right)B^{i}
 \end{equation}
-Two observations: We cannot store the inner sum in a single word and we only
-care about the first $m$ digits of the result\footnote{The result of
+\end{definition}
+
+The definition is illustrated in Figure \ref{fig:tiledmult}. We make two
+observations: The multiplicand appears inside the outer sum, and we only care
+about the first $m$ digits of the result in our setting\footnote{The result of
   multiplication is up to twice the size of the inputs. In order to not loose
   precision in our setting, a memory region of double size should be
-  preallocated before the multiplication function call.}.  Hence, we can define
-it making use of tiling, as illustrated by Figure \ref{fig:tiledmult}, s.t. the
-inner multiplications can make use of native hardware arithmetics:
+  preallocated before the multiplication function call.}. The first observation
+means that we cannot compute the multiplication inside the outer sum using
+registers, but the second observation lets us redefine the equation exploiting
+the tiling clearly visibil in the illustration. Hence, if we use the following
+definition, we are both able to compute the inner products using register
+arithmetics and avoid unnecessary computations:
 
-{
-\begin{minipage}{0.5\textwidth}
-  \centering
-  \begin{figure}[H]
+\begin{definition}[tiling of classical multiplication preserving input dimensions]\label{def:clasmultil}
+  If we are only interrested in the first $m$ digits of the result of Definition
+  \ref{def:clasmul}, and we wish to use registers for inner arithmetics, we can
+  redefine it:
+\begin{equation}
+\label{eq:clasmul}
+u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cdot v_j \right)B^{k}
+\end{equation}
+\end{definition}
+
+\begin{figure}
   \centering
   \footnotesize
   \begin{tabular}{c}
-    \begin{tabular}{|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.5cm}|C{0.8cm}|}
-      \hline
-      $w_0$ & $w_1$ & $w_2$ & $\ldots$ & $w_{m-1}$\\
-      \hline
+    \begin{tabular}{C{0cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.5cm}|C{0.8cm}|C{0cm}}
+      \cline{2-6}
+      & $w_0$ & $w_1$ & $w_2$ & $\ldots$ & $w_{m-1}$ & $\ldots$\\
+      \cline{2-6}
     \end{tabular}\\
     \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
       $=$ & $=$ & $=$ &  & $=$
@@ -89,46 +100,41 @@ inner multiplications can make use of native hardware arithmetics:
        & & & & & $u_{m-1}v_0$ & $\ldots$
     \end{tabular}
   \end{tabular}
-  \caption{\footnotesize Visualization of classical multiplication.}
+  \caption{\footnotesize Visualization of classical multiplication given by Definition \ref{def:clasmul}.}
   \label{fig:tiledmult}
-  \end{figure}
-\end{minipage}
-\begin{minipage}{0.49\textwidth}
-    \centering
-\begin{equation}
-\label{eq:clasmul}
-u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cdot v_j \right)B^{k}
-\end{equation}
-\end{minipage}
-}
+\end{figure}
 
-Now, sequentialization is straightforward, but in order to parallelize it, we
-make three new observations: All of the tiled multiplications are unique
-(i.e. $O(m^2)$ multiplications are necessary), the number of multiplications is
-linear in $k$, and the overflows can be added as a separate step after the
-convolutions (e.g. using \textit{badd}).
+Using this definition, a sequential algorithm is straightforward to
+construct. In order to parallelize it, we make three new observations: All of
+the tiled inner multiplications are unique (i.e. $O(m^2)$ products must be
+computed), the number of terms in the inner sum is linear in $k$ (i.e. the
+work), and the overflows can be added as a separate step after the convolutions
+(e.g. using \textit{badd}).
 
-Since we parallelize at block-level (i.e. with dimensions over the size $m$),
-the first observation tells us that each thread must run $O(m)$ multiplications
-with no parallelism. However, from the second observation, letting thread
-$t_{k\in\{0,..,m-1\}}$ compute digit $w_k$ gives unbalanced amount of sequential
-work. Instead, we make a new observation; the work of digits $w_0$ and $w_{m-1}$
-is equal to that of $w_1$ and $w_{m-2}$, $w_2$ and $w_{m-3}$, etc. Thus, by
-introducing a fixed sequentialization factor of $2$, we can balance the work
-amongst threads.
+Since we parallelize at block-level (i.e. the CUDA block dimensions are $O(m)$),
+the first observation tells us that each thread must run $O(m)$ inner products
+with no parallelism. Then, from the second observation, we get that letting
+thread $t_{k\in\{0,..,m-1\}}$ compute digit $w_k$ gives an unbalanced amount of
+sequential work between threads. Instead, we make a fourth observation; the work
+of computing digits $w_0$ and $w_{m-1}$ is equal to that of $w_1$ and $w_{m-2}$,
+and to that of $w_2$ and $w_{m-3}$, etc.\footnote{This is easy to see on the
+  tiled pattern visualized in Figure \ref{fig:tiledmult}}. Thus, by introducing
+a fixed sequentialization factor of $2$, we can balance the work amongst
+threads, s.t. thread $t_{k\in 0,..,(m-1)/2}$ computes digits $w_k$ and
+$w_{m-1-k}$ of the result.
 
-In order to propagate the overflows in a separate sweep, we must keep track of
-them while computing the convolutions. Each thread computes $m+1$
-multiplications (when the sequentialization factor is 2). It is a known rule
-that; given any two factors, their product fit in their combined
-precision. E.g. in decimal system, $9$ (precision 1) times $99$ (precision 2) is
-$891$ (precision 3). From this rule, each product can fit in two words. We say
-the least significant word is the \textit{low part} and the most significant the
-\textit{high part}. Since we add $m+1$ products, each part may overflow at most
-$m$ times, s.t. low part overflows carry over to the high part, and high part
-overflows carry over to the \textit{carry part}. Hence, we need three words to
-keep track of each convolution (assuming B is big enough to hold the carry
-part).
+Regarding the third observation, in order to propagate the overflows in a
+separate sweep, we must keep track of them while computing the
+convolutions. Each thread computes $m+1$ products when the sequentialization
+factor is 2. It is a known rule that; given any two factors, their product fit
+in their combined precision. E.g. in decimal system, $9$ (precision 1) times
+$99$ (precision 2) is $891$ (precision 3). From this rule, each product can fit
+in two words. We say the least significant word is the \textit{low part} and the
+most significant the \textit{high part}. Since we add $m+1$ products, each part
+may overflow at most $m$ times, s.t. low part overflows carry over to the high
+part, and high part overflows carry over to the \textit{carry part}. Hence, we
+need three words to keep track of each convolution (assuming B is big enough to
+hold the carry part).
 
 Thus, we define the parallel algorithm for classical \textit{mul}tiplication by
 \textit{conv}olution given in Figure \ref{fig:mulparalg}, from now on called
@@ -223,10 +229,10 @@ CUDA block level, yielding both faster addition\footnote{Experimentally, we
   \end{tabular}
 $\xrightarrow{\text{combines to}}$
 \begin{tabular}{cccccc}
-     & $\xrightarrow{\scriptsize \color{Crimson} \text{carry}}$ & $\xrightarrow{\scriptsize \color{Crimson} \text{carry}}$ &  &  &  \\
+     & $\xrightarrow{\scriptsize \text{\color{Crimson}carry}}$ & $\xrightarrow{\scriptsize \text{\color{Crimson}carry}}$ &  &  &  \\
     \color{Crimson}$l_0$ & \color{Crimson}$h_0 + l_1$ & \color{Crimson}$c_0 + h_1$ & \color{Crimson}c$_1$ & & \\
     & & \color{RoyalBlue}$l_2$ & \color{RoyalBlue}$h_2+l_3$ & \color{RoyalBlue}$c_2+h_3$ & \color{RoyalBlue} $c_3$\\
-  & & & $\color{RoyalBlue}\xrightarrow[\scriptsize \text{carry}]{}$ & $\color{RoyalBlue}\xrightarrow[\scriptsize \text{carry}]{}$ & \\
+  & & & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & \\
 \end{tabular}
 \end{center}
 }
@@ -235,10 +241,6 @@ $\xrightarrow{\text{combines to}}$
   \caption{\footnotesize Illustration of optimized memory layout of \textit{convmul} with sequentialization factor of 4.}
   \label{fig:muloptmem}
 \end{figure}
-
-
-\subsubsection{FFT}
-\label{subsubsec:fft}
 
 \subsection{CUDA Implementation}
 \label{subsec:mulcud}
@@ -250,7 +252,7 @@ implement the \textit{convmul} algorithm straightforward. The second version
 products, and the third version (\texttt{V3}) handles multiple instances per
 block to \texttt{V2}. Version four (\texttt{V4}) implements a sequentialization
 factor of four according to the optimization described in Section
-\ref{subsubsec:classical}, and the fifth (\texttt{V5}) add multiple instances
+\ref{subsec:mulalg}, and the fifth (\texttt{V5}) add multiple instances
 per block to \texttt{V4}.
 
 We decide the CUDA kernel dimensions and parameters with the following code in
@@ -587,6 +589,9 @@ diverging branches within a block results in unbalanced work among the threads).
 Instead, we write a function for \textit{mul}tiplying a big integer by a
 \textit{d}igit, called \textit{muld}. Since it is essentially an addition, we
 will not benchmark it or discuss it further.
+
+\subsection{Other Algorithms}
+\label{subsec:mulother}
 
 %%% Local Variables:
 %%% mode: LaTeX

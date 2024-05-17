@@ -41,6 +41,12 @@
 % Then we update the number of digits taken into account in the approximation by:
 % \[l = l + n - 1 = 1 + 1 - 1 = 1\]
 
+\subsection{Algorithm}
+We use the notation that $m$
+remains the \textit{size} of the integer (array) while the \textit{precision}
+refers to how many digits of the integer is used. E.g. the integer
+$\bigint{2, 4, 0, 0}_{10}$ has size $4$ and precision $2$.
+
 \subsection{Prototype}
 We started by writing a prototype of the algorithm in C to better understand the
 inner workings of the algorithm. In its creation, we discovered some
@@ -92,7 +98,6 @@ notable subroutines and how we handle them.
 \end{itemize}
 
 \subsection{Single Precision Divisor}
-\pagebreak
 % In the prototype, a standard Long Division algorithm is used. Another way to
 % express the computation of long division is:
 % \begin{equation}
@@ -146,6 +151,9 @@ The intermideate results fits in a double word, and the algorithm is inherently
 sequential from left-to-right.
 
 % From the definition of modulo, $a \% b = a - \lfloor \frac{a}{c} \rfloor \cdot b$,
+
+\subsection{Futhark Implementation}
+
 
 %%% Local Variables:
 %%% mode: LaTeX

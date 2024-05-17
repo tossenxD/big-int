@@ -55,10 +55,7 @@ integers of an arbitrary size, and the size of integers can still be changed (by
 means of allocating and copying to a new big integer), but the exact size is
 always known and remains static before and after arithmetic operations.
 
-Thus, we use exact precision in this thesis. We use the notation that $m$
-remains the \textit{size} of the integer (array) while the \textit{precision}
-refers to how many digits of the integer is used. E.g. the integer
-$\bigint{2, 4, 0, 0}_{10}$ has size $4$ and precision $2$.
+Thus, we use exact precision in this thesis.
 
 So far, we have only considered unsigned integers. There exists multiple
 representations of signed integers on a binary machine, the most common being
@@ -75,6 +72,10 @@ cases where signed arithmetics are required, e.g. subtraction, we return the
 sign as a separate boolean value. It is trivial to extent the big integers by
 sign-magnitude using the boolean value.
 
+{\red WRITE ABOUT SEQUENTIALIZATION FACTOR ASSUMES IT DIVIDES EQUAL
+assuming 2
+divides $m-1$ exact
+}
 
 %%% Local Variables:
 %%% mode: LaTeX

@@ -3,40 +3,54 @@
 
 Addition is the simplest of the basic arithmetic operators. It is a cornerstone
 of arithmetics that can be used to define all other operations - an essential
-part of a big integer library.
+part of arithmetics.
 
-Former work has been carried out by students as part of a parallel course
-project, which will serve as a stepping stone for the algorithm and
-implementation of our addition \cite{DPPproject}.
+Former work has been carried out for addition in Futhark, which will serve as a
+stepping stone for the algorithm and implementation of our addition
+\cite{DPPproject}. In essence, big integer addition can be reduced to a
+\texttt{map}-\texttt{scan} composition, making it run efficiently on a GPGPU.
 
-This section is as follows: In section \ref{subsec:addalg} we present an
-algorithm to compute big integer addition in parallel. In section
-\ref{subsec:addcud} we discuss how to efficiently implement the algorithm on a
-GPU in CUDA, and in section \ref{subsec:addfut} how to translate this
-implementation to Futhark. Lastly, in section \ref{subsec:sub} we show how to
-define subtraction from addition.
+This section is structured as follows: In section \ref{subsec:addalg} we present
+an algorithm to compute big integer addition in parallel. In sections
+\ref{subsec:addcud} and \ref{subsec:addfut} we discuss how to efficiently
+implement the algorithm in CUDA and Futhark, respectively. Lastly, in section
+\ref{subsec:sub} we show how to define subtraction from the addition algorithm.
 
 \subsection{Algorithm}
 \label{subsec:addalg}
+From the Definition \ref{def:bigints} we derive the following addition definition.
 
-The additions of two big integers is the sum of the addition of their digits:
+\begin{definition}[big integer addition]
+  The addition of two big integers $u$ and $v$ of size $m$ and base $B$ is the
+  sum of their added digits:
 \begin{equation}
   \label{eq:add}
-  u + v = \sum_{i=0}^{m-1}u_i\cdot B^{i} + \sum_{i=0}^{m-1}v_i\cdot B^{i} = \sum_{i=0}^{m-1}(u_i+v_i)\cdot B^{i}
+  u + v  = \sum_{i=0}^{m-1}(u_i+v_i) B^{i}
 \end{equation}
+\end{definition}
 
-I.e. we can compute each digit of the result simply by adding the corresponding
-two input digits. However, these additions may overflow the base size, which
-results in a carry being added to the following digit. In turn, this digit may
-now overflow, and so we need to add yet another carry, and so on. E.g. consider
+I.e.\ we compute each digit of the result simply by adding the corresponding two
+input digits. However, these inner additions may overflow the base, resulting in
+a carry being added to the following digit. In turn, this digit may now
+overflow, and so we need to add yet another carry, and so forth. E.g.\ consider
 the addition $199 + 1$ in decimal base; first we add $1$ to $9$ giving $0$ and a
 carry, then we add $0$ and the carry to $9$ giving $0$ and another carry, which
-we then add to $1$, resulting in the number $200$.
+we then add to $1$, resulting in the number $200$:
+{\scriptsize
+\begin{tabular}{cccc}
+  & \scalebox{.62}{1} & \scalebox{.62}{1} & \\[-0.7ex]
+  & 0  & 0 & 1 \\[-0.5ex]
++ & 1  & 9 & 9 \\[-0.4ex]
+\hline
+  & 2 & 0 & 0 \\
+\end{tabular}
+}
 
 A sequential algorithm and illustration thereof is given in Figure
-\ref{fig:addseq}. It is immediate from the figure that the additions of digits
-can be independently computed, and thus, trivially parallelizable. However, the
-carries are dependent on all additions and carries before it.
+\ref{fig:addseq}. It is immediate from the figure that the sum of digits can be
+independently computed, and thus, trivially parallelizable. However, the carries
+are truly dependent on all sums and carries before it, as illustrated by the
+figure and last example.
 
 \begin{figure}
   \centering
@@ -91,22 +105,31 @@ for i in (0..m-1)
   \label{fig:addseq}
 \end{figure}
 
-Each addition may overflow at most once, and so we need to figure out when this
-happens. In the former work by Olesen, Topalovic and Restelli-Nielsen, they
-found that this happens when I) the addition already overflowed, or II) it
-results in the maximum representable integer and the addition just before it
-overflowed \cite{DPPproject}. This can be efficiently computed in parallel as a
-prefix sum, specifically an exclusive one\footnote{Easy to see on the arrows of
-  the illustration of the sequential algorithm in Figure \ref{fig:addseq}.}.
+Each addition may overflow at most once, and so we need to figure out the
+conditions for an overflow. In the former work by Olesen, Topalovic and
+Restelli-Nielsen, they found that this happens when I) the addition already
+overflowed, or II) it results in the maximum representable integer and the
+addition just before it overflowed \cite{DPPproject}. They found that these
+conditions can efficiently be checked in parallel as a prefix
+sum.\footnote{Specifically an exclusive prefix-sum, which easy to see on the
+  arrows in Figure \ref{fig:addseq}.}
 
-Thus, big integer addition parallelizes to a \fun{map}-\fun{scan} function
+Thus, the big integer addition parallelizes to a \fun{map}-\fun{scan} function
 composition. Figure \ref{fig:addpar} lists and illustrates a generalized
-parallel addition algorithm. The algorithm works in three steps: First, it
-computes the result of the additions (\texttt{r}) and the augmented carries
-(\texttt{a}) by mapping operator $\oplus$. Second, it computes a prefix sum
-(\texttt{c}) over the augmented carries using operator $\otimes$ with left-associative
-neutral element \texttt{e}. Third, it extracts the carries from the prefix sum
-(using \texttt{f}) and adds them to the result of the additions over a map.
+parallel addition algorithm. The algorithm has three steps:
+\begin{enumerate}
+\item Compute the inner sums (\texttt{r}) and the augmented carries (\texttt{a})
+  by mapping operator
+  $\oplus:\tau \shortrightarrow \tau \shortrightarrow \tup{\tau}{\tau'}$ over the inputs. The
+  augmented carries corresponds to the two conditions from \cite{DPPproject}.
+  
+\item Propagate the carries by computing the exclusive prefix sum over the
+  augmented carries (\texttt{c}) using operator $\otimes:\tau' \shortrightarrow \tau' \shortrightarrow \tau'$ with left-associative
+  neutral element $\mathtt{e}:\tau'$.
+
+\item Compress the propagated augmented carries using
+  $f:\tau' \shortrightarrow \tau$ and distribute them over the inner sums.
+\end{enumerate}
 
 \begin{figure}
   \centering
@@ -221,20 +244,25 @@ w = map2 ((*$\lambda$*) x y (*$\rightarrow$*) x + f y) r c
   \label{fig:addpar}
 \end{figure}
 
-The task at hand is to figure out what $\oplus$, $\otimes$ and \texttt{e} is. In the former
-work, Olesen et al. found $\oplus$ to compute whether the addition overflows or is
-the maximum representable integer as a pair of boolean values s.t. for digits
-$x$ and $y$ represented as unsigned integers in base $B$ with wrapping on
-overflow, we define:
+Now, we must figure out what $\oplus$, $\otimes$, \texttt{e} and $f$ is. Olesen et
+al. found $\oplus$ to augment the carries as a pair of boolean values, encoding the
+two conditions straightforward. I.e.\ for digits $x$ and $y$ of type
+\texttt{uint} in base $B$ with wrap-around semantics on overflow, we have:
 \begin{equation}
 \label{eq:oplus}
-x \oplus y \coloneq \tup{x + y < x}{x + y = B-1}
+x \oplus y \coloneq \tup{x + y}{\tup{x + y < x}{x + y == B-1}}
 \end{equation}
+The first element of the tuple encodes the actual overflows (condition I), and
+the second element is the augmented data needed for scanning (condition
+II). Hence, the compression function
+$f~:~\tup{\mathtt{bool}}{\mathtt{bool}} \shortrightarrow \mathtt{uint}$ is the
+projection $\pi_1$ followed by a type conversion.
 
 The operator $\otimes$ then computes the prefix sum on the augmented carries s.t. if
-both the addition itself and the one just before it results in the maximum
-integer, then they remain the maximum integer combined, and overflows are
-determined by the aforementioned conditions. For some pairs of booleans
+both the sum itself and the one just before it is the maximum integer, they
+remain the maximum integer combined.\footnote{E.g.\ in base $10$, $9$ is max in
+  one digit and $99$ remains max in two digits.} Overflows are determined by
+the aforementioned conditions. I.e.\ for some pairs of booleans
 $x = \tup{\mathit{ov_x}}{\mathit{mx_{x}}}$ and
 $y = \tup{\mathit{ov_y}}{\mathit{mx_{y}}}$, we define:
 \begin{equation}
@@ -248,149 +276,152 @@ They found that the neutral element, \texttt{e}, of $\otimes$ is:
   \mathtt{e} \coloneq \tup{\mathtt{False}}{\mathtt{True}}
 \end{equation}
 
-While this approach is intuitive and straightforward to implement, hardware does
-not support boolean values natively - they are syntactic sugar for
-zero-and-nonzero integer words. Thus, a low-level implementation will have to
-use integers, and so we might as well use bitwise operations over logical ones, as
+Olesen et al. proofs that $\otimes$ is associative with neutral element
+$\mathtt{e}$ in \cite{DPPproject}.
+
+While this approach is intuitive and straightforward to implement in Futhark,
+hardware does not support boolean values natively - they are syntactic sugar for
+zero-and-nonzero integers. Thus, a low-level implementation will have to use
+integers, and so we might as well use bitwise operations over logical ones, as
 these are faster.
 
-In turn, instead of using pairs of integer words with only one indicator bit for
-boolean values each, we combine them to one word with two bits used to each
-indicate both boolean value. Not only does this halve the memory usage
-w.r.t. the prefix sum, it also increases memory utilization as each thread
-only having to fetch and write one word.
+In turn, instead of using pairs of integers with each using one indicator bit
+for boolean value, we combine them to one integer with two indicator bits. Not
+only does this halve the memory usage w.r.t. the prefix sum, it also increases
+memory utilization of threads, as each thread only have to fetch and write one
+once. The formal definition of the optimizations is:
 
-The formalization of these optimizations, where the least and second least
-significant bit indicates integer overflow and maximum representable integer,
-respectively, is:
+\begin{definition}[\textit{b}itwise-optimized parallel \textit{add}ition algorithm (\textit{badd})]\label{def:bitwise}
+  The bitwise-optimized operators of the algorithm in Figure \ref{fig:addpar},
+  where the least and second least significant bit indicates integer overflow
+  and maximum, respectively, are:
 \begin{align}
   \label{eq:oplusopt}
-  x \oplus y &\coloneq (x + y < x)~|~((x + y = B-1) \ll 1) \\
+  x \oplus y &\coloneq \tup{r}{\mathtt{uint}(r < x)~|~(\mathtt{uint}(r == B-1) \ll 1)},\quad\textbf{where}~r = x + y \\
   \label{eq:otimesopt}
   x \otimes y &\coloneq (((x~\&~(y \gg 1))~|~y)~\&~1)~|~(x~\&~y~\&~2)\\
   \label{eq:otimesneopt}
-  \mathtt{e} &\coloneq 2
+  \mathtt{e} &\coloneq 2\\
+  \label{eq:fopt}
+  f &\coloneq (\lambda~x \shortrightarrow x~\&~1)
 \end{align}
+\end{definition}
 
 Equation (\ref{eq:oplusopt}) is a straightforward conversion of equation
-(\ref{eq:oplus}), with the pair being replaced by the shift- and bitwise or-operator.
+(\ref{eq:oplus}), with the pair being replaced by the shift- and bitwise
+or-operator, and Equation (\ref{eq:fopt}) extracts the first indicator bit.
 
 Equation (\ref{eq:otimesopt}) is a conversion of equation (\ref{eq:otimes}),
-where I) the pair is replaced with bitwise or-operator, II) the first clause is checked
-in the least significant bit and zeroes out the second bit with ``$\&~1$'', and
-III) the second clause is checked in the second least significant bit and zeroes
-out the first bit with ``$\&~2$''. Associativity naturally still holds:
+where I) the pair is replaced with bitwise or-operator, II) the first clause is
+checked in the least significant bit and zeroes out the second bit with
+``$\&~1$'', and III) the second clause is checked in the second least
+significant bit and zeroes out the first bit with ``$\&~2$''. Associativity
+naturally still holds. Likewise, the neutral element \texttt{e} of Equation
+(\ref{eq:otimesneopt}) is the corresponding indicator bits of Equation
+(\ref{eq:otimesne}), and so \texttt{e} remains a left-associative neutral
+element of $\otimes$ after the optimizations.
 
-\begin{proof}
-  We want to show $x \otimes (y \otimes z) = (x \otimes y) \otimes z$. From left-to-right we have:
-\begin{align}
-  (x \otimes y) \otimes z &= (~\underbrace{(((x~\&~(y \gg 1))~|~y)~\&~1)~|~(x~\&~y~\&~2)}_{\alpha}~) \otimes z\\
-              &= (((\alpha~\&~(z \gg 1))~|~z)~\&~1)~|~(\alpha~\&~z~\&~2)\\
-              \label{eq:otimesproofltr}
-              &= (((\alpha~\&~1)~\&~(z \gg 1))~|~(z~\&~1))~|~((\alpha~\&~2)~\&~z)
-\end{align}
-From right-to-left we have:
-\begin{align}
-  x \otimes (y \otimes z) &= x \otimes (~\underbrace{((y~\&~(z \gg 1))~|~z)~\&~1)~|~(y~\&~z~\&~2)}_{\beta}~)\\
-  &= (((x~\&~(\beta \gg 1))~|~\beta)~\&~1)~|~(x~\&~\beta~\&~2)\\
-  \label{eq:otimesproofrtl}
-  &= ((x~\&~(\beta \gg 1)~\&~1)~|~(\beta~\&~1))~|~(x~\&~(\beta~\&~2))
-\end{align}
-We must now show that equation (\ref{eq:otimesproofltr}) is equal to
-(\ref{eq:otimesproofrtl}). Consider the second clause. Since $(1~\&~2)$ is $0$,
-so is the first clause of both $(\alpha~\&~2)$ and $(\beta~\&~2)$. Furthermore, we have
-that $2~\&~2$ is the same as $2$. Thus, we have:
-\begin{align}
-  (\alpha~\&~2)~\&~z &= (x~\&~y~\&~2)~\&~z\\
-                &= x~\&~(y~\&~z~\&~2)\\
-                &= x~\&~(\beta~\&~2)
-\end{align}
-Consider the first clause. Again, $(2~\&~1)$ is $0$, so the second clause of $(\alpha~\&~1)$ is $0$:
-\begin{align}
-  ((\alpha~\&~1)~\&~&(z \gg 1))~|~(z~\&~1) \\
-               &= ((((x~\&~(y \gg 1))~|~y)~\&~1)~\&~(z \gg 1))~|~(z~\&~1) \\
-               &= (((x~\&~(y \gg 1)~\&~1)~|~(y~\&~1))~\&~(z \gg 1))~|~(z~\&~1) \\
-               &= ((x~\&~(y \gg 1)~\&~(z \gg 1)~\&~1)~|~(y~\&~(z \gg 1)~\&~1))~|~(z~\&~1)
-\end{align}
-We have $((y \gg 1)~\&~(z \gg 1)) = (y~\&~z \gg 1) = (y~\&~z~\&~2 \gg 1)$ and get:
-\begin{align}
-  &= (x~\&~((y~\&~z~\&~2) \gg 1)~\&~1)~|~(y~\&~(z \gg 1)~\&~1)~|~(z~\&~1))\\
-  \phantom{((\alpha~\&~1)\&}&= (x~\&~((y~\&~z~\&~2) \gg 1)~\&~1)~|~((y~\&~(z \gg 1))~|~z)~\&~1)\\
-  &= (x~\&~(\beta \gg 1)~\&~1)~|~(\beta~\&~1)
-\end{align}
-Thus, equations (\ref{eq:otimesproofltr}) and (\ref{eq:otimesproofrtl}) are equal, and hence, $x \otimes (y \otimes z) = (x \otimes y) \otimes z$.
-\end{proof}
+For good measure, new proofs of associativity and neutral element are in
+appendix \hyperref[app:A]{A}.
 
-Likewise, the neutral element \texttt{e} of Equation (\ref{eq:otimesneopt}) is
-the corresponding indicator bits of Equation (\ref{eq:otimesne}), and so
-\texttt{e} remains a left-associative neutral element of $\otimes$ after the
-optimizations:
+Thus, when using the \textit{badd} algorithm presented in Definition
+\ref{def:bitwise}, we get that both $\oplus$, $\otimes$ and \texttt{f} are
+$O(1)$. Therefore. the \fun{map}s exhibit work $O(m)$ and span $O(1)$, and the
+\fun{scan} work $O(m)$ and span $O(\log m)$. Hence, the total work is $O(m)$ and
+the span $O(\log m)$.
 
-\begin{proof} By exhaustive evaluation we have:
+As a final note, we can stay in the lane of bitwise optimizations when it comes
+to handling multiple instances per CUDA block. Extending the algorithm to work
+on a set of flattened instances is trivial using a \textit{segmented} scan. It
+is a scan with a flag array (indicating where the flattened segments begins)
+s.t. if we are at the beginning of a segment, the neutral element is used as the
+first operand rather than the left sum.  We can implement it as a normal scan,
+but with an extended operator that checks for segment beginnings, as done in
+section 8 of the book ``Parallel Programming in Futhark''
+\cite{ParallelProgrammingInFuthark}.
+
+However, just like we combined the overflow- and maximum-indicator, we can also
+combine them with the flag-indicator. Thus, we use the third least-significant
+bit to indicate segment beginnings. Setting the flags as part of the augmented
+carries is a trivial extension to operator $\oplus$, and we get the segmented scan
+operator $\otimes$ (with neutral element remaining $2$):
 \begin{align}
-  \label{eq:otimesneproof}
-  2 \otimes 0 &= (((2~\&~(0 \gg 1))~|~0)~\&~1)~|~(2~\&~0~\&~2) = 0 \\
-  2 \otimes 1 &= (((2~\&~(1 \gg 1))~|~1)~\&~1)~|~(2~\&~1~\&~2) = 1 \\
-  2 \otimes 2 &= (((2~\&~(2 \gg 1))~|~2)~\&~1)~|~(2~\&~2~\&~2) = 2 \\
-  2 \otimes 3 &= (((2~\&~(3 \gg 1))~|~3)~\&~1)~|~(2~\&~3~\&~2) = 3
+  \label{eq:segscanop}
+  x \otimes y &\coloneq x_f~|~y_f~|~\begin{cases} y_v & \textbf{if}~y_f \neq 0 \\ (((x_v~\&~(y_v \gg 1))~|~y_v)~\&~1)~|~(x_v~\&~y_v~\&~2) & \textbf{otherwise}\end{cases}\\
+  & \textbf{where}~~x_f\coloneq (x~\&~4),~~x_v\coloneq (x~\&~3),~~y_f\coloneq (y~\&~4),~~y_v\coloneq (y~\&~3)\notag
 \end{align}
-\end{proof}
-
-We name the {\textit{b}}itwise-optimized big integer {\textit{add}}ition
-algorithm \textit{badd}.
-
-Thus, when using the parallel algorithm presented in Figure \ref{fig:addpar}
-with $\oplus$, $\otimes$ and \texttt{e} defined in Equations (\ref{eq:oplus}),
-(\ref{eq:otimesne}) and (\ref{eq:otimesneopt}), we get that
-$\mathtt{f} \coloneq 1~\&$. Both $\oplus$, $\otimes$ and \texttt{f} are $O(1)$, and so the
-\fun{map}s exhibit work $O(m)$ and span $O(1)$, and the \fun{scan} work $O(m)$
-and span $O(\log m)$. Thus, the work of a parallel big integer addition is
-$O(m)$ and the span is $O(\log m)$.
-
 
 \subsection{CUDA Implementation}
 \label{subsec:addcud}
 
 In this section we introduce three versions of addition in CUDA. The first
 version (\texttt{V1}) is the fundamental implementation that follows the
-algorithm presented in Figure \ref{fig:addpar} closely. The second version
-(\texttt{V2}) attempts to efficiently sequentialize the parallelism in excess:
-Since the operation runs in sublinear time, with two of the three steps being a
-constant time, we expect the threads to have an excess amount of parallelism
-spent on communication (waiting for memory and synchronizations). Upping the
-sequentialization factor decreases the amount of communication, which may up the
-performance. This version also serves to compute addition for integers of
-greater size than a CUDA block. The third version (\texttt{V3}) flattens
-integers and do a segmented addition, giving better performance for multiple
-arithmetic instances with small integer sizes, as mentioned in section
-\ref{sec:strat}.
+algorithm presented in Figure \ref{fig:addpar} closely.
 
-We determine the sequentialization factor ($q$), number of instances per block
-($\mathit{ipb}$), and kernel dimensions with the code of Listing \ref{addparams}
-below. Here, $v$ determines the version we want to run and
-$\mathit{num\_instances}$ the total number of instances to add. Here we use a
-trick; $(a + b - 1) / b = \lceil a / b \rceil$. The sequentialization factor
-$q=4$ is determined experimentally to be the most efficient, and likewise for
+The second version (\texttt{V2}) attempts to efficiently sequentialize the
+parallelism in excess: Since the operation runs in sublinear span (with two of
+the three steps being a constant span), we expect the threads to have an excess
+amount of parallelism spent on communication (waiting for memory and
+synchronizations). Increasing the sequentialization factor decrease the amount
+of communication, and, in this case, increase the performance. This optimization
+comes with the added benefit of handling integers with size greater than a CUDA
+block.
+
+The third version (\texttt{V3}) can handle multiple instances per block, giving
+better performance for many arithmetic instances with small integer sizes, as
+mentioned in section \ref{sec:strat}.
+
+We keep the sequentialization factor ($q$) and number of instances per block
+($\mathit{ipb}$) parametric using C++ templates. First of all, this allows us to
+handle all input sizes genericly rather than relying on multiple hand-written
+versions, but more importantly, it allows us to experiment with optimal
+parameters. A purpose of the CUDA implementation is to determine how much
+performance is possible to achieve using our designated algorithms. Hence,
+experimentation in CUDA directly influence how we approach the implementations in
+Futhark.
+
+Generic \textit{ipb} is trivial, because it only serves to determine segment
+beginnings of segmented algorithms. Normally, a generic sequentialization factor
+impedes performance, as we achieve this by introducing \texttt{loop}-constructs
+invariant of $q$. However, a benefit of high-level languages like C++ is
+compiler directives, allowing us to unroll loops as if they were hand-written,
+per §7.39 of the CUDA C++ guide \cite{cudaguide}.
+
+Overall, we determine $q$, $\mathit{ipb}$, and kernel dimensions with the code
+of Listing \ref{addparams} below. The sequentialization factor of \texttt{V2}
+and \texttt{V3} is by default $q=4$, but if the size of the inputs still exceeds
+a CUDA block, we use a the rule $(a + b - 1) / b = \lceil a / b \rceil$ to round up to
+nearest sequentialization factor that fits. Likewise, for \texttt{V3} we write
 $\mathit{ipb} = \lceil 256 / (m/q) \rceil$, which rounds the number of threads per block
-up to 256.
-\begin{lstlisting}[language=CPP,caption={\footnotesize CUDA addition parameters and kernel dimensions.},label={addparams}]
-const uint32_t q = (v == 1) ? 1 : (m <= 1024) ? 4 : (m+1024-1) / 1024;
+up to 256.\footnote{Experimentally, we found a minimum of 256 threads per block
+  and a sequentialization factor of 4 to be the most efficient kernel parameters
+  for addition.}
+
+
+\begin{lstlisting}[language=CPP,caption={\footnotesize CUDA addition parameters and kernel dimensions for version $v$ with size $m$ and $\mathit{num\_instances}$.},label={addparams}]
+const uint32_t q = (v == 1) ? 1 : (m/4 <= 1024) ? 4 : (m+1024-1) / 1024;
 const uint32_t ipb = (v == 3) ? (256 + m/q - 1) / (m/q) : 1;
 dim3 block(ipb*(m/q), 1, 1);
 dim3 grid (num_instances/ipb, 1, 1);
 \end{lstlisting}
 
-Step 1. and step 3. are implemented straightforward for all three versions, by
-simply computing the mapped functions. Step 2. on the other hand is a bit more
-interesting.
+Steps 1.\ and 3.\ of \textit{badd} are implemented straightforward for all three
+versions (because the \texttt{map}s are implicit in CUDA). Step 2.\ on the other
+hand is more interesting.
 
 For the \fun{scan} function, we have used the warp-level inclusive scan
 presented in course \textit{Programming Massively Parallel Hardware}
-\cite{PMPH}. The idea is to minimize communication by exploiting warps, since
-warps execute instructions in lockstep. Figure \ref{fig:warpscan} contains an
-illustration of this algorithm. It works in three steps; I) scan each warp, II)
-scan the results at the end of warps, and III) distribute the results of "II)"
-over the results "I)".
+\cite{PMPH}. The idea is to minimize communication by exploiting that warps
+execute instructions in lockstep. Figure \ref{fig:warpscan} contains an
+illustration of this algorithm. It works in three steps with synchronization
+in-between:
+\begin{enumerate}[label=\Roman*]
+\item Each warp scans it's elements in $\log \mathit{warpsize}$ iterations.
+\item The end-of-warp results are put in the first warp, synchronized, and then
+  scanned.
+\item The results of ``II'' are fetched, synchronized, and distributed over the
+  results ``I''.
+\end{enumerate}
 
 \begin{figure}
   \centering
@@ -400,170 +431,216 @@ over the results "I)".
 \end{figure}
 
 To convert an inclusive to an exclusive scan, we shift the result to the right
-by $1$ and insert the neutral element at the left-most position. Step 2. uses a
-warp-level exclusive scan with the scan operator $\otimes$ and neutral element
-$\mathtt{e}$ defined straightforward as Equations (\ref{eq:otimesopt})
-(\ref{eq:otimesneopt}).
+by $1$ and insert the neutral element at the left-most position. Step 2.\ of
+\textit{badd} use this warp-level exclusive scan with the operator $\otimes$ and
+neutral element $\mathtt{e}$ defined in Equations (\ref{eq:otimesopt}),
+(\ref{eq:otimesneopt}), and (\ref{eq:segscanop}).
 
 What we have so far is enough to write \texttt{V1}, but \texttt{V2} and
-\texttt{V3} requires some extra steps. For \texttt{V2}, we have $q$ elements per
-thread, and so we cannot directly use the defined scan (as this works for one
-element per thread). Instead, let us reuse the "scan $\shortrightarrow$
-end-of-result $\shortrightarrow$ scan $\shortrightarrow$ distribute" idea from
-the scan algorithm:
+\texttt{V3} requires some extra attention. We cannot directly use the warp-level
+scan, because this works for one element per thread and we have $q$. Instead,
+let us reuse the \textit{scan} $\shortrightarrow$ \textit{end-of-result}
+$\shortrightarrow$ \textit{scan} $\shortrightarrow$ \textit{distribute} idea
+from the warp-level scan algorithm on a register-level basis:
 
-Let each thread compute the inclusive prefix sum of its $q$ elements. Then,
-compute a wrap-level exclusive scan over the
-end-of-thread-level-scan-results. Lastly, distribute the results of the
-wrap-level scan over the results of the thread-level scan.
+Let each thread compute the inclusive prefix sum of its $q$ elements
+sequentially, and place only the last sum in shared memory. Then, run a
+wrap-level exclusive scan over the end-of-register-level sums in shared
+memory. Lastly, each thread sequentially distribute the results of the
+wrap-level scan over the result of the register-level scan.
 
-In the kernel code, where the $q$ elements handled on a thread-level is in
-$\mathtt{ass}$ and $\mathtt{bss}$ and output in $\mathtt{rss}$, shared memory
-buffer $\mathtt{shmem}$, base $\mathtt{Base}$ and $\otimes$ as class
-$\mathtt{CarryProp}$, we have:
+Using this idea, we are now able to write all three versions. For abbrivety, we
+only show the function body of \texttt{V3}, but both \texttt{V1} and \texttt{V2}
+principally implemented in the same way. Listing \ref{addopcuda} contains this
+body, where the input/output elements of each thread are read coalesced
+beforehand and written coalesced afterwards to/from global memory.
 
-\lstinputlisting[language=CPP,firstline=126,lastline=144,caption={\footnotesize CUDA addition with parameterized sequentialization (version 2) from file \texttt{ker-add.cu.h}.},label={addopcuda},firstnumber=126]{../cuda/ker-add.cu.h}
-
-Lastly, $\mathtt{V3}$ is implemented in the same manner as $\mathtt{V2}$, but
-segmented. A segmented scan is a scan with a flag array (indicating where new
-segments starts) s.t. if we are at the beginning of a segment, the neutral
-element is used as the first operand rather than the left sum.
-
-We can implement it as a normal scan, but with an extended operator that checks
-for segment beginnings, as done in section 8 of the book ``Parallel Programming
-in Futhark'' \cite{ParallelProgrammingInFuthark}. Just like we combined the
-overflow-indicator and maximum-integer-indicator, we can also combine them with
-the segment-start-indicator (flag array). Thus, in the implementation, we use
-the third least-significant bit to indicate segment beginnings, and we get the
-segmented scan operator $\otimes$ (still with neutral element $2$):
-\begin{align}
-  \label{eq:segscanop}
-  x \otimes y &\coloneq x_f~|~y_f~|~\begin{cases} y_v & \textbf{if}~y_f \neq 0 \\ (((x_v~\&~(y_v \gg 1))~|~y_v)~\&~1)~|~(x_v~\&~y_v~\&~2) & \textbf{otherwise}\end{cases}\\
-  & \textbf{where}~~x_f\coloneq (x~\&~4),~~x_v\coloneq (x~\&~3),~~y_f\coloneq (y~\&~4),~~y_v\coloneq (y~\&~3)\notag
-\end{align}
-
-Computing the flags before the scan and extracting the carries after the scan,
-are trivial computations added to the \texttt{map}s of steps 1. and 3. of the
-parallel addition algorithm.
+\lstinputlisting[language=CPP,firstline=212,lastline=236,caption={\footnotesize
+  CUDA \textit{badd} \texttt{V3} implementation body from file
+  \texttt{ker-add.cu.h}, where registers \texttt{ass}, \texttt{bss}, and
+  \texttt{rss} contains $q$ input/output digits, respectively, of type
+  \texttt{uint\_t} with base class \texttt{Base}, segmented scan operator class
+  \texttt{SegCarryProp} over carry type \texttt{carry\_t}, and shared memory
+  buffer
+  \texttt{shmem}.},label={addopcuda},firstnumber=212]{../cuda/ker-add.cu.h}
 
 \subsection{Futhark Implementation}
 \label{subsec:addfut}
 
 In this section, we introduce four versions of addition in Futhark. The first
 version (\texttt{V0}) is the original version formulated by Olesen et
-al. \cite{DPPproject}, i.e., with boolean representation and logical
-operators. In turn, the second version (\texttt{V1}) uses bitwise
-representation. The third version (\texttt{V2}) introduces a fixed
-sequentialization factor of four\footnote{From the CUDA implementation, we found
-  this to be optimal (see section \ref{subsec:addcud}).}, and the fourth version
-(\texttt{V3}) introduces a parameterized number of instances per block.
+al. \cite{DPPproject}, included for completeness. The second version
+(\texttt{V1}) is the straightforward \textit{badd} algorithm.
+
+The third version (\texttt{V2}) introduces a fixed sequentialization factor of
+4, which we found to be the optimal factor from experimenting with the CUDA
+implementation (see section \ref{subsec:addcud}). In CUDA, it is arbitrary to
+make this factor generic using C++ templates and compiler directives, without
+loss of performance. In Futhark however, while we have type parameters and loop
+unroll attributes, we do not have the fine-grained control of C++ that allows us
+to e.g. decide when and how to store intermediate results in shared memory. We
+found that parameterizing the sequentialization factor is significantly slower
+than fixing it. In turn, integers with size $m>4096$ does not fit in a CUDA
+block, and requires manually increasing the factor. Another approach could be to
+write a parameterized version for integers with $m>4096$, and search for tricks
+that optimizes the compilers generated output. For simplicity, we fix the factor
+at 4.
+
+The fourth version (\texttt{V3}) introduces a parameterized number of instances
+per block (\textit{ipb}) and the segmented \textit{badd}. This factor is fine to
+vary, since it is only used to determine boolean values of the segmented
+semantics.
 
 Version \texttt{V0} and \texttt{V1} are defined straightforward, and due to
-Futharks high-level design, looks almost identical to the pseudocode of the
-parallel algorithm (Figure \ref{fig:addpar}). E.g. for base \texttt{u64}:
-\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark addition \texttt{V1} using base \texttt{u64} (from file \texttt{add.fut} slightly edited).}]
-def carry_prop64 (c1: u64) (c2: u64) : u64 =
+Futharks high-level design based on parallelism, they look almost identical to
+the pseudocode of Figure \ref{fig:addpar}. E.g.\ Listing \ref{futaddv1} contains
+the implementation of \texttt{V1}:
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark \textit{badd} \texttt{V1} using base \texttt{ui} and carry type \texttt{ct} (from file \texttt{add.fut} slightly edited).},label={futaddv1}]
+def carryProp (c1: ct) (c2: ct) : ct =
   (c1 & c2 & 2) | (((c1 & (c2 >> 1)) | c2) & 1)
 
-def initc64 (r : u64) (a : u64) : u64 =
-  (u64.bool (r < a)) | ((u64.bool (r == u64.highest)) << 1)
+def carryPropE : ct = 2
 
-entry badd64v1 [n] (as: [n]u64) (bs: [n]u64) : [n]u64 =
-  let (res,cs)=map2 (\a b -> let r = a + b in (r,initc64 r a)) as bs|>unzip
-  let carries = scan_exc carry_prop64 2 cs
-  in map2 (\ r c -> r + (c & 1)) res carries
+def carryAug (r : ui) (a : ui) : ct =
+  (boolToCt (r < a)) | ((boolToCt (r == HIGHEST)) << 1)
+
+def baddV1 [m] (us: [m]ui) (vs: [m]ui) : [m]ui =
+  -- 1. compute sums and carries
+  let (ws, cs) = map2 (\ u v -> let w = u+v in (w, carryAug w u)) us vs
+                 |> unzip
+  -- 2. propagate carries
+  let pcs = scanExc carryProp carryPropE cs
+  -- 3. add carries to sums
+  in map2 (\ w c -> w + fromCt (c & 1)) ws pcs
 \end{lstlisting}
 
-While versions \texttt{V0} and \texttt{V1} feeds into the strengths of Futhark,
-versions \texttt{V2} and \texttt{V3} reveals the weakness. Since we want to
-compute four sub-additions for each thread, it is crucial that we first fetch
-the eight input-digits into registers of the threads, reducing eight reads to
-two reads from global memory. However, while we can control this in a low-level
-language like CUDA, we are at the mercy of the Futhark compiler perform this
-optimization, and as of writing this Thesis, it will not optimize this behaviour.
+While versions \texttt{V0} and \texttt{V1} feeds into the strengths of Futhark
+(simple abstract functions that run comparatibly well), versions \texttt{V2} and
+\texttt{V3} reveals the weaknesses. As mentioned, they include a fixed
+sequentialization factor of 4, so we want to compute four sums for each
+thread. It is therefore crucial that we pre-fetch the inputs to either shared or
+register memory, greatly reducing the amount of reads from global memory (if
+fetched coalesced). However, while easily done in our CUDA implementation, we
+are at the mercy of the Futhark compiler to perform this optimization, and as of
+writing this Thesis, it does not.
 
-Instead, we can utilize the principle of temporal locality to e.g. read input
-array $u$ into array $w$ in a coalesced fashion, and then use $w$ as if it were
-the input $u$. Normally, we avoid such redundant computations because the
-compiler constructs and copies to intermediate arrays when resolving array
-operations (, since data is immutable as per usual for functional
-languages). However, the Futhark compiler use a memory optimization called array
-short-circuiting, where it performs a short-circuit analysis that reveals
-whether it can skip constructing intermediate arrays and execute the operation
-in-place instead \cite{futhark/sc22mem}.
+Instead, we may exploit that the compiler stores intermediate arrays in shared
+memory to e.g.\ read input $u$ into $w$ in a coalesced fashion. Normally, we
+avoid such redundant computations because the compiler constructs and copies to
+a new arrays when resolving array operations (, since data is immutable as per
+usual for functional languages). However, the Futhark compiler use a memory
+optimization strategy called array short-circuiting, where it performs a
+short-circuit analysis that reveals whether it can skip constructing
+intermediate arrays and execute the operation in-place instead
+\cite{futhark/sc22mem}.
 
-We copy from global to shared memory coalesced utilizing short-circuiting with
-the code in Listing \ref{addfutcpy} below. Hence, the zips, unzips and
-concatenations of the code becomes no-ops and \texttt{ash} is a in-place read of
-\texttt{as} (i.e. they occupy the same memory region).
+Thus, when we construct the read operation in a particular way, the compiler
+will pre-allocate the inputs in shared memory when fused with the surrounding
+functions, and in turn, generate the read operation with no-ops. We use the code
+of Listing \ref{addfutcpy} below, which utilizes short-circuiting to read the
+inputs to shared memory coalesced with minimum overhead. I.e.\ the
+\texttt{zip}s, \texttt{unzip}s and concatenations of the code becomes no-ops,
+and \texttt{ush} and \texttt{vsh} is in-place read from \texttt{us} and
+\texttt{vs} (occupying the same memory region).
 
-The function \texttt{badd64v2Run0} called at the end of the code is our addition
-with sequentialization of excess parallelism, defined straightforward using
-tuples of four elements and the same sequentialized prefix sum as the CUDA
-implementation (Listing \ref{addopcuda}).
-\lstinputlisting[language=futhark,firstline=154,lastline=166,caption={\footnotesize
-  Futhark code to copy from global to shared memory using short-circuiting from
-  file \texttt{add.fut}.},label={addfutcpy},firstnumber=154]{../futhark/add.fut}
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark code snippet reading
+\texttt{us} and \texttt{vs} of size $\mathtt{ipb}\cdot \mathtt{m}$ from global to shared memory utilizing array short-circuiting (from file \texttt{add.fut} slightly
+edited).},label={addfutcpy},gobble=2]
+  let cp2sh (i : i32) = #[unsafe]
+    let str = i32.i64 (ipb*m)
+    in ((us[i], us[str + i], us[2*str + i], us[3*str + i])
+       ,(vs[i], vs[str + i], vs[2*str + i], vs[3*str + i]))
 
-The type signature of the function \texttt{badd64v2Run} above enforces the size
-of the big integers to be a multiple of four, but for the sake of generality, we
-do not require it for construction. Instead, we pad the input and remove the
-padding afterwards, like in Listing \ref{addfutpad} below\footnote{Note, we do
-  not pad CUDA programs, as these are purely performance oriented.}. We can us
-the formula
-\begin{equation}
-  \label{eq:3}
-  n + ((q - (n \bmod q)) \bmod q)
-\end{equation}
-to round up to the closest multiple of $q$ from $n$. Furthermore, we use size
-coercions to infer the supposed array shapes to the typechecker (as it lacks the
-ability to do so itself).
+  let (uss, vss) = (0..<ipb*m) |> map i32.i64 |> map cp2sh |> unzip
+  let (u1s, u2s, u3s, u4s) = unzip4 uss
+  let (v1s, v2s, v3s, v4s) = unzip4 vss
+  let ush = u1s ++ u2s ++ u3s ++ u4s
+  let vsh = v1s ++ v2s ++ v3s ++ v4s
+\end{lstlisting}
 
-\lstinputlisting[language=futhark,firstline=169,lastline=173,caption={\footnotesize
-  Futhark code to pad inputs to fit the sequentialization factor of four from file
-  \texttt{add.fut}.},label={addfutpad},firstnumber=169]{../futhark/add.fut}
+The compiler attribute \texttt{\#[unsafe]} tells the compiler not to perform any
+memory bound checks or optimizations. We generally add this attribute when a
+sequentialization factor is involved, just to be certain that the compiler takes
+our array indexing at face value.
 
-The padding does not impede the performance significantly because the Futhark
-compiler fuses the function calls. E.g. for the function \fun{take} \fun{n}
-following \fun{badd64v2Run} with output shape \fun{[n+p]}; instead of first
-allocating a result array of size \fun{[n+p]} and then allocate and copy to a
-new array of size \fun{[n]}, the compiler knows to simply allocate an array of
-size \fun{[n]} and ignore the remaining \fun{p} elements. In this example,
-calling \fun{take} is free. {\color{red} TODO find reference for this claim}
+Now, let us discuss the implementation of \texttt{V2} and \texttt{V3}. Their
+type signature includes the shape parameters, enforcing the memory layout of the
+inputs to be aligned:
+\begin{lstlisting}[language=futhark,numbers=none,frame=,belowskip=-0.15 \baselineskip]
+def baddV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui
+def baddV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui
+\end{lstlisting}
+The functions are defined s.t. they first copy from global to shared memory (as
+described above), and then run the function body (corresponding to the
+\textit{badd} algorithm). For abbrevity, we focus on \texttt{V3}, as they are
+principally identical. The function body sequentializes the excess parallelism
+using tuples of four elements as a manually unrolled loop. It exhibit the same
+sequentialized register-level prefix sum approach as the CUDA \texttt{V3}
+implementation of Listing \ref{addopcuda}. The function body is in Listing
+\ref{futbaddv3} below.
 
-Lastly, \texttt{V3} is implemented almost identically to \texttt{V2}, except for
-using a segmented scan. However, when calling this version, we must take care to
-flatten it properly. We can use the builtin functions \fun{flatten} and
-\fun{unflatten}, much in the same way we used \fun{take} and concatenation for
-padding. The following listing is a wrapper that handles the flattening:
+\begin{lstlisting}[language=futhark,firstnumber=130,gobble=2,caption={\footnotesize Futhark \textit{badd} \texttt{V3} main function body using base \texttt{ui} and carry type \texttt{ct} from file \texttt{add.fut}.},label={futbaddv3}]
+  let baddV3Run (us: []ui) (vs: []ui) : []ui = #[unsafe]
+    -- 1. compute sums, carries, flags, and register-level prefix sum
+    let (ws, cs, accs) = unzip3 <| imap (0..<ipb*m)
+      (\ i -> let (u1, u2, u3, u4) = (us[i*4], us[i*4+1],us[i*4+2],us[i*4+3])
+              let (v1, v2, v3, v4) = (vs[i*4], vs[i*4+1],vs[i*4+2],vs[i*4+3])
+              let (w1, w2, w3, w4) = (u1 + v1, u2 + v2, u3 + v3, u4 + v4)
+              let (c1, c2, c3, c4) = (carryAug w1 u1, carryAug w2 u2,
+                                      carryAug w3 u3, carryAug w4 u4)
+              let c1 = (boolToCt (i % m == 0)) << 2 | c1
+              let acc = carryProp c1 <| carryProp c2 <| carryProp c3 c4
+              in ((w1, w2, w3, w4), (c1, c2, c3, c4), acc))
 
-\lstinputlisting[language=futhark,firstline=289,lastline=295,caption={\footnotesize
-  Futhark function handling the flattening of \texttt{badd64v3} from file
-  \texttt{add.fut}.},label={addfutpad},firstnumber=289]{../futhark/add.fut}
+    -- 2. propagate carries
+    let pcs = scanExc carryPropSeg carryPropE accs
 
-{\color{red} TODO I noticed the Futhark version uses flag array instead of including it in the bitwise operations - try both and see whats fastest.}
+    -- 3. distribute carries over register-level prefix sum, and add to sum
+    let (w1s, w2s, w3s, w4s) = unzip4 <| imap3 ws cs pcs
+      (\ (w1, w2, w3, w4) (c1, c2, c3, _) acc1 ->
+         let acc2 = carryProp acc1 c1
+         let acc3 = carryProp acc2 c2
+         let acc4 = carryProp acc3 c3
+         in (w1 + fromCt (acc1 & 1), w2 + fromCt (acc2 & 1),
+             w3 + fromCt (acc3 & 1), w4 + fromCt (acc4 & 1)))
+    in w1s ++ w2s ++ w3s ++ w4s
+\end{lstlisting}
 
-{\color{red} TODO the code of the above listing is a bit lazy, it avoids the problem of sizes $n$ that does not divide $ipb$ exact.}
+While \texttt{V2} and \texttt{V3} are still somewhat succint, it is clear that
+manipulating the compiler for certain optimizations introduces a lot more code
+compared to the fundamentals of \texttt{V1}. This can especially become
+cumbersome given the hand-written nature of the sequentialization factor. On the
+other side, most of the Futhark code is still modelled closely to the algorithm,
+and thus, making it easy to follow and reason about the semantics.
+
 
 \subsection{Subtraction}
 \label{subsec:sub}
 
-Subtraction is also a cornerstone of arithmetics, but arguably not as important
-as addition. The reason is that subtracting a term is the same as adding the
-signed term. While we do not use signs in our underlying representation, we can
-still define subtraction using the addition. In fact, it is easy to see that a
-``reverse'' addition gives us subtraction.
+Subtraction is also a basic of arithmetic. Normally, we define subtracting by
+adding the signed term. While we do not use signs in our underlying
+representation, we can still define subtraction using the addition. In fact, it
+is easy to see that ``reversing'' each subroutine of the addition gives us
+subtraction.
 
-We define it using the generic algorithm of Figure \ref{fig:addpar} where line 3
-subtracts instead of adding the carry, and with the same $\otimes$, $\mathtt{e}$ and
-$\mathtt{f}$ as in \textit{badd}. Operator $\oplus$ then becomes:
+\begin{definition}[big integer subtraction]
+  Subtraction of two big integers can be obtained from the generic algorithm of
+  Figure \ref{fig:addpar}, where line 3 subtracts rather than adding the carry,
+  and operators $\otimes$, $\mathtt{e}$, and $f$ remains the same as in
+  \textit{badd}. The operator $\oplus$ then becomes:
 \begin{align}
-  \label{eq:oplusopt}
+  \label{eq:oplussub}
   x \oplus y &\coloneq (x - y > x)~|~((x - y = 0) \ll 1)
 \end{align}
+\end{definition}
 
-Since it is the same algorithm as addition, we will not benchmark it or discuss
-it further.
+This definition has the usual unsigned integer wrap-around semantics. If we are
+interrested in the difference, we can check which input is the largest (by a
+\texttt{map}-\texttt{reduce} composition), and then subtract and return the sign
+accordingly.
+
+Since it is the same algorithm as addition, we will not benchmark or discuss it
+further.
 
 %%% Local Variables:
 %%% mode: LaTeX
