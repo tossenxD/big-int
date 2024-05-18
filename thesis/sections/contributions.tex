@@ -1,6 +1,40 @@
 \section{Contributions}
 \label{sec:cont}
 
+We have produced multiple big integer arithmetic implementations in the
+development of this Thesis. The code is publicly available at the GitHub
+repository \url{https://github.com/tossenxD/big-int}, where the latest commit as
+of writing has ID {\red <INSERT LATEST COMMIT>}.
+
+The repository is structured as follows: The directories \texttt{cuda},
+\texttt{futhark}, and \texttt{prototypes} contains CUDA, Futhark, and C code,
+respectively. In each directory there is a \texttt{README} and \texttt{Makefile}
+to replicate the results of this Thesis.
+
+The files \texttt{add.fut} and \texttt{ker-add.cu.h} contains implementations of
+big integer addition. They have four and three versions, respectively, that are
+optimized in varying degrees. We found one of the versions to be strictly better
+performing. However, in Futhark, we found it ambiguous which version is
+performing best when fusing multiple consecutive additions.
+
+The files \texttt{mul.fut} and \texttt{ker-mul.cu.h} contains implementations of
+classical big integer multiplication. They define three and five versions,
+respectively, whence two versions are performing best, based on the size of the
+integers. These implementations also reveals a performance gap between Futhark
+and CUDA, and what optimizations are even possible to implement in the two
+languages.
+
+Lastly, the files \texttt{div.c} and \texttt{div.fut} contains implementations
+of exact big integer division by whole shifted inverse. The C implementation is
+a sequential adaptation of the algorithm proposed by Watt in
+\cite{watt2023efficient}, wherefrom we parallelize in the Futhark
+implementation. These are not performance-optimized in the same manner as
+addition and multiplication, but moreso serves as a proof of concept of a
+parallel implementation of the algorithm. During the development, we found some
+valuable insight, notably a corner case unconsidered in the original formulation
+of the algorithm. Hence, we also present a revised algorithm specialized for big
+integers and parallel execution.
+
 %%% Local Variables:
 %%% mode: LaTeX
 %%% TeX-master: "../main"

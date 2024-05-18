@@ -2,28 +2,26 @@
 \label{sec:big}
 Big integers, also known as big numbers or multiple-precision integers, are
 integers that exceeds the word size on a machine. A common system for reasoning
-about them, e.g. used by Knuth \cite{knuth97}, is the positional number
+about them, e.g.\ used by Knuth in \cite{knuth97}, is the positional number
 system:
- 
+
+% denoted $\bigint{u_0, u_1,\ldots,u_{m-1}}_{B}$
 \begin{definition}[positional number system]\label{def:bigints}
-  An integer $u \in \mathbb{N}$ is expressed in base $B \in \mathbb{N}$ and
-  $m$ digits $u_{i\in \{0,1,\ldots,m-1\}}\in\{0,1,\ldots,B-1\}$, denoted $\bigint{u_0, u_1,\ldots,u_{m-1}}_{B}$, by the sum:
+  An integer $u \in \mathbb{N}$ can be expressed in base $B \in \mathbb{N}$ with
+  $m$ digits $u_{i\in \{0,1,\ldots,m-1\}}\in\{0,1,\ldots,B-1\}$ by the sum:
   \begin{equation}
 \label{eq:rep}
 u = \sum_{i=0}^{m-1}u_i\cdot B^{i}
 \end{equation}
 \end{definition}
 
-E.g. the decimal number $42$ becomes the positional number $\bigint{2,
-  4}_{10}$. The base $B$ (also called the radix) is omitted when it is clear
-from the context. We say that $m$ is the \textit{size} of $u$.
-
-Choosing a machine word size as the base, the positional system maps directly to
-an array data structure. I.e. for a generic word-size \uint{} as base, the big
-integer $u$ is an array in little endian s.t. $u\bigint{0} = u_0$, $u\bigint{1} = u_0$ and so
-on. Furthermore, $u$ can abstractly be thought of as binary representation using
-$2^{m\log \uint{}}$ bits; suppose \uint{} is 64-bits and size is 4, then $u$ is
-a 256-bit integer where, say, the 67th bit of $u$ is the third bit of the second
+By choosing a machine word size as the base $B$ (also called the radix), the
+positional system maps directly to an array data structure. I.e.\ for a generic
+word-size \uint{} as base, the big integer $u$ is an array of size $m$ in little
+endian s.t.\ $u\bigint{0} = u_0$, $u\bigint{1} = u_1$ and so on. Furthermore,
+$u$ can then be seen as binary representation using $2^{m\log \uint{}}$ bits;
+suppose \uint{} is 64-bits and the size $m$ is 4, then $u$ is a 256-bit integer
+where, say, the 67th bit of $u$ is the third least significant bit of the second
 digit $u\bigint{1}$.
 
 % The chosen big integer representation (equation (\ref{eq:rep})) translates
@@ -32,30 +30,31 @@ digit $u\bigint{1}$.
 % four digits (i.e. array length $m = 4$), then the big integer is equivalent to a
 % 256-bit integer.
 
-Now, we have to make an important choice between arbitrary precision and exact
-precision integers. Arbitrary precision, like the name suggests, means that the
-precision is not bounded by software, and so we never loose precision from
-arithmetic operations (as long as we have enough memory to house the
-result). This is for example implemented in Haskell (the language which the
-Futhark compiler is written in) and in GMP (the library which we compare ours
-to) \cite{GMP} \cite{marlow2010haskell}. It provides a great deal of
-abstraction, as there can occur no under/overflows or wrap-arounds. In other
-words, it allows the programmer to work without worrying about the sufficiency
-of the underlying data structure.
+We have to make an important choice between arbitrary precision and exact
+precision integer representation. Arbitrary precision, like the name suggests,
+means that the precision is not bounded by software, and so we never loose
+precision from arithmetic operations (as long as we have enough memory to house
+the result). This is for example implemented in Haskell and in GMP
+\cite{marlow2010haskell,GMP}. It provides a great deal of abstraction, as there
+can occur no overflows. In other words, it allows the programmer to work without
+worrying about the sufficiency of the underlying data structure.
 
 However, the cost of this abstraction is the requirement for dynamic memory
 allocation to handle overflows. This may be a slight inefficiency on a CPU
 architecture and be well worth the level of abstraction, but dynamic memory
-management is troublesome on a GPU (as discussed in section
-\ref{sec:pre}), making arbitrary precision unsuitable for parallel computing.
+management is problematic on a GPU, since all memory sizes must be statically
+known, as discussed in section \ref{sec:pre}. Hence, arbitrary precision is an
+unsuitable representation for parallel computing.
 
 Exact precision integers are bounded by a specified size, making them more
-suitable for a GPU architecture. The programmer is still allowed to specify
-integers of an arbitrary size, and the size of integers can still be changed (by
-means of allocating and copying to a new big integer), but the exact size is
-always known and remains static before and after arithmetic operations.
+suitable for a GPU architecture. The size can still be arbitrarily specified and
+changed during runtime (by means of allocating and copying to a new big
+integer), but the exact size remains known.
 
-Thus, we use exact precision in this thesis.
+Thus, the chosen representation for big integers is exact precision arrays. In
+turn, our arithmetics preservers the dimensions between input and output, and
+require that the input dimension matches. This setup allows us to fully utilize
+GPGPU capabilities.
 
 So far, we have only considered unsigned integers. There exists multiple
 representations of signed integers on a binary machine, the most common being
@@ -67,15 +66,12 @@ of this representation is that $0$ and $-0$ are two different numbers. This
 representation is also used in other high-efficiency libraries, such as GMP
 \cite{GMP}.
 
-For the sake of simplicity and speed, we only use unsigned integers. In the
-cases where signed arithmetics are required, e.g. subtraction, we return the
-sign as a separate boolean value. It is trivial to extent the big integers by
-sign-magnitude using the boolean value.
+We use unsigned integers as the internal representation, as this is more
+efficient. In cases where signs are required, we extent by
+sign-magnitude. Furthermore, we only consider unsigned arithmetics (with
+wrap-around on overflow), as signed arithmetics are trivial to define using
+their unsigned counterpart.
 
-{\red WRITE ABOUT SEQUENTIALIZATION FACTOR ASSUMES IT DIVIDES EQUAL
-assuming 2
-divides $m-1$ exact
-}
 
 %%% Local Variables:
 %%% mode: LaTeX

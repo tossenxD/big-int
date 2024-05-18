@@ -2,8 +2,8 @@
 \label{sec:add}
 
 Addition is the simplest of the basic arithmetic operators. It is a cornerstone
-of arithmetics that can be used to define all other operations - an essential
-part of arithmetics.
+that can be used to define all other operations - an essential part of
+arithmetics.
 
 Former work has been carried out for addition in Futhark, which will serve as a
 stepping stone for the algorithm and implementation of our addition
@@ -245,7 +245,7 @@ w = map2 ((*$\lambda$*) x y (*$\rightarrow$*) x + f y) r c
 \end{figure}
 
 Now, we must figure out what $\oplus$, $\otimes$, \texttt{e} and $f$ is. Olesen et
-al. found $\oplus$ to augment the carries as a pair of boolean values, encoding the
+al.\ found $\oplus$ to augment the carries as a pair of boolean values, encoding the
 two conditions straightforward. I.e.\ for digits $x$ and $y$ of type
 \texttt{uint} in base $B$ with wrap-around semantics on overflow, we have:
 \begin{equation}
@@ -258,7 +258,7 @@ II). Hence, the compression function
 $f~:~\tup{\mathtt{bool}}{\mathtt{bool}} \shortrightarrow \mathtt{uint}$ is the
 projection $\pi_1$ followed by a type conversion.
 
-The operator $\otimes$ then computes the prefix sum on the augmented carries s.t. if
+The operator $\otimes$ then computes the prefix sum on the augmented carries s.t.\ if
 both the sum itself and the one just before it is the maximum integer, they
 remain the maximum integer combined.\footnote{E.g.\ in base $10$, $9$ is max in
   one digit and $99$ remains max in two digits.} Overflows are determined by
@@ -287,7 +287,7 @@ these are faster.
 
 In turn, instead of using pairs of integers with each using one indicator bit
 for boolean value, we combine them to one integer with two indicator bits. Not
-only does this halve the memory usage w.r.t. the prefix sum, it also increases
+only does this halve the memory usage w.r.t.\ the prefix sum, it also increases
 memory utilization of threads, as each thread only have to fetch and write one
 once. The formal definition of the optimizations is:
 
@@ -326,7 +326,7 @@ appendix \hyperref[app:A]{A}.
 
 Thus, when using the \textit{badd} algorithm presented in Definition
 \ref{def:bitwise}, we get that both $\oplus$, $\otimes$ and \texttt{f} are
-$O(1)$. Therefore. the \fun{map}s exhibit work $O(m)$ and span $O(1)$, and the
+$O(1)$. Therefore, the \fun{map}s exhibit work $O(m)$ and span $O(1)$, and the
 \fun{scan} work $O(m)$ and span $O(\log m)$. Hence, the total work is $O(m)$ and
 the span $O(\log m)$.
 
@@ -334,7 +334,7 @@ As a final note, we can stay in the lane of bitwise optimizations when it comes
 to handling multiple instances per CUDA block. Extending the algorithm to work
 on a set of flattened instances is trivial using a \textit{segmented} scan. It
 is a scan with a flag array (indicating where the flattened segments begins)
-s.t. if we are at the beginning of a segment, the neutral element is used as the
+s.t.\ if we are at the beginning of a segment, the neutral element is used as the
 first operand rather than the left sum.  We can implement it as a normal scan,
 but with an extended operator that checks for segment beginnings, as done in
 section 8 of the book ``Parallel Programming in Futhark''
@@ -359,7 +359,7 @@ version (\texttt{V1}) is the fundamental implementation that follows the
 algorithm presented in Figure \ref{fig:addpar} closely.
 
 The second version (\texttt{V2}) attempts to efficiently sequentialize the
-parallelism in excess: Since the operation runs in sublinear span (with two of
+parallelism in excess: Since the operation runs in sub-linear span (with two of
 the three steps being a constant span), we expect the threads to have an excess
 amount of parallelism spent on communication (waiting for memory and
 synchronizations). Increasing the sequentialization factor decrease the amount
@@ -373,7 +373,7 @@ mentioned in section \ref{sec:strat}.
 
 We keep the sequentialization factor ($q$) and number of instances per block
 ($\mathit{ipb}$) parametric using C++ templates. First of all, this allows us to
-handle all input sizes genericly rather than relying on multiple hand-written
+handle all input sizes generically rather than relying on multiple hand-written
 versions, but more importantly, it allows us to experiment with optimal
 parameters. A purpose of the CUDA implementation is to determine how much
 performance is possible to achieve using our designated algorithms. Hence,
@@ -390,7 +390,7 @@ per §7.39 of the CUDA C++ guide \cite{cudaguide}.
 Overall, we determine $q$, $\mathit{ipb}$, and kernel dimensions with the code
 of Listing \ref{addparams} below. The sequentialization factor of \texttt{V2}
 and \texttt{V3} is by default $q=4$, but if the size of the inputs still exceeds
-a CUDA block, we use a the rule $(a + b - 1) / b = \lceil a / b \rceil$ to round up to
+a CUDA block, we use the rule $(a + b - 1) / b = \lceil a / b \rceil$ to round up to
 nearest sequentialization factor that fits. Likewise, for \texttt{V3} we write
 $\mathit{ipb} = \lceil 256 / (m/q) \rceil$, which rounds the number of threads per block
 up to 256.\footnote{Experimentally, we found a minimum of 256 threads per block
@@ -449,20 +449,66 @@ wrap-level exclusive scan over the end-of-register-level sums in shared
 memory. Lastly, each thread sequentially distribute the results of the
 wrap-level scan over the result of the register-level scan.
 
-Using this idea, we are now able to write all three versions. For abbrivety, we
+Using this idea, we are now able to write all three versions. For brevity, we
 only show the function body of \texttt{V3}, but both \texttt{V1} and \texttt{V2}
 principally implemented in the same way. Listing \ref{addopcuda} contains this
 body, where the input/output elements of each thread are read coalesced
 beforehand and written coalesced afterwards to/from global memory.
-
-\lstinputlisting[language=CPP,firstline=212,lastline=236,caption={\footnotesize
+% \lstinputlisting[language=CPP,firstline=212,lastline=236,caption={\footnotesize
+%   CUDA \textit{badd} \texttt{V3} implementation body from file
+%   \texttt{ker-add.cu.h}, where registers \texttt{ass}, \texttt{bss}, and
+%   \texttt{rss} contains $q$ input/output digits, respectively, of type
+%   \texttt{uint\_t} with base class \texttt{Base}, segmented scan operator class
+%   \texttt{SegCarryProp} over carry type \texttt{carry\_t}, and shared memory
+%   buffer
+%   \texttt{shmem}.},label={addopcuda},firstnumber=212]{../cuda/ker-add.cu.h}
+\begin{lstlisting}[language=CPP,caption={\footnotesize
   CUDA \textit{badd} \texttt{V3} implementation body from file
-  \texttt{ker-add.cu.h}, where registers \texttt{ass}, \texttt{bss}, and
+  \texttt{ker-add.cu.h} (slightly edited), where registers \texttt{ass}, \texttt{bss}, and
   \texttt{rss} contains $q$ input/output digits, respectively, of type
   \texttt{uint\_t} with base class \texttt{Base}, segmented scan operator class
   \texttt{SegCarryProp} over carry type \texttt{carry\_t}, and shared memory
   buffer
-  \texttt{shmem}.},label={addopcuda},firstnumber=212]{../cuda/ker-add.cu.h}
+  \texttt{shmem}.},label={addopcuda},firstnumber=212,gobble=4]
+    const bool new_segm = threadIdx.x % (m/q) == 0;
+
+    // 1. compute result, carry, register-level scan, and segment flags
+    uint_t css[q];
+    carry_t acc =
+        new_segm ? SegCarryProp<Base>::setFlag(SegCarryProp<Base>::identity())
+                 : SegCarryProp<Base>::identity();
+    #pragma unroll
+    for(int i=0; i<q; i++) {
+        rss[i] = ass[i] + bss[i];
+        css[i] = ((carry_t) (rss[i] < ass[i]))
+                 | (((carry_t) (rss[i] == Base::HIGHEST)) << 1);
+        acc = SegCarryProp<Base>::apply(acc, css[i]);
+    }
+    shmem[threadIdx.x] = acc;
+    __syncthreads();
+
+    // 2. propagate carries
+    acc = scanExcBlock< SegCarryProp<Base> >(shmem, threadIdx.x);
+    acc = new_segm ? SegCarryProp<Base>::identity() : acc;
+
+    // 3. add carries to results
+    #pragma unroll
+    for(int i=0; i<q; i++) {
+        rss[i] += (acc & 1);
+        acc = SegCarryProp<Base>::apply(acc, css[i]);
+    }
+\end{lstlisting}
+
+To reflect on the implementation; C++ is verbose by design (as a C-like
+language), and modelling the \textit{badd} algorithm requires care and
+thought. Due to the nature of the CUDA extension, we furthermore have to reason
+about the semantics in parallel, e.g.\ in the way we compute segment
+beginnings. However, structuring the implementation around the high-level C++
+features of classes and templates, not only makes it generic and readable, but
+also extensible in terms of optimizations. Once the fundamental version is
+designed with proper usage of C++ constructs, the optimizations comes as natural
+extensions, while still allowing fine-grained control over the important
+aspects, such as memory usage.
 
 \subsection{Futhark Implementation}
 \label{subsec:addfut}
@@ -515,7 +561,7 @@ def baddV1 [m] (us: [m]ui) (vs: [m]ui) : [m]ui =
 \end{lstlisting}
 
 While versions \texttt{V0} and \texttt{V1} feeds into the strengths of Futhark
-(simple abstract functions that run comparatibly well), versions \texttt{V2} and
+(simple abstract functions that run comparatively well), versions \texttt{V2} and
 \texttt{V3} reveals the weaknesses. As mentioned, they include a fixed
 sequentialization factor of 4, so we want to compute four sums for each
 thread. It is therefore crucial that we pre-fetch the inputs to either shared or
@@ -570,9 +616,9 @@ inputs to be aligned:
 def baddV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui
 def baddV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui
 \end{lstlisting}
-The functions are defined s.t. they first copy from global to shared memory (as
+The functions are defined s.t.\ they first copy from global to shared memory (as
 described above), and then run the function body (corresponding to the
-\textit{badd} algorithm). For abbrevity, we focus on \texttt{V3}, as they are
+\textit{badd} algorithm). For brevity, we focus on \texttt{V3}, as they are
 principally identical. The function body sequentializes the excess parallelism
 using tuples of four elements as a manually unrolled loop. It exhibit the same
 sequentialized register-level prefix sum approach as the CUDA \texttt{V3}
@@ -606,12 +652,13 @@ implementation of Listing \ref{addopcuda}. The function body is in Listing
     in w1s ++ w2s ++ w3s ++ w4s
 \end{lstlisting}
 
-While \texttt{V2} and \texttt{V3} are still somewhat succint, it is clear that
+While \texttt{V2} and \texttt{V3} are still somewhat succinct, it is clear that
 manipulating the compiler for certain optimizations introduces a lot more code
 compared to the fundamentals of \texttt{V1}. This can especially become
 cumbersome given the hand-written nature of the sequentialization factor. On the
 other side, most of the Futhark code is still modelled closely to the algorithm,
-and thus, making it easy to follow and reason about the semantics.
+and thus, making it easy to follow, reason about the semantics, and spot
+potential errors.
 
 
 \subsection{Subtraction}
@@ -635,7 +682,7 @@ subtraction.
 \end{definition}
 
 This definition has the usual unsigned integer wrap-around semantics. If we are
-interrested in the difference, we can check which input is the largest (by a
+interested in the difference, we can check which input is the largest (by a
 \texttt{map}-\texttt{reduce} composition), and then subtract and return the sign
 accordingly.
 

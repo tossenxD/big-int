@@ -2,19 +2,29 @@
 \label{sec:strat}
 
 For the arithmetics to be efficient, they must be implemented at a CUDA
-block-level. I.e., the arithmetic operations are confined to run on at most 1024
-threads. This reduces the communication overhead by utilizing the faster
-block-level shared memory for intermediate results, meaning that, in principle,
-any arithmetic program only have access global memory when reading the input big
-integer(s) and writing the output big integer.
+block-level, thus, minimizing the communication overhead by utilizing the faster
+block-level shared memory for intermediate results. For CUDA, this is achieved
+manually by the execution configuration and the methods deployed to index over
+kernel parameters. However, for Futhark, the compiler ultimately determines how
+to map it. Hence, we use the compiler attribute \texttt{\#[only\_intra]} when
+batch processing arithmetics in Futhark, telling the compiler to only map the
+arithmetics at block-level (intra-block).
 
-Hence, the implementation is more so aimed at medium-sized big integers, as when
-the size exceeds 1024, the arithmetics is not able to run. This is an artificial
-barrier, as we can simply introduce sequentialization within each thread to up
-the size. E.g. consider the example given in Figure \ref{fig:seqexa}. In the
-left illustration, each of the $512$ digits of the big integer is handled by a
-separate thread, giving us $512$ threads. On the right, each thread instead
-handle two digits by doing some sequential computations, giving us only $256$
+In principle, any arithmetic function only requires global memory access for
+reading the inputs and writing the output. In Futhark, this can be a bit
+involved, discussed further in section \ref{subsec:addfut}. In CUDA however, we
+always assume the following kernel structure: Fetch inputs from global memory
+coalesced; execute the function body; write results to global memory
+coalesced. From now on, we refer to the function body when discussing kernels.
+
+Given we optimize for block-level, the arithmetics are confined to run on at
+most 1024 threads.  Hence, the implementation is aimed at medium-sized big
+integers, as when the block-size exceeds 1024, the arithmetics is not able to
+run. This is an artificial barrier, as we can introduce sequentialization within
+each thread to allow bigger integer sizes. E.g. consider the example given in
+Figure \ref{fig:seqexa}. In the left illustration, each of the $512$ digits of
+the big integer is handled by a separate thread, giving $512$ threads. On the
+right, each thread instead handle two digits sequentially, giving only $256$
 threads.
 
 \begin{figure}
@@ -52,43 +62,51 @@ threads.
 \end{figure}
 
 However, when we increase the sequentialization factor within a thread, we
-decrease the amount of parallelism within the program. Thus, bigger the integer the
-less efficient the implementations becomes (for sizes that would exceed CUDA
-block limits).
+decrease the amount of parallelism within the program. Thus, the bigger the
+integer, the less efficient the implementation (for sizes that otherwise would
+exceed CUDA block limits). This only holds up to a certain input size, because
+the block-level shared memory also grows with the integer size, resulting in a
+out-of-memory error for too big integers.
 
 Likewise, we can also have big integer sizes that are too small to efficiently
 compute in parallel. Consider again the example of Figure \ref{fig:seqexa} and
-suppose $w$ only consists of 16 digits instead of 512 - then we have at most 16
-threads to handle $w$. A CUDA warp is 32 threads, meaning, that we have 16
-threads that remain idle throughout the computation of $w$.
+suppose array $w$ consists of 16 digits instead of 512 -- then we have 16 and 8
+threads to handle $w$, respectively, neither of which fits in a warp. I.e.\ we
+have 16 and 24 threads, respectively, that idles when computing $w$.
 
 This is not a problem when we only compute arithmetics on a single big integer,
-but suppose we have 1024 big integers instead. This means that we launch 1024
-CUDA blocks - one for each digit - consisting of one warp each. Suppose we only
-have access to 512 cores. Then, each core must compute two blocks, and within
-each block, half of threads are idle.
+but can significantly impede performance when batch processing. Suppose we
+process 1024 big integers of size 16, meaning 1024 CUDA blocks with one warp per
+block. Suppose we only have access to 512 warps on our GPU. Then, each warp must
+compute two blocks, and within each block, half of threads are idle -- in
+principle giving us half the throughput compared to 1024 integers of size 32.
 
 Again, this is an artificial barrier, as we can conjoin two big integers and
-handle them segmented by 32 threads. This process is called
-\textit{flattening}\footnote{Specifically \textit{regular flattening} as the
-  nested data structures we flatten are of the same shape.} and operations
-working on flattened data structures are called \textit{segmented operations}
-\cite{Henriksen:2017:FPF:3062341.3062354}. Thus, in this example, we now get 512
-blocks, which can be computed by the 512 cores in one sweep. This is not
-necessarily double the performance, as flattening, splitting and segmented
-operations comes with a cost, but, in most cases, the cost is constant, and can
-be neglected when handling many arithmetic instances.
+handle them segmented by within a warp. This process is called
+\textit{flattening} and operations working on flattened data structures are
+called \textit{segmented operations} . Thus, in this example, we now get 512
+blocks, which can be computed by the 512 warps in one sweep. This is not
+necessarily double the performance, as flattening, unflattening, and segmented
+operations comes with a cost, but in these cases, the cost is and may be well
+worth it when handling many arithmetic instances of smaller big integers.
 
-The GMP library is built on a smart performance optimization strategy: They
-write multiple parameterized versions of each arithmetic function (including
-multiple algorithms), and dynamically (or by tuning) choose the best performing
-based on the current size \cite{GMP}.
+% if literature on flattening is needed, maybe this?
+% \cite{Henriksen:2017:FPF:3062341.3062354}
 
-Inspired by their strategy, we will implement multiple \textit{versions} of the
-algorithms presented in this Thesis. We determine what version outperformes the
-others in an experimental approach over the integer size and number of
-arithmetic instances, and will incorporate the results into the produced
-Futhark library.
+In regards to the strategy of implementing these optimizations, we take
+inspiration from the GMP library: They write multiple parameterized versions of
+each arithmetic function (including multiple algorithms), and dynamically (or by
+tuning) choose the best performing based on the current size \cite{GMP}.
+
+Inspired by their strategy, we implement multiple versions of arithmetics, with
+a varying degree of optimizations, and determine what version / optimizations
+outperforms the others in an experimental approach over the integer size and
+number of arithmetic instances. Since performance is the main concern, we assume
+that the size and number of inputs divides exact to implementations exhibiting
+sequentialization and segmentation.\footnote{This assumption does not restrict
+  the usefulness of the implementations, as we could simply pad inputs.}
+
+
 
 %%% Local Variables:
 %%% mode: LaTeX
