@@ -18,7 +18,6 @@ def mulHigh  : (ui -> ui -> ui) = u64.mul_hi
 
 -- type ui = u32
 -- type ct = u32
--- type di = u64
 
 -- def HIGHEST  : ui               = u32.highest
 -- def bits     : i64              = 32
@@ -31,15 +30,17 @@ def mulHigh  : (ui -> ui -> ui) = u64.mul_hi
 
 -- type ui = u16
 -- type ct = u32
--- type di = u32
 -- type qi = u64
 
 -- def HIGHEST  : ui               = u16.highest
 -- def bits     : i64              = 16
 -- def fromBool : (bool -> ui)     = u16.bool
--- def boolToCt : (bool -> ct)     = u16.bool
--- def fromCt   : (ct -> ui)       = u16.u16
+-- def boolToCt : (bool -> ct)     = u32.bool
+-- def fromCt   : (ct -> ui)       = u16.u32
 -- def mulHigh  : (ui -> ui -> ui) = u16.mul_hi
+-- def toQi     : (ui -> qi)       = u64.u16
+-- def fromQi   : (qi -> ui)       = u16.u64
+-- def i64ToQi  : (i64 -> qi)      = u64.i64
 
 
 --------------------------------------------------------------------------------
@@ -50,48 +51,40 @@ def imap as g = map g as
 
 def imap2 as bs g = map2 g as bs
 
-def imap3 as bs cs g = map3 g as bs cs
-
 def imap4 as bs cs ds g = map4 g as bs cs ds
 
-let imap2Intra as bs f = #[incremental_flattening(only_intra)] map2 f as bs
+def imap2Intra as bs f = #[incremental_flattening(only_intra)] map2 f as bs
 
-def fst 'a 'b (tp: (a, b)) : a =
-  tp.0
+def fst 'a 'b (tp: (a, b)) : a = tp.0
 
 
 --------------------------------------------------------------------------------
 -- Big Integers
 --------------------------------------------------------------------------------
 
-def new64 (m: i64) : [m]u64 =
-  replicate m 0u64
+-- constructors
 
-def singleton64 (m: i64) (d: u64) : [m]u64 =
-  map (\ i -> if i == 0 then d else 0u64) (iota m)
+def new (m: i64) : [m]ui =
+  replicate m 0
 
-def lt64 [m] (u: [m]u64) (v: [m]u64) : bool =
+def singleton (m: i64) (d: ui) : [m]ui =
+  map (\ i -> if i == 0 then d else 0) (iota m)
+
+-- comparisons
+
+def lt [m] (u: [m]ui) (v: [m]ui) : bool =
   map2 (\ x y -> (x < y, x == y)) u v
-  |> reduce (\ (accl, _) (l, e) -> (l || (e && accl), true)) (false, true)
+  |> reduce (\ (accl, _) (l, e) -> (l || (e && accl), true) ) (false, true)
   |> fst
 
-def lt32 [m] (u: [m]u32) (v: [m]u32) : bool =
-  map2 (\ x y -> (x < y, x == y)) u v
-  |> reduce (\ (accl, _) (l, e) -> (l || (e && accl), true)) (false, true)
-  |> fst
+def eq [m] (u: [m]ui) (v: [m]ui) : bool =
+  map2 (==) u v |> reduce (&&) true
 
-def eq [m] 't (f: t -> t -> bool) (u: [m]t) (v: [m]t) : bool =
-  map2 f u v |> reduce (&&) true
-
-def ez64 [m] (u: [m]u64) : bool =
+def ez [m] (u: [m]ui) : bool =
   map (0 ==) u |> reduce (&&) true
 
-def pad1D [m] 't (a: i64) (e: t) (u: [m]t) : []t =
-  let p = (a - (m % a)) % a
-  in u ++ replicate p e
+-- simple arithmetics
 
-  -- let p = (4 - (n % 4)) % 4
-  -- let pz = map (\_ -> 0) (0..<p)
-  -- let as = as ++ pz :> [4*((n + p) / 4)]u32
-  -- let bs = bs ++ pz :> [4*((n + p) / 4)]u32
-  -- in take n <| badd32v2Run as bs
+def shift [m] (n: i64) (u: [m]ui) : [m]ui =
+  map (\ i -> let off = i - n -- positive for right, negative for left
+              in if off >= 0 && off < m then u[off] else 0) (iota m)

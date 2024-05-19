@@ -37,29 +37,29 @@ import "fut-properties-main"
 -- output { true }
 
 entry addIdentity64 [n][m] (us: [n][m]u64) : bool =
-  map (addIdentity (u64.==)) us |> reduce (&&) true
+  map addIdentity us |> reduce (&&) true
 
 entry addCommutative64 [n][m] (us: [n][m]u64) (vs: [n][m]u64) : bool =
-  map2 (addCommutative (u64.==)) us vs |> reduce (&&) true
+  map2 addCommutative us vs |> reduce (&&) true
 
 entry addAssociative64
 [n][m] (ss: [n][m]u64) (us: [n][m]u64) (vs: [n][m]u64) : bool =
-  map3 (addAssociative (u64.==)) ss us vs |> reduce (&&) true
+  map3 addAssociative ss us vs |> reduce (&&) true
 
 entry mulIdentity64 [n][m] (us: [n][m]u64) : bool =
-  map (mulIdentity (u64.==)) us |> reduce (&&) true
+  map mulIdentity us |> reduce (&&) true
 
 entry mulZero64 [n][m] (us: [n][m]u64) : bool =
-  map (mulZero (u64.==)) us |> reduce (&&) true
+  map mulZero us |> reduce (&&) true
 
 entry mulCommutative64
 [n][m] (us: [n][m]u64) (vs: [n][m]u64) : bool =
-  map2 (mulCommutative (u64.==)) us vs |> reduce (&&) true
+  map2 mulCommutative us vs |> reduce (&&) true
 
 entry mulAssociative64
 [n][m] (ss: [n][m]u64) (us: [n][m]u64) (vs: [n][m]u64) : bool =
-  map3 (mulAssociative (u64.==)) ss us vs |> reduce (&&) true
+  map3 mulAssociative ss us vs |> reduce (&&) true
 
 entry mulDistributive64
 [n][m] (ss: [n][m]u64) (us: [n][m]u64) (vs: [n][m]u64) : bool =
-  map3 (mulDistributive (u64.==)) ss us vs |> reduce (&&) true
+  map3 mulDistributive ss us vs |> reduce (&&) true

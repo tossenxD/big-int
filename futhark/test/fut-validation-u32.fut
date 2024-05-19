@@ -37,13 +37,13 @@ import "fut-validation-main"
 -- output { true }
 
 entry add1D32 [m] (u: [m]u32) (v: [m]u32) : bool =
-  add1D (u32.==) u v
+  add1D u v
 
 entry add2D32 [n][m] (us: [n][m]u32) (vs: [n][m]u32) : bool =
-  add2D (u32.==) us vs
+  add2D us vs
 
 entry mul1D32 [m] (u: [m]u32) (v: [m]u32) : bool =
-  mul1D (u32.==) u v
+  mul1D u v
 
 entry mul2D32 [n][m] (us: [n][m]u32) (vs: [n][m]u32) : bool =
-  mul2D (u32.==) us vs
+  mul2D us vs

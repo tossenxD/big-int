@@ -2,13 +2,21 @@ import "helper"
 import "add"
 
 --------------------------------------------------------------------------------
--- helper functions
+--- Big Integer Multiplication
+--------------------------------------------------------------------------------
+--- The implementation is based on the classical O(n^2) algorithm, where the
+--- digits of the two integer inputs are convoluted, multiplied, and added.
 --------------------------------------------------------------------------------
 
-def iterate (l: ui, h: ui, c: ui) (a: ui) (b: ui) : (ui, ui, ui) =
+
+--------------------------------------------------------------------------------
+-- Helper functions
+--------------------------------------------------------------------------------
+
+def iterate (l: ui, h: ui, c: ui) (u: ui) (v: ui) : (ui, ui, ui) =
   -- compute the low and high part of result
-  let lr = a * b
-  let hr = mulHigh a b
+  let lr = u * v
+  let hr = mulHigh u v
   -- update l, h and c
   let ln = l + lr
   let hn = h + hr + (fromBool (ln < l))
@@ -23,27 +31,35 @@ def combine (l0: ui, h0: ui, c0: ui) (l1: ui, h1: ui, c1: ui): (ui, ui, ui, ui)=
 
 
 --------------------------------------------------------------------------------
--- multiplication by convolution ( O(n^2) ) with two elements per thread
+-- V1: Multiplication by convolution with two elements per thread
 --------------------------------------------------------------------------------
 
-def convMultV1 [m] (as: [2*m]ui) (bs: [2*m]ui) : [2*m]ui =
-  -- function that computes a low, high and carry part of multiplication
-  let convMultLhcs (ash: []ui) (bsh: []ui) (tid: i64)
-      : ( (ui, ui, ui), (ui, ui, ui) ) =
+def convMultV1 [m] (us: [2*m]ui) (vs: [2*m]ui) : [2*m]ui =
+  -- MULTIPLICATION BODY
+  let convMultLhcs (us: []ui) (vs: []ui) (tid: i64)
+      : ( (ui, ui, ui), (ui, ui, ui) ) = #[unsafe]
     let k1 = tid
     let lhc1 : (ui, ui, ui) = loop lhc = (0, 0, 0) for i < k1 + 1 do
-                              let j = k1 - i in iterate lhc ash[i] bsh[j]
+                              let j = k1 - i in iterate lhc us[i] vs[j]
     let k2 = 2*m-1 - k1
     let lhc2 : (ui, ui, ui) = loop lhc = (0, 0, 0) for i < k2 + 1 do
-                              let j = k2 - i in iterate lhc ash[i] bsh[j]
+                              let j = k2 - i in iterate lhc us[i] vs[j]
     in (lhc1, lhc2)
 
-  -- copy to shared memory TODO
-  let ash = as
-  let bsh = bs
+  -- COPY TO SHARED MEMORY
+  let cp2sh (i : i32) = #[unsafe]
+    let str = i32.i64 m
+    in ( (us[i], us[str + i]) ,(vs[i], vs[str + i]) )
 
-  -- find two low-, high- and carry-parts for each thread
-  let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (0..<m) |> unzip
+  -- 1. copy to shared memory coalesced
+  let (uss, vss) = (0..<m) |> map i32.i64 |> map cp2sh |> unzip
+  let (u1s, u2s) = unzip2 uss
+  let (v1s, v2s) = unzip2 vss
+  let ush = u1s ++ u2s
+  let vsh = v1s ++ v2s
+
+  -- 2. find two low, high, and carry parts for each thread
+  let (lhcs1, lhcs2) = map (convMultLhcs ush vsh) (0..<m) |> unzip
   let (ls1, hs1, cs1) = unzip3 lhcs1
   let (ls2, hs2, cs2) = unzip3 <| reverse lhcs2
   let ls = ls1 ++ ls2 :> [2*m]ui
@@ -51,53 +67,63 @@ def convMultV1 [m] (as: [2*m]ui) (bs: [2*m]ui) : [2*m]ui =
   let hs = map (\ i -> if i == 0 then 0 else hs[i-1]) (0..<2*m)
   let cs = cs1 ++ cs2
   let cs = map (\ i -> if i <= 1 then 0 else cs[i-2]) (0..<2*m)
-  -- add the low, high and carry parts
+
+  -- 3. add the low, high and carry parts
   in baddV1 ls hs |> baddV1 cs
 
 
 --------------------------------------------------------------------------------
--- + optimized with four elements per thread
+-- V2: Multiplication by convolution with four elements per thread
 --------------------------------------------------------------------------------
 
-def convMultV2 [m] (as: [4*m]ui) (bs: [4*m]ui) : [4*m]ui =
-  -- function that computes a low, high and carry part of multiplication
-  let convMultLhcs (ash: []ui) (bsh: []ui) (tid: i64)
-      : ( (ui, ui, ui, ui), (ui, ui, ui, ui) ) =
+def convMultV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui =
+  -- MULTIPLICATION BODY
+  let convMultLhcs (us: []ui) (vs: []ui) (tid: i64)
+      : ( (ui, ui, ui, ui), (ui, ui, ui, ui) ) = #[unsafe]
     let k1 = tid * 2
     let (lhc1, lhc2) : ( (ui, ui, ui), (ui, ui, ui) ) =
       loop (lhc1,lhc2) = ( (0, 0, 0), (0, 0, 0) ) for i < k1 + 1 do
       let j = k1 - i
-      let a = ash[i]
-      let lhc1 = iterate lhc1 a bsh[j]
-      let lhc2 = iterate lhc2 a bsh[j+1]
+      let u = us[i]
+      let lhc1 = iterate lhc1 u vs[j]
+      let lhc2 = iterate lhc2 u vs[j+1]
       in (lhc1, lhc2)
-    let lhc2 = iterate lhc2 ash[k1+1] bsh[0]
+    let lhc2 = iterate lhc2 us[k1+1] vs[0]
 
     let k2 = m*4 - 1 - k1
     let (lhc3, lhc4) : ( (ui, ui, ui), (ui, ui, ui) ) =
       loop (lhc3,lhc4) = ( (0, 0, 0), (0, 0, 0) ) for i < k2 do
       let j = k2-1 - i
-      let a = ash[i]
-      let lhc3 = iterate lhc3 a bsh[j]
-      let lhc4 = iterate lhc4 a bsh[j+1]
+      let u = us[i]
+      let lhc3 = iterate lhc3 u vs[j]
+      let lhc4 = iterate lhc4 u vs[j+1]
       in (lhc3, lhc4)
-    let lhc4 = iterate lhc4 ash[k2] bsh[0]
+    let lhc4 = iterate lhc4 us[k2] vs[0]
 
     in (combine lhc1 lhc2, combine lhc3 lhc4)
 
-  -- copy to shared memory TODO
-  let ash = as
-  let bsh = bs
+  -- COPY TO SHARED MEMORY
+  let cp2sh (i : i32) = #[unsafe]
+    let str = i32.i64 m
+    in ((us[i], us[str + i], us[2*str + i], us[3*str + i])
+       ,(vs[i], vs[str + i], vs[2*str + i], vs[3*str + i]))
 
-  -- find two low-, high- and carry-parts for each thread
-  let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (0..<m) |> unzip
+  -- 1. copy to shared memory coalesced
+  let (uss, vss) = (0..<m) |> map i32.i64 |> map cp2sh |> unzip
+  let (u1s, u2s, u3s, u4s) = unzip4 uss
+  let (v1s, v2s, v3s, v4s) = unzip4 vss
+  let ush = u1s ++ u2s ++ u3s ++ u4s
+  let vsh = v1s ++ v2s ++ v3s ++ v4s
+
+  -- 2. find two low, high, and carry parts for each thread
+  let (lhcs1, lhcs2) = map (convMultLhcs ush vsh) (0..<m) |> unzip
   let lhcs = lhcs1 ++ (reverse lhcs2)
 
-  -- map the convolution result to memory
+  -- 3. map the convolution result to memory
   let (ls, hls, chs, ccs) = unzip4 lhcs
   let lhcss = ls ++ hls ++ chs ++ ccs :> [8*m]ui
 
-  -- compute indices and retrieve convolution result from memory
+  -- 4. compute indices and retrieve convolution result from memory
   let (inds1, inds2) =
     unzip <| imap (0..<2*m) (\ i -> let off = i * 2
                                     let inds = (off, off+1, off+2, off+3)
@@ -115,55 +141,64 @@ def convMultV2 [m] (as: [4*m]ui) (bs: [4*m]ui) : [4*m]ui =
   let lhcss1 = scatter (replicate (4*m) 0) indss1 lhcss
   let lhcss2 = scatter (replicate (4*m) 0) indss2 lhcss
 
-  -- add the convolution parts
+  -- 5. add the convolution parts
   in baddV2 lhcss1 lhcss2
 
 
 --------------------------------------------------------------------------------
--- + optimized by allowing multiple instances per block
+-- V3: Run multiple instances of V2 multiplications per block
 --------------------------------------------------------------------------------
 
-def convMultV3 [ipb][m] (as: [ipb*(4*m)]ui) (bs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui=
-  -- function that computes a low, high and carry part of multiplication
-  let convMultLhcs (ash: []ui) (bsh: []ui) (tid: i64)
-      : ( (ui, ui, ui, ui), (ui, ui, ui, ui) ) =
+def convMultV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui=
+  -- MULTIPLICATION BODY
+  let convMultLhcs (us: []ui) (vs: []ui) (tid: i64)
+      : ( (ui, ui, ui, ui), (ui, ui, ui, ui) ) = #[unsafe]
     let k1 = tid * 2
     let k1_start = (k1 / (4*m)) * (4*m)
     let (lhc1, lhc2) : ( (ui, ui, ui), (ui, ui, ui) ) =
       loop (lhc1,lhc2) = ( (0, 0, 0), (0, 0, 0) ) for i < (k1 + 1 - k1_start) do
       let j = k1 - i
-      let a = ash[i + k1_start]
-      let lhc1 = iterate lhc1 a bsh[j]
-      let lhc2 = iterate lhc2 a bsh[j+1]
+      let u = us[i + k1_start]
+      let lhc1 = iterate lhc1 u vs[j]
+      let lhc2 = iterate lhc2 u vs[j+1]
       in (lhc1, lhc2)
-    let lhc2 = iterate lhc2 ash[k1+1] bsh[k1_start]
+    let lhc2 = iterate lhc2 us[k1+1] vs[k1_start]
 
     let k2 = ipb*4*m - 1 - k1
     let k2_start = (k2 / (4*m)) * (4*m)
     let (lhc3, lhc4) : ( (ui, ui, ui), (ui, ui, ui) ) =
       loop (lhc3,lhc4) = ( (0, 0, 0), (0, 0, 0) ) for i < (k2 - k2_start) do
       let j = k2-1 - i
-      let a = ash[i + k2_start]
-      let lhc3 = iterate lhc3 a bsh[j]
-      let lhc4 = iterate lhc4 a bsh[j+1]
+      let u = us[i + k2_start]
+      let lhc3 = iterate lhc3 u vs[j]
+      let lhc4 = iterate lhc4 u vs[j+1]
       in (lhc3, lhc4)
-    let lhc4 = iterate lhc4 ash[k2] bsh[k2_start]
+    let lhc4 = iterate lhc4 us[k2] vs[k2_start]
 
     in (combine lhc1 lhc2, combine lhc3 lhc4)
 
-  -- copy to shared memory TODO
-  let ash = as
-  let bsh = bs
+  -- COPY TO SHARED MEMORY
+  let cp2sh (i : i32) = #[unsafe]
+    let str = i32.i64 (ipb*m)
+    in ((us[i], us[str + i], us[2*str + i], us[3*str + i])
+       ,(vs[i], vs[str + i], vs[2*str + i], vs[3*str + i]))
 
-  -- find two low-, high- and carry-parts for each thread
-  let (lhcs1, lhcs2) = map (convMultLhcs ash bsh) (0..<ipb*m) |> unzip
+  -- 1. copy to shared memory coalesced
+  let (uss, vss) = (0..<ipb*m) |> map i32.i64 |> map cp2sh |> unzip
+  let (u1s, u2s, u3s, u4s) = unzip4 uss
+  let (v1s, v2s, v3s, v4s) = unzip4 vss
+  let ush = u1s ++ u2s ++ u3s ++ u4s
+  let vsh = v1s ++ v2s ++ v3s ++ v4s
+
+  -- 2. find two low, high, and carry parts for each thread
+  let (lhcs1, lhcs2) = map (convMultLhcs ush vsh) (0..<ipb*m) |> unzip
   let lhcs = lhcs1 ++ (reverse lhcs2)
 
-  -- map the convolution result to memory
+  -- 3. map the convolution result to memory
   let (ls, hls, chs, ccs) = unzip4 lhcs
   let lhcss = ls ++ hls ++ chs ++ ccs :> [8*ipb*m]ui
 
-  -- compute indices and retrieve convolution result from memory
+  -- 4. compute indices and retrieve convolution result from memory
   let (inds1, inds2) =
     unzip <| imap (0..<2*ipb*m) (\ i -> let off = i * 2
                                         let isOdd = bool.i64 (i % 2)
@@ -184,7 +219,7 @@ def convMultV3 [ipb][m] (as: [ipb*(4*m)]ui) (bs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui=
   let lhcss1 = scatter (replicate (ipb*(4*m)) 0) indss1 lhcss
   let lhcss2 = scatter (replicate (ipb*(4*m)) 0) indss2 lhcss
 
-  -- add the convolution parts
+  -- 5. add the convolution parts
   in baddV3 lhcss1 lhcss2
 
 

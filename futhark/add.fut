@@ -75,7 +75,7 @@ def baddV1 [m] (us: [m]ui) (vs: [m]ui) : [m]ui =
 
 
 --------------------------------------------------------------------------------
--- V2: Effeciently sequentialize the parallelism in excess (fixed factor of 4)
+-- V2: Efficiently sequentialize the parallelism in excess (fixed factor of 4)
 --------------------------------------------------------------------------------
 
 def baddV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui =
@@ -123,7 +123,7 @@ def baddV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui =
 
 
 --------------------------------------------------------------------------------
--- V3: Run multiple instances of addition per block
+-- V3: Run multiple instances of V2 addition per block
 --------------------------------------------------------------------------------
 
 def baddV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui =
@@ -193,7 +193,7 @@ entry oneAddV3 [n][ipb] (m: i64) (usss: [n][ipb][4*m]ui) (vsss: [n][ipb][4*m]ui)
   let wss = imap2Intra uss vss baddV3
   in map unflatten wss
 
--- callers for ten additions, computing `9*uss + vss` for input `uss` and `vss`
+-- callers for ten additions, computing `10*a + b` for input `a` and `b`
 
 entry tenAddV0 [n][m] (uss: [n][m]ui) (vss: [n][m]ui) : [n][m]ui =
   let wss = imap2Intra uss vss add
