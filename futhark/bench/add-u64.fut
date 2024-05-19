@@ -2,7 +2,7 @@ import "../add"
 
 -- Benchmarks with one instance per block and sequentialization factor of 1
 -- ==
--- entry: tenAddV0Bench tenAddV1Bench
+-- entry: oneAddV0Bench64 tenAddV0Bench64 oneAddV1Bench64 tenAddV1Bench64
 -- compiled random input { [65536][1024]u64 [65536][1024]u64 }
 -- compiled random input { [131072][512]u64 [131072][512]u64 }
 -- compiled random input { [262144][256]u64 [262144][256]u64 }
@@ -14,7 +14,7 @@ import "../add"
 
 -- Benchmarks with one instance per block and sequentialization factor of 4
 -- ==
--- entry: tenAddV2Bench
+-- entry: oneAddV2Bench64 tenAddV2Bench64
 -- compiled random input { [65536][4][256]u64  [65536][4][256]u64  }
 -- compiled random input { [131072][4][128]u64 [131072][4][128]u64 }
 -- compiled random input { [262144][4][64]u64  [262144][4][64]u64  }
@@ -26,7 +26,7 @@ import "../add"
 
 -- Benchmarks with multiple instances per block and sequentialization factor 4
 -- ==
--- entry: tenAddV3Bench
+-- entry: oneAddV3Bench64 tenAddV3Bench64
 -- compiled random input { [65536][1][1024]u64 [65536][1][1024]u64 }
 -- compiled random input { [131072][1][512]u64 [131072][1][512]u64 }
 -- compiled random input { [262144][1][256]u64 [262144][1][256]u64 }
@@ -36,13 +36,32 @@ import "../add"
 -- compiled random input { [262144][16][16]u64 [262144][16][16]u64 }
 -- compiled random input { [262144][32][8]u64  [262144][32][8]u64  }
 
-entry tenAddV0Bench [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
+entry oneAddV0Bench64 [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
+  oneAddV0 uss vss
+
+entry oneAddV1Bench64 [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
+  oneAddV1 uss vss
+
+entry oneAddV2Bench64
+[n][m] (usss: [n][4][m]u64) (vsss: [n][4][m]u64) : [n][4*m]u64 =
+  -- this looks a bit wierd compared to a size-coercien, but I could not get it
+  -- to fuse properly with a coercien, and it ran much slower
+  let uss = map flatten usss :> [n][4*m]u64
+  let vss = map flatten vsss :> [n][4*m]u64
+  in oneAddV2 m uss vss
+
+entry oneAddV3Bench64
+[n][ipb][m] (usss: [n][ipb][m]u64) (vsss: [n][ipb][m]u64) : [n][ipb][m]u64 =
+  oneAddV3 (m/4) (usss :> [n][ipb][4*(m/4)]u64) (vsss :> [n][ipb][4*(m/4)]u64)
+           :> [n][ipb][m]u64
+
+entry tenAddV0Bench64 [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
   tenAddV0 uss vss
 
-entry tenAddV1Bench [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
+entry tenAddV1Bench64 [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
   tenAddV1 uss vss
 
-entry tenAddV2Bench
+entry tenAddV2Bench64
 [n][m] (usss: [n][4][m]u64) (vsss: [n][4][m]u64) : [n][4*m]u64 =
   -- this looks a bit wierd compared to a size-coercien, but I could not get it
   -- to fuse properly with a coercien, and it ran much slower
@@ -50,7 +69,7 @@ entry tenAddV2Bench
   let vss = map flatten vsss :> [n][4*m]u64
   in tenAddV2 m uss vss
 
-entry tenAddV3Bench
+entry tenAddV3Bench64
 [n][ipb][m] (usss: [n][ipb][m]u64) (vsss: [n][ipb][m]u64) : [n][ipb][m]u64 =
   tenAddV3 (m/4) (usss :> [n][ipb][4*(m/4)]u64) (vsss :> [n][ipb][4*(m/4)]u64)
            :> [n][ipb][m]u64

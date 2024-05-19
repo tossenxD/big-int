@@ -2,11 +2,11 @@
 BFLGS = --backend=cuda
 BDIR  = bench/
 TDIR  = test/
-FORM  = | awk -f form-tool.awk -
+FORM  = #| awk -f form-tool.awk -
 
 # TESTS
 
-.PHONY: test test-u32
+.PHONY: test test-u64 test-u32
 
 test: test-u64
 
@@ -50,47 +50,23 @@ test-fut-validation-properties-u32:
 
 # BENCHMARKS
 
-.PHONY: add
+.PHONY: add mul add-u64 add-u32 mul-u64 mul-u32
 
-add: add32 add64
+add: add-u64
 
-add32: one-add32 ten-add32
+mul: mul-u64
 
-add64: one-add64 ten-add64
+add-u64:
+	futhark bench $(BFLGS) $(BDIR)add-u64.fut $(FORM)
 
-one-add32:
-	futhark bench $(BFLGS) $(BDIR)one-add32.fut $(FORM)
+add-u32:
+	futhark bench $(BFLGS) $(BDIR)add-u32.fut $(FORM)
 
-ten-add32:
-	futhark bench $(BFLGS) $(BDIR)ten-add32.fut $(FORM)
+mul-u64:
+	futhark bench $(BFLGS) $(BDIR)mul-u64.fut $(FORM)
 
-one-add64:
-	futhark bench $(BFLGS) $(BDIR)one-add64.fut $(FORM)
-
-ten-add64:
-	futhark bench $(BFLGS) $(BDIR)ten-add64.fut $(FORM)
-
-
-
-.PHONY: mul
-
-mul: mul32 mul64
-
-mul32: one-mul32 six-mul32
-
-mul64: one-mul64 six-mul64
-
-one-mul32:
-	futhark bench $(BFLGS) $(BDIR)one-mul32.fut $(FORM)
-
-six-mul32:
-	futhark bench $(BFLGS) $(BDIR)six-mul32.fut $(FORM)
-
-one-mul64:
-	futhark bench $(BFLGS) $(BDIR)one-mul64.fut $(FORM)
-
-six-mul64:
-	futhark bench $(BFLGS) $(BDIR)six-mul64.fut $(FORM)
+mul-u32:
+	futhark bench $(BFLGS) $(BDIR)mul-u32.fut $(FORM)
 
 # CLEANUP
 

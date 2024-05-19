@@ -205,3 +205,32 @@ entry oneMulV3 [n][ipb] (m: i64) (usss: [n][ipb][4*m]ui) (vsss: [n][ipb][4*m]ui)
   let vss = map flatten vsss :> [n][ipb*(4*m)]ui
   let wss = imap2Intra uss vss convMultV3
   in map unflatten wss
+
+-- callers for six multiplications, computing `a^6 * b` for input `a` and `b`
+
+entry sixMulV1 [n] (m: i64) (uss: [n][2*m]ui) (vss: [n][2*m]ui) : [n][2*m]ui =
+  let wss = imap2Intra uss vss convMultV1
+  let wss = imap2Intra uss wss convMultV1
+  let wss = imap2Intra uss wss convMultV1
+  let wss = imap2Intra uss wss convMultV1
+  let wss = imap2Intra uss wss convMultV1
+  in imap2Intra uss wss convMultV1
+
+entry sixMulV2 [n] (m: i64) (uss: [n][4*m]ui) (vss: [n][4*m]ui) : [n][4*m]ui =
+  let wss = imap2Intra uss vss convMultV2
+  let wss = imap2Intra uss wss convMultV2
+  let wss = imap2Intra uss wss convMultV2
+  let wss = imap2Intra uss wss convMultV2
+  let wss = imap2Intra uss wss convMultV2
+  in imap2Intra uss wss convMultV2
+
+entry sixMulV3 [n][ipb] (m: i64) (usss: [n][ipb][4*m]ui) (vsss: [n][ipb][4*m]ui) : [n][ipb][4*m]ui =
+  let uss = map flatten usss :> [n][ipb*(4*m)]ui
+  let vss = map flatten vsss :> [n][ipb*(4*m)]ui
+  let wss = imap2Intra uss vss convMultV3
+  let wss = imap2Intra uss wss convMultV3
+  let wss = imap2Intra uss wss convMultV3
+  let wss = imap2Intra uss wss convMultV3
+  let wss = imap2Intra uss wss convMultV3
+  let wss = imap2Intra uss wss convMultV3
+  in map unflatten wss
