@@ -218,8 +218,8 @@ one big difference: The operator must be associative and have a neutral
 element. By these assumptions, the array can be accumulated in $O(\log n)$
 steps.
 
-Lastly we have the combinator \fun{scan} with work $O(n)$, span $O(\log n)$, and
-type signature
+On that note we have the combinator \fun{scan} with work $O(n)$, span
+$O(\log n)$, and signature
 \begin{equation}
 \mathtt{scan}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \arr{\tau}
 \end{equation}
@@ -227,12 +227,23 @@ The semantics corresponds to an accumulated reduction over the input array (also
 called a prefix sum), and so the associativity and neutral element restrictions
 of the operator apply.
 
-More combinators and array functions exists, but the three presented are the
-most crucial to this Thesis (and arguably to Futhark). One of the strengths of
-the Futhark compiler is its ability to \textit{fuse} chains of SOACs. This allow
-us to write nice and clean code, straightforwardly model parallel algorithms,
-and let the compiler generate more advanced and optimized GPGPU code using less
-intermediate values.
+Lastly we have the combinator \fun{scatter} with work $O(n)$, span $O(1)$, and
+type signature
+\begin{equation}
+\mathtt{scatter}:\arr{\tau} \to \arr{\mathtt{i64}} \to \arr{\tau} \to \arr{\tau}
+\end{equation}
+It takes a destination, index, and value array, and in-place distributes the
+values over the destination array according to the indeces. The indeces and
+values must have same shape. Indeces that are out-of-bound results in ignoring
+the value rather than throwing an error.
+
+More combinators exists, but the four presented are the most crucial to this
+Thesis (and arguably to Futhark). More information on array combinators and
+functions can be found in the Futhark standard library \cite{futprelude}. One of
+the strengths of the Futhark compiler is its ability to \textit{fuse} chains of
+SOACs. This allow us to write nice and clean code, straightforwardly model
+parallel algorithms, and let the compiler generate more complex and optimized
+GPGPU code using less intermediate values.
 
 While Futhark is more expressive than CUDA, it contains compromises that allows
 Futhark to compile to GPGPU code, making it restricted compared to other

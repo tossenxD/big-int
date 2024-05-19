@@ -625,12 +625,12 @@ sequentialized register-level prefix sum approach as the CUDA \texttt{V3}
 implementation of Listing \ref{addopcuda}. The function body is in Listing
 \ref{futbaddv3} below.
 
-\begin{lstlisting}[language=futhark,firstnumber=130,gobble=2,caption={\footnotesize Futhark \textit{badd} \texttt{V3} main function body using base \texttt{ui} and carry type \texttt{ct} from file \texttt{add.fut}.},label={futbaddv3}]
+\begin{lstlisting}[language=futhark,firstnumber=131,gobble=2,caption={\footnotesize Futhark \textit{badd} \texttt{V3} main function body using base \texttt{ui} and carry type \texttt{ct} from file \texttt{add.fut}.},label={futbaddv3}]
   let baddV3Run (us: []ui) (vs: []ui) : []ui = #[unsafe]
     -- 1. compute sums, carries, flags, and register-level prefix sum
     let (ws, cs, accs) = unzip3 <| imap (0..<ipb*m)
-      (\ i -> let (u1, u2, u3, u4) = (us[i*4], us[i*4+1],us[i*4+2],us[i*4+3])
-              let (v1, v2, v3, v4) = (vs[i*4], vs[i*4+1],vs[i*4+2],vs[i*4+3])
+      (\ i -> let (u1, u2, u3, u4) = (us[i*4],us[i*4+1],us[i*4+2],us[i*4+3])
+              let (v1, v2, v3, v4) = (vs[i*4],vs[i*4+1],vs[i*4+2],vs[i*4+3])
               let (w1, w2, w3, w4) = (u1 + v1, u2 + v2, u3 + v3, u4 + v4)
               let (c1, c2, c3, c4) = (carryAug w1 u1, carryAug w2 u2,
                                       carryAug w3 u3, carryAug w4 u4)
@@ -642,14 +642,16 @@ implementation of Listing \ref{addopcuda}. The function body is in Listing
     let pcs = scanExc carryPropSeg carryPropE accs
 
     -- 3. distribute carries over register-level prefix sum, and add to sum
-    let (w1s, w2s, w3s, w4s) = unzip4 <| imap3 ws cs pcs
-      (\ (w1, w2, w3, w4) (c1, c2, c3, _) acc1 ->
+    let (wi1s, wi2s, wi3s, wi4s) = unzip4 <| imap4 ws cs pcs (0..<ipb*m)
+      (\ (w1, w2, w3, w4) (c1, c2, c3, _) acc1 i ->
+         let acc1 = if i % m == 0 then carryPropE else acc1
          let acc2 = carryProp acc1 c1
          let acc3 = carryProp acc2 c2
          let acc4 = carryProp acc3 c3
-         in (w1 + fromCt (acc1 & 1), w2 + fromCt (acc2 & 1),
-             w3 + fromCt (acc3 & 1), w4 + fromCt (acc4 & 1)))
-    in w1s ++ w2s ++ w3s ++ w4s
+         in ((w1 + fromCt (acc1 & 1), i*4),  (w2 + fromCt (acc2 & 1),i*4+1),
+             (w3 + fromCt (acc3 & 1), i*4+2),(w4 + fromCt (acc4 & 1),i*4+3)))
+    let (ws, inds) = unzip <| wi1s ++ wi2s ++ wi3s ++ wi4s
+    in scatter (replicate (ipb*(4*m)) 0) inds ws
 \end{lstlisting}
 
 While \texttt{V2} and \texttt{V3} are still somewhat succinct, it is clear that
