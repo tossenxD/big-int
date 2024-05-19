@@ -95,14 +95,15 @@ def baddV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui =
     let pcs = scanExc carryProp carryPropE accs
 
     -- 3. distribute carries over register-level prefix sum, and add them to sum
-    let (w1s, w2s, w3s, w4s) = unzip4 <| imap3 ws cs pcs
-      (\ (w1, w2, w3, w4) (c1, c2, c3, _) acc1 ->
+    let (wi1s, wi2s, wi3s, wi4s) = unzip4 <| imap4 ws cs pcs (0..<m)
+      (\ (w1, w2, w3, w4) (c1, c2, c3, _) acc1 i ->
          let acc2 = carryProp acc1 c1
          let acc3 = carryProp acc2 c2
          let acc4 = carryProp acc3 c3
-         in (w1 + fromCt (acc1 & 1), w2 + fromCt (acc2 & 1),
-             w3 + fromCt (acc3 & 1), w4 + fromCt (acc4 & 1)))
-    in w1s ++ w2s ++ w3s ++ w4s
+         in ((w1 + fromCt (acc1 & 1), i*4),   (w2 + fromCt (acc2 & 1), i*4+1),
+             (w3 + fromCt (acc3 & 1), i*4+2), (w4 + fromCt (acc4 & 1), i*4+3)))
+    let (ws, inds) = unzip <| wi1s ++ wi2s ++ wi3s ++ wi4s
+    in scatter (replicate (4*m) 0) inds ws
 
   -- COPY TO SHARED MEMORY
   let cp2sh (i : i32) = #[unsafe]
@@ -143,14 +144,16 @@ def baddV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui =
     let pcs = scanExc carryPropSeg carryPropE accs
 
     -- 3. distribute carries over register-level prefix sum, and add them to sum
-    let (w1s, w2s, w3s, w4s) = unzip4 <| imap3 ws cs pcs
-      (\ (w1, w2, w3, w4) (c1, c2, c3, _) acc1 ->
+    let (wi1s, wi2s, wi3s, wi4s) = unzip4 <| imap4 ws cs pcs (0..<ipb*m)
+      (\ (w1, w2, w3, w4) (c1, c2, c3, _) acc1 i ->
+         let acc1 = if i % m == 0 then carryPropE else acc1
          let acc2 = carryProp acc1 c1
          let acc3 = carryProp acc2 c2
          let acc4 = carryProp acc3 c3
-         in (w1 + fromCt (acc1 & 1), w2 + fromCt (acc2 & 1),
-             w3 + fromCt (acc3 & 1), w4 + fromCt (acc4 & 1)))
-    in w1s ++ w2s ++ w3s ++ w4s
+         in ((w1 + fromCt (acc1 & 1), i*4),   (w2 + fromCt (acc2 & 1), i*4+1),
+             (w3 + fromCt (acc3 & 1), i*4+2), (w4 + fromCt (acc4 & 1), i*4+3)))
+    let (ws, inds) = unzip <| wi1s ++ wi2s ++ wi3s ++ wi4s
+    in scatter (replicate (ipb*(4*m)) 0) inds ws
 
   -- COPY TO SHARED MEMORY
   let cp2sh (i : i32) = #[unsafe]

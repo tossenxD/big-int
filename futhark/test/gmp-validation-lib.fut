@@ -1,21 +1,19 @@
+import "../helper"
 import "../add"
 import "../mul"
-import "../div"
 
-entry test_add32 [m] (as: [m]u32) (bs: [m]u32) : [m]u32 =
-  badd32v1 as bs
+-- This file exports arithmetics to be validated against GMP by the program
+-- `gmp-validation.c`. Hence, other Futhark tests (see `fut-validation-lib.fut`)
+-- can safely assume that functions exported here are correct. Functions are
+-- agnostic to the size of the big integers (array shapes). They are supposed to
+-- be treated as black box.
 
-entry test_add64 [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
-  badd64v1 as bs
+entry test_add [m] (as: [m]ui) (bs: [m]ui) : [m]ui =
+  baddV1 as bs
 
-entry test_mul32 [m] (as: [m]u32) (bs: [m]u32) : [m]u32 =
-  convMult32v1 as bs
-
-entry test_mul64 [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
-  convMult64v1 as bs
-
-entry test_div32 [m] (as: [m]u32) (bs: [m]u32) : [m]u32 =
-  as
-
-entry test_div64 [m] (as: [m]u64) (bs: [m]u64) : [m]u64 =
-  as
+entry test_mul [m] (as: [m]ui) (bs: [m]ui) : [m]ui =
+  let p = (4 - (m % 4)) % 4 -- add padding to ensure alignment
+  let pz = replicate p 0
+  let asp = as ++ pz :> [4*((m+p)/4)]ui
+  let bsp = bs ++ pz :> [4*((m+p)/4)]ui
+  in (convMultV2 asp bsp :> [m+p]ui) |> take m

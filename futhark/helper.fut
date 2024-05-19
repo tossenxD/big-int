@@ -2,6 +2,8 @@
 -- Data Structures
 --------------------------------------------------------------------------------
 
+-- OUTCOMMENT FOR BASE `u64`
+
 type ui = u64
 type ct = u32
 
@@ -12,33 +14,55 @@ def boolToCt : (bool -> ct)     = u32.bool
 def fromCt   : (ct -> ui)       = u64.u32
 def mulHigh  : (ui -> ui -> ui) = u64.mul_hi
 
+-- OUTCOMMENT FOR BASE `u32`
+
 -- type ui = u32
 -- type ct = u32
+-- type di = u64
 
--- def HIGHEST  : ui            = u32.highest
--- def bits     : i64           = 32
--- def fromBool : (bool -> ui)  = u32.bool
--- def boolToCt : (bool -> ct)  = u32.bool
--- def fromCt   : (ct -> ui)    = u32.u32
--- def mulHigh  : (ui -> ui)    = u32.mul_hi
+-- def HIGHEST  : ui               = u32.highest
+-- def bits     : i64              = 32
+-- def fromBool : (bool -> ui)     = u32.bool
+-- def boolToCt : (bool -> ct)     = u32.bool
+-- def fromCt   : (ct -> ui)       = u32.u32
+-- def mulHigh  : (ui -> ui -> ui) = u32.mul_hi
+
+-- OUTCOMMENT FOR BASE `u16`
+
+-- type ui = u16
+-- type ct = u32
+-- type di = u32
+-- type qi = u64
+
+-- def HIGHEST  : ui               = u16.highest
+-- def bits     : i64              = 16
+-- def fromBool : (bool -> ui)     = u16.bool
+-- def boolToCt : (bool -> ct)     = u16.bool
+-- def fromCt   : (ct -> ui)       = u16.u16
+-- def mulHigh  : (ui -> ui -> ui) = u16.mul_hi
 
 
-
-
+--------------------------------------------------------------------------------
 -- Functions
+--------------------------------------------------------------------------------
 
 def imap as g = map g as
 
 def imap2 as bs g = map2 g as bs
 
-let imap2Intra as bs f = #[incremental_flattening(only_intra)] map2 f as bs
-
 def imap3 as bs cs g = map3 g as bs cs
+
+def imap4 as bs cs ds g = map4 g as bs cs ds
+
+let imap2Intra as bs f = #[incremental_flattening(only_intra)] map2 f as bs
 
 def fst 'a 'b (tp: (a, b)) : a =
   tp.0
 
+
+--------------------------------------------------------------------------------
 -- Big Integers
+--------------------------------------------------------------------------------
 
 def new64 (m: i64) : [m]u64 =
   replicate m 0u64
@@ -62,7 +86,7 @@ def eq [m] 't (f: t -> t -> bool) (u: [m]t) (v: [m]t) : bool =
 def ez64 [m] (u: [m]u64) : bool =
   map (0 ==) u |> reduce (&&) true
 
-def pad1d [m] 't (a: i64) (e: t) (u: [m]t) : []t =
+def pad1D [m] 't (a: i64) (e: t) (u: [m]t) : []t =
   let p = (a - (m % a)) % a
   in u ++ replicate p e
 
