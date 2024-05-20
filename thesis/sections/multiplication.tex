@@ -4,31 +4,34 @@
 Multiplication is the next of the basic arithmetic operators. It is more
 complicated than addition, since all digits of the multiplicand have to be
 multiplied by all digits of the multiplier, leading to asymptoticly quadratic
-runtimes. Multiple asymptotically faster algorithms exists, such as Karatsuba
-and Fast Fourier Transform (FFT), both of which are mentioned by Knuth and part
-of GMP \cite{knuth97} \cite{GMP}.
+runtimes. Other more work-efficient algorithms exists, such as Karatsuba or
+Schönhage–Strassen using Fast Fourier Transform (FFT), both of which are
+mentioned by Knuth and part of GMP \cite{knuth97,GMP}. While classical
+multiplication has more work, it is expected to run faster for small integers
+due to the complexities of the work-efficient algorithms, and is what GMP use
+for such integers. % TODO cite FFT and Karatsuba
 
-In section \ref{subsec:mulalg}, we present a classical quadratic multiplication
+In section \ref{subsec:mulalg} we present a classical quadratic multiplication
 algorithm that convolutes the digits of the operands, and we discuss how to
 parallelize it. In sections \ref{subsec:mulcud} and \ref{subsec:mulfut} we
 present our CUDA and Futhark implementations, respectively, and any further
 optimizations related to the implementations. Penultimately, in section
-\ref{subsec:mulsin} we go over the special case of multiplication by a single
-precision factor and present an algorithm to handle it. Lastly, in section
-\ref{subsec:mulother} we address some assymptoticly better algorithms, namely
-the Karatsuba and FFT algorithm, where especially the FFT is promising in a
-GPGPU setting.
+\ref{subsec:mulsin} we cover the special case of multiplication by a single
+precision factor, and present an algorithm that shares the behaviour and
+efficiency of an addition operation. Lastly, in section \ref{subsec:mulother} we
+give an overview of assymptoticly better algorithms with focus on Karatsuba and
+FFT -- where especially FFT is promising in a GPGPU setting.
 
 \subsection{Algorithm}
 \label{subsec:mulalg}
 
 The classical multiplication algorithm handles one digit of the multiplier at a
-time. E.g. in decimal system, $42\cdot 21$ becomes
-$1 \cdot 42 + 2 \cdot 42 \cdot 10$. For our big integers, we have:
+time. E.g.\ in decimal, $42\cdot 21$ becomes
+$1 \cdot 42 \cdot 10^{0} + 2 \cdot 42 \cdot 10^{1}$. For our big integers, we have:
 
 \begin{definition}[classical multiplication]\label{def:clasmul}
-  Multiplying integer $u\in \mathbb{N}$ by $v \in \mathbb{N}$ in the positional number system of base
-  $B$ and $m$ digits, is classicaly computed as:
+  Multiplying integer $u\in \mathbb{N}$ by $v \in \mathbb{N}$ in the positional number system, with
+  base $B$ and $m$ digits, is classically decomposed to:
 \begin{equation}
   \label{eq:clasmul0}
   u \cdot v = \sum_{i=0}^{m-1}u_i\left( \sum_{j=0}^{m-1}v_j\cdot B^{j} \right)B^{i}
@@ -36,26 +39,16 @@ $1 \cdot 42 + 2 \cdot 42 \cdot 10$. For our big integers, we have:
 \end{definition}
 
 The definition is illustrated in Figure \ref{fig:tiledmult}. We make two
-observations: The multiplicand appears inside the outer sum, and we only care
-about the first $m$ digits of the result in our setting\footnote{The result of
-  multiplication is up to twice the size of the inputs. In order to not loose
-  precision in our setting, a memory region of double size should be
-  preallocated before the multiplication function call.}. The first observation
-means that we cannot compute the multiplication inside the outer sum using
-registers, but the second observation lets us redefine the equation exploiting
-the tiling clearly visibil in the illustration. Hence, if we use the following
-definition, we are both able to compute the inner products using register
-arithmetics and avoid unnecessary computations:
-
-\begin{definition}[tiling of classical multiplication preserving input dimensions]\label{def:clasmultil}
-  If we are only interrested in the first $m$ digits of the result of Definition
-  \ref{def:clasmul}, and we wish to use registers for inner arithmetics, we can
-  redefine it:
-\begin{equation}
-\label{eq:clasmul}
-u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cdot v_j \right)B^{k}
-\end{equation}
-\end{definition}
+observations:
+\begin{enumerate}[label=--]
+\item The multiplicand $v$ appears inside the outer sum of the definition in
+  (\ref{eq:clasmul0}).
+\item Only the first $m$ sums of the illustration contributes to the result in
+  our setting.\footnote{The result of multiplication is up to twice the size of
+    the inputs. In order to not loose precision in our setting, a memory region
+    of double size should be preallocated before the multiplication function
+    call.}
+\end{enumerate}
 
 \begin{figure}
   \centering
@@ -100,48 +93,106 @@ u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cd
        & & & & & $u_{m-1}v_0$ & $\ldots$
     \end{tabular}
   \end{tabular}
-  \caption{\footnotesize Visualization of classical multiplication given by Definition \ref{def:clasmul}.}
+  \caption{\footnotesize Visualization of classical multiplication as stated in Definition \ref{def:clasmul} with the outer sum as rows.}
   \label{fig:tiledmult}
 \end{figure}
 
-Using this definition, a sequential algorithm is straightforward to
-construct. In order to parallelize it, we make three new observations: All of
-the tiled inner multiplications are unique (i.e. $O(m^2)$ products must be
-computed), the number of terms in the inner sum is linear in $k$ (i.e. the
-work), and the overflows can be added as a separate step after the convolutions
-(e.g. using \textit{badd}).
+The former tells us that we cannot compute the outer sum using register
+arithmetics. However, from the latter, we can redefine the terms of the outer
+sum by exploiting the tiling of digits that is apparent in the illustration. We
+refer to the columns as \textit{convolutions}, e.g.\ the convolution of $w_1$ is
+the sum $c_0+u_0v_1+u_1v_0$, and the arithmetics in a convolution fits in
+registers. Hence, we arrive at the following definition:
 
-Since we parallelize at block-level (i.e. the CUDA block dimensions are $O(m)$),
-the first observation tells us that each thread must run $O(m)$ inner products
-with no parallelism. Then, from the second observation, we get that letting
-thread $t_{k\in\{0,..,m-1\}}$ compute digit $w_k$ gives an unbalanced amount of
-sequential work between threads. Instead, we make a fourth observation; the work
-of computing digits $w_0$ and $w_{m-1}$ is equal to that of $w_1$ and $w_{m-2}$,
-and to that of $w_2$ and $w_{m-3}$, etc.\footnote{This is easy to see on the
-  tiled pattern visualized in Figure \ref{fig:tiledmult}}. Thus, by introducing
-a fixed sequentialization factor of $2$, we can balance the work amongst
-threads, s.t. thread $t_{k\in 0,..,(m-1)/2}$ computes digits $w_k$ and
-$w_{m-1-k}$ of the result.
+\begin{definition}[tiling of classical multiplication by convolutions preserving
+  input shape]\label{def:clasmultil}
+  Assuming the product of Definition \ref{def:clasmul} is truncated to $m$
+  digits, it can be redefined to:
+\begin{equation}
+\label{eq:clasmul}
+u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cdot v_j \right)B^{k}
+\end{equation}
+\end{definition}
 
-Regarding the third observation, in order to propagate the overflows in a
-separate sweep, we must keep track of them while computing the
-convolutions. Each thread computes $m+1$ products when the sequentialization
-factor is 2. It is a known rule that; given any two factors, their product fit
-in their combined precision. E.g. in decimal system, $9$ (precision 1) times
-$99$ (precision 2) is $891$ (precision 3). From this rule, each product can fit
-in two words. We say the least significant word is the \textit{low part} and the
-most significant the \textit{high part}. Since we add $m+1$ products, each part
-may overflow at most $m$ times, s.t. low part overflows carry over to the high
-part, and high part overflows carry over to the \textit{carry part}. Hence, we
-need three words to keep track of each convolution (assuming B is big enough to
-hold the carry part).
+A sequential algorithm is straightforward to construct from this definition. In
+contrast, we make three new observations to parallelize it:
+\begin{enumerate}[label=--]
+\item The products across all convolution are unique, i.e.\ the $O(m^2)$
+  products of the inner sum in Equation (\ref{eq:clasmul}) have to be computed.
+\item The number of terms constituting a convolution (i.e.\ the work) is linear
+  in $k$.
+\item The overflows can be added as a separate step after the convolutions
+  (e.g.\ using \textit{badd}).
+\end{enumerate}
 
-Thus, we define the parallel algorithm for classical \textit{mul}tiplication by
-\textit{conv}olution given in Figure \ref{fig:mulparalg}, from now on called
-\textit{convmul}. This algorithm has work $O(m^2)$ and span $O(m)$, where the
-sequential convolution is the dominant factor of the span.
+For simplicity, let us assume we have $m$ threads available.\footnote{Since we
+  parallelize at block-level, we have $m/q \leq 1024$ threads, where $q$ is the
+  sequentialization factor.} The first observation tells us that each thread
+must compute $O(m)$ inner products with no parallelism. It would seem natural to
+let thread $t_{l\in\{0,..,m-1\}}$ compute convolution $l$, but from the second
+observation, this gives an unbalanced amount of sequential work amongst
+threads. However, we also derive from the second observation that the combined
+work of convolution $0$ and convolution ${m-1}$ is $m+1$, and is equal to that
+of convolution $1$ and ${m-2}$, and to that of $2$ and ${m-3}$,
+etc.\footnote{Easy to see on the pattern visualized in Figure
+  \ref{fig:tiledmult}} Thus, by introducing a fixed sequentialization factor of
+$2$, we can balance the work amongst threads, s.t.\ thread
+$t_{l\in 0,..,(m/2)-1}$ computes convolution $l$ and convolution $m-1-l$.
 
-\begin{figure}
+Regarding the third observation; in order to propagate the overflows in a
+separate sweep, we must keep track of them while computing the convolutions. It
+is a known rule that; given any two factors, their product fit in their combined
+size. E.g.\ in decimal, $9$ (size 1) times $99$ (size 2) is $891$ (size 3). By
+this rule, each product of a convolution fits in two machine words. We denote
+the least significant word as the \textit{low} part and the most significant as
+the \textit{high} part. Now, each convolution is the sum of $O(m)$ low and high
+parts. Adding the low parts overflows to the high part, and adding the high part
+overflows to the \textit{carry} part -- yet another machine word (assuming the
+base is big enough to hold the carry part). Hence, we need three words to keep
+track of each convolution.
+
+Thus, we derive the following parallel algorithm with work $O(m^2)$ and span
+$O(m)$:
+
+\begin{definition}[work balanced parallel algorithm for classical
+  \textit{mul}tiplication by \textit{conv}olution
+  (\textit{convmul})]\label{def:convmul}
+  We parallelize Definition \ref{def:clasmul} according to the pseudocode in
+  Figure \ref{fig:mulparalg}. Lines 1-18 describes the main function that, given
+  a thread index ${t\in \{0,..,(m/2)-1\}}$, computes a low, high, and carry part
+  of both convolution $t$ and convolution $m-1-t$. Lines 20-25 calls the main
+  function on each thread and adds the convolution parts according to following
+  memory layout, where color and superscript denotes what thread has computed
+  the part and subscript denotes what convolution the part comes from:
+\begin{center}
+  \small
+  \begin{tabular}{c}
+    \begin{tabular}{|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.5cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|}
+      \hline
+      \red $l^0_0$ & \blue $l^1_1$ & \green $l^2_2$ & \brown $l^3_3$ & $\ldots$ & \brown $l^3_{m-4}$ & \green $l^2_{m-3}$ & \blue $l^1_{m-2}$ & \red $l^0_{m-1}$\\
+      \hline
+    \end{tabular}\\[-0.3ex]
+    \begin{tabular}{C{0.81cm}C{0.81cm}C{0.81cm}C{0.81cm}C{0.51cm}C{0.81cm}C{0.81cm}C{0.81cm}C{0.81cm}}
+      $+$ & $+$ & $+$ & $+$ &  & $+$ & $+$ & $+$ & $+$
+    \end{tabular}\\[-0.3ex]
+    \begin{tabular}{|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.5cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|}
+      \hline
+      $0$ & \red $h^0_0$ & \blue $h^1_1$ & \green $h^2_2$ & $\ldots$ & \color{magenta} $h^{4}_{m-5}$ & \brown $h^{3}_{m-4}$ & \green $h^{2}_{m-3}$ & \blue $h^1_{m-2}$\\
+      \hline
+    \end{tabular}\\[-0.3ex]
+    \begin{tabular}{C{0.81cm}C{0.81cm}C{0.81cm}C{0.81cm}C{0.51cm}C{0.81cm}C{0.81cm}C{0.81cm}C{0.81cm}}
+      $+$ & $+$ & $+$ & $+$ &  & $+$ & $+$ & $+$ & $+$
+    \end{tabular}\\[-0.3ex]
+    \begin{tabular}{|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.5cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.8cm}|}
+      \hline
+      $0$ & $0$ & \red $c^{0}_0$ & \blue $c^{1}_1$ & $\ldots$ & \color{cyan} $c^{5}_{m-6}$ & \color{magenta} $c^{4}_{m-5}$ & \brown $c^{3}_{m-4}$ & \green $c^{2}_{m-3}$\\
+      \hline
+    \end{tabular}
+  \end{tabular}
+\end{center}
+\end{definition}
+
+\begin{figure}[H]
 \begin{lstlisting}[language=pseudo,escapeinside={(*}{*)},frame=single]
 fun conv t = -- Parameter `t` represents current index of the m/2 threads
     k1 = t
@@ -174,26 +225,35 @@ w = ADD r c
 \end{figure}
 
 While we cannot optimize the asymptotics of the algorithm, we can eliminate one
-of the additions, increasing the parallelism by eliminating a scan.
+of the additions, decreasing the amount of communication. The intuition is to
+compute two lower and two upper convolutions per thread -- four in total. This
+allows to prematurely compute half of the additions before the parts leave
+register memory (i.e.\ in the function \texttt{conv} of Figure
+\ref{fig:mulparalg}), and thus, necessitating only one addition after running
+the convolutions. The optimization not only reduces the communcation, but also
+reduces shared memory usage by better utilizing registers. The downside is that
+it further increase the amount of sequential work within a thread by a factor of
+2. Hence, whether the optimization will pay off depends on the batch size and
+number of available threads -- or if the inputs are too big to fit a CUDA block
+with sequentialization factor of 2.
 
-The intuition is to compute two lower and upper indices of $k$ in Equation
-(\ref{eq:clasmul}) per thread, four indices in total. This allows premature
-computation of half the additions before the values leave register memory
-(i.e. computed by \texttt{conv}), thus, necessitating only one addition after
-the convolutions. This optimization also reduces memory usage.
-
-Figure \ref{fig:muloptmem} contains an illustration of the tiling layout of this
-optimization w.r.t. threads. Now, the memory layout is trickier to construct
-compared to that of Figure \ref{fig:tiledmult}, requiring threads to alternate
-writing to the additive arrays. E.g. with four threads ($m = 16$) the addition
-corresponds to memory layout:\\
+Figure \ref{fig:muloptmem} contains an illustration of the tiled convolution
+layout of this optimization w.r.t. threads. Now, compared to the pseudocode of
+Figure \ref{fig:mulparalg}, a thread computes a total of twelve parts in the
+convolution function \texttt{conv}, but combines them to eight parts before
+returning -- four for the lower convolution and four for the upper. In turn, the
+memory layout is trickier to construct, requiring threads to alternate writing
+their parts in pairs to the additive arrays. E.g.\ with four threads we get that
+the final parallel addition of the convolution-results corresponds to the
+following memory layout, where color and superscript denotes what thread has
+computed the part and subscript denotes the part number:
 
 \begin{center}
   \small
   \begin{tabular}{c}
     \begin{tabular}{|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|}
       \hline
-      \color{Crimson}$t^0_{00}$ & \color{Crimson}$t^0_{01}$ & \color{Crimson}$t^0_{02}$ & \color{Crimson}$t^0_{03}$ & \color{ForestGreen}$t^2_{00}$ & \color{ForestGreen}$t^2_{01}$ & \color{ForestGreen}$t^2_{02}$ & \color{ForestGreen}$t^2_{03}$ & \color{Chocolate}$t^3_{10}$ & \color{Chocolate}$t^3_{11}$ & \color{Chocolate}$t^3_{12}$ & \color{Chocolate}$t^3_{13}$ & \color{RoyalBlue}$t^1_{10}$ & \color{RoyalBlue}$t^1_{11}$ & \color{RoyalBlue}$t^1_{12}$ & \color{RoyalBlue}$t^1_{13}$\\
+      \color{Crimson}$t^0_{00}$ & \color{Crimson}$t^0_{01}$ & \color{RoyalBlue}$t^1_{00}$ & \color{RoyalBlue}$t^1_{01}$  & \color{ForestGreen}$t^2_{00}$ & \color{ForestGreen}$t^2_{01}$  & \color{Chocolate}$t^3_{00}$ & \color{Chocolate}$t^3_{01}$  & \color{Chocolate}$t^3_{10}$ & \color{Chocolate}$t^3_{11}$  & \color{ForestGreen}$t^2_{10}$ & \color{ForestGreen}$t^2_{11}$  & \color{RoyalBlue}$t^1_{10}$ & \color{RoyalBlue}$t^1_{11}$ & \color{Crimson}$t^0_{10}$ & \color{Crimson}$t^0_{11}$ \\
       \hline
     \end{tabular}\\
     \begin{tabular}{C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}}
@@ -201,20 +261,25 @@ corresponds to memory layout:\\
     \end{tabular}\\
     \begin{tabular}{|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|}
       \hline
-      0 & 0 & \color{RoyalBlue}$t^1_{00}$ & \color{RoyalBlue}$t^1_{01}$ & \color{RoyalBlue}$t^1_{02}$ & \color{RoyalBlue}$t^1_{03}$ & \color{Chocolate}$t^3_{00}$ & \color{Chocolate}$t^3_{01}$ & \color{Chocolate}$t^3_{02}$ & \color{Chocolate}$t^3_{03}$ & \color{ForestGreen}$t^2_{10}$ & \color{ForestGreen}$t^2_{11}$ & \color{ForestGreen}$t^2_{12}$ & \color{ForestGreen}$t^2_{13}$ & \color{Crimson}$t^0_{10}$ & \color{Crimson}$t^0_{11}$\\
+      0 & 0 & \color{Crimson}$t^0_{02}$ & \color{Crimson}$t^0_{03}$  & \color{RoyalBlue}$t^1_{02}$ & \color{RoyalBlue}$t^1_{03}$ & \color{ForestGreen}$t^2_{02}$ & \color{ForestGreen}$t^2_{03}$ & \color{Chocolate}$t^3_{02}$ & \color{Chocolate}$t^3_{03}$ & \color{Chocolate}$t^3_{12}$ & \color{Chocolate}$t^3_{13}$ & \color{ForestGreen}$t^2_{12}$ & \color{ForestGreen}$t^2_{13}$ & \color{RoyalBlue}$t^1_{12}$ & \color{RoyalBlue}$t^1_{13}$ \\
       \hline
     \end{tabular}
   \end{tabular}
 \end{center}~
 
-The memory layout perfectly partitions into an addition operator with
-sequentialization factor of 4, and thus, the optimization efficiently apply at
-CUDA block level, yielding both faster addition\footnote{Experimentally, we
-  found addition with sequentialization factor of 4 to be the fastest (see
-  section \ref{sec:per}).} and elimination of a scan.
+The optimized memory layout perfectly partitions into a parallel addition
+operator with sequentialization factor of 4, and thus, yielding both the
+aforementioned upsides and a faster addition.\footnote{Experimentally, we found
+  addition with sequentialization factor of 4 to be the fastest (see section
+  \ref{sec:add}).}  With sequentialization factor of $q=4$, it can also process
+integers at CUDA block-level of up to double the size than the one with
+$q=2$. To go beyond $q=4$, it is wiser to stack this optimizations rather than
+combining all the consecutive sequential parts, as more combinitions reduce the
+effectiveness of the final parallel addition.
+
+
 
 \begin{figure}
-  {
   \begin{center}
   \small
   \begin{tabular}{C{0.5cm}}
@@ -235,10 +300,11 @@ $\xrightarrow{\text{combines to}}$
   & & & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & \\
 \end{tabular}
 \end{center}
-}
-
 ~~~~$\vdots$\qquad\qquad\qquad\qquad\qquad $\ddots$ \qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad  $\ddots$
-  \caption{\footnotesize Illustration of optimized memory layout of \textit{convmul} with sequentialization factor of 4.}
+\caption{\footnotesize Illustration of optimized memory layout of
+  \textit{convmul} with sequentialization factor of 4, where the left-hand-side
+  shows the low, high, and carry parts of the first four convolutions, and the
+  right-hand-side shows how to combine six parts to four on a thread-level.}
   \label{fig:muloptmem}
 \end{figure}
 
@@ -590,7 +656,7 @@ Instead, we write a function for \textit{mul}tiplying a big integer by a
 \textit{d}igit, called \textit{muld}. Since it is essentially an addition, we
 will not benchmark it or discuss it further.
 
-\subsection{Other Types of Multiplication}
+\subsection{Other Algorithms}
 \label{subsec:mulother}
 
 %%% Local Variables:

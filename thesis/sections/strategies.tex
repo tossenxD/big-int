@@ -10,10 +10,10 @@ to map it. Hence, we use the compiler attribute \texttt{\#[only\_intra]} when
 batch processing arithmetics in Futhark, telling the compiler to only map the
 arithmetics at block-level (intra-block).
 
-In principle, any arithmetic function only requires global memory access for
-reading the inputs and writing the output. In Futhark, this can be a bit
-involved, discussed further in section \ref{subsec:addfut}. In CUDA however, we
-always assume the following kernel structure: Fetch inputs from global memory
+In principle, any arithmetic function only requires global memory access to read
+the inputs and write the output. In Futhark, this can be a bit involved,
+discussed further in section \ref{subsec:addfut}. In CUDA however, we always
+assume the following kernel structure: Fetch inputs from global memory
 coalesced; execute the function body; write results to global memory
 coalesced. From now on, we refer to the function body when discussing kernels.
 
@@ -65,8 +65,8 @@ However, when we increase the sequentialization factor within a thread, we
 decrease the amount of parallelism within the program. Thus, the bigger the
 integer, the less efficient the implementation (for sizes that otherwise would
 exceed CUDA block limits). This only holds up to a certain input size, because
-the block-level shared memory also grows with the integer size, resulting in a
-out-of-memory error for too big integers.
+the block-level shared memory also grows with the integer size, resulting in an
+out-of-memory error for integers too big.
 
 Likewise, we can also have big integer sizes that are too small to efficiently
 compute in parallel. Consider again the example of Figure \ref{fig:seqexa} and
@@ -77,18 +77,19 @@ have 16 and 24 threads, respectively, that idles when computing $w$.
 This is not a problem when we only compute arithmetics on a single big integer,
 but can significantly impede performance when batch processing. Suppose we
 process 1024 big integers of size 16, meaning 1024 CUDA blocks with one warp per
-block. Suppose we only have access to 512 warps on our GPU. Then, each warp must
-compute two blocks, and within each block, half of threads are idle -- in
-principle giving us half the throughput compared to 1024 integers of size 32.
+block. Furthermore, suppose we only have access to 512 warps on our GPU. Then,
+each warp must compute two blocks, and within each block, half of threads are
+idle -- in principle giving us half the throughput compared to 1024 integers of
+size 32.
 
 Again, this is an artificial barrier, as we can conjoin two big integers and
-handle them segmented by within a warp. This process is called
-\textit{flattening} and operations working on flattened data structures are
-called \textit{segmented operations} . Thus, in this example, we now get 512
-blocks, which can be computed by the 512 warps in one sweep. This is not
-necessarily double the performance, as flattening, unflattening, and segmented
-operations comes with a cost, but in these cases, the cost is and may be well
-worth it when handling many arithmetic instances of smaller big integers.
+handle them segmented within a warp. This process is called \textit{flattening},
+and operations working on flattened data structures are called \textit{segmented
+  operations}. Thus, in this example, we now get 512 blocks, which can be
+computed by the 512 warps in one sweep. This is not necessarily double the
+performance, since flattening, unflattening, and segmented operations comes with
+a cost, but in these cases, the cost may be well worth it when handling many
+arithmetic instances of smaller big integers.
 
 % if literature on flattening is needed, maybe this?
 % \cite{Henriksen:2017:FPF:3062341.3062354}
@@ -99,8 +100,8 @@ each arithmetic function (including multiple algorithms), and dynamically (or by
 tuning) choose the best performing based on the current size \cite{GMP}.
 
 Inspired by their strategy, we implement multiple versions of arithmetics, with
-a varying degree of optimizations, and determine what version / optimizations
-outperforms the others in an experimental approach over the integer size and
+a varying degree of optimizations, and determine what version (optimizations)
+outperforms the others, by an experimental approach over the integer size and
 number of arithmetic instances. Since performance is the main concern, we assume
 that the size and number of inputs divides exact to implementations exhibiting
 sequentialization and segmentation.\footnote{This assumption does not restrict

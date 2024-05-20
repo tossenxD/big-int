@@ -60,7 +60,7 @@ both on single-instance and multi-instance big integer inputs. E.g. Listing
 \ref{futaddvaltest} contains the testing-functions for addition of 64bit base
 with GMP-validated library function \fun{test\_add64}.
 
-\lstinputlisting[language=futhark,firstline=112,lastline=127,caption={\footnotesize Futhark testing-functions for addition with 64-bit base from \texttt{fut-validation.fut}.},label={futaddvaltest},firstnumber=112]{../futhark/test/fut-validation.fut}
+% \lstinputlisting[language=futhark,firstline=112,lastline=127,caption={\footnotesize Futhark testing-functions for addition with 64-bit base from \texttt{fut-validation.fut}.},label={futaddvaltest},firstnumber=112]{../futhark/test/fut-validation.fut}
 
 Lastly, we also test that the usual arithmetic properties hold for their
 respective operator, i.e. associativity, commutativity, distributivity,
@@ -68,7 +68,7 @@ etc.. These properties are tested using \texttt{futhark-test} in the file
 \texttt{fut-properties.fut} and are tested independent of GMP. E.g. Listing
 \ref{futaddproptest} contains commutativity test for 64-bit base addition.
 
-\lstinputlisting[language=futhark,firstline=169,lastline=174,caption={\footnotesize Futhark commutativity test for addition with 64-bit base from \texttt{fut-properties.fut}.},label={futaddproptest},firstnumber=169]{../futhark/test/fut-properties.fut}
+% \lstinputlisting[language=futhark,firstline=169,lastline=174,caption={\footnotesize Futhark commutativity test for addition with 64-bit base from \texttt{fut-properties.fut}.},label={futaddproptest},firstnumber=169]{../futhark/test/fut-properties.fut}
 
 {\color{red} TODO testing div with random $nz$ divisor to ensure meaningful tests}
 

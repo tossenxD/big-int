@@ -590,7 +590,7 @@ and \texttt{ush} and \texttt{vsh} is in-place read from \texttt{us} and
 \texttt{vs} (occupying the same memory region).
 
 \begin{lstlisting}[language=futhark,caption={\footnotesize Futhark code snippet reading
-\texttt{us} and \texttt{vs} of size $\mathtt{ipb}\cdot \mathtt{m}$ from global to shared memory utilizing array short-circuiting (from file \texttt{add.fut} slightly
+\texttt{us} and \texttt{vs} of size $\mathtt{ipb}\cdot \mathtt{m}$ from global to shared memory coalesced utilizing array short-circuiting (from file \texttt{add.fut} slightly
 edited).},label={addfutcpy},gobble=2]
   let cp2sh (i : i32) = #[unsafe]
     let str = i32.i64 (ipb*m)

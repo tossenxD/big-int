@@ -1,28 +1,28 @@
 \section{Preliminaries}
 \label{sec:pre}
-Parallel programming comes in two forms: Task parallelism and data
-parallelism. Task parallelism means single processor, multiple memory regions,
-where data parallelism means multiple processors, single memory region. In this
+Parallel execution of code has two forms: Task parallelism and data
+parallelism. Task parallelism is single processor, multiple memory regions,
+whereas data parallelism is multiple processors, single memory region. In this
 Thesis, we are interested in utilizing a data parallel programming environment
-to speedup traditional arithmetics of big integers.
+to speed up traditional arithmetics of big integers.
 
 A Central Processing Unit (CPU) is not suitable for data parallel execution, as
-it is specialized in task parallelism (i.e. controlling the many concurrent
-tasks often running on a computer). However, many modern computers have a
+it is specialized in task parallelism (i.e.\ controlling the many concurrent
+tasks usually running on a computer). However, many modern computers have a
 Graphics Processing Unit (GPU) as well, which is a specialized hardware
-component for handling the many vectors that constitutes computer graphics.
-Vectorized computations are data parallel by nature, and thus, GPUs provides a
-suitable architecture for this Thesis. We call it General Purpose GPU (GPGPU)
-usage, since we do not intent to process graphics.
+component for handling the multitude of vectors that constitutes computer
+graphics.  Vectorized computations are data parallel by nature, and thus, GPUs
+provides a suitable architecture for this Thesis. It is called General Purpose
+GPU (GPGPU) usage, since we do not intent to process graphics.
 
 Compared to a CPU, GPGPU has the benefits of higher instruction throughput
-(e.g. by increasing the core count) and higher bandwidth (e.g. by decreasing
+(e.g.\ by increasing the core count) and higher bandwidth (e.g. by decreasing
 memory management), but comes with the disadvantage of almost no dynamic control
-flow or memory management abstractions. For our purpose, we can thus achieve
+flow or memory management abstractions. For our purpose, we can achieve
 significant performance efficiency in exchange for more complex algorithms and
 programmability.
 
-In this section, we present GPGPU hardware architecture and parallel execution
+In this section; we present GPGPU hardware architecture and parallel execution
 in \ref{subsec:gpgpu}, the CUDA programming language in \ref{subsec:cuda}, and
 the Futhark programming language in \ref{subsec:futhark}.
 
@@ -30,35 +30,35 @@ the Futhark programming language in \ref{subsec:futhark}.
 \label{subsec:gpgpu}
 
 There are two main interfaces for interacting with a GPU: OpenCL and CUDA, the
-former being an API for a open set of standards and instructions, and the latter
+former being an API for an open set of standards and instructions, and the latter
 a proprietary API for NVIDIA GPUs consisting of specialized instructions. In
-this Thesis, we focus on NVIDIA GPU architecture, as these are I) highly
+this Thesis, we focus on NVIDIA GPU architecture, as I) these are highly
 efficient, II) there exists a state-of-the-art big integer library in CUDA
 called CGBN \cite{CGBN}, which we can use as a base of comparison, and III) the
 Futhark contributions can compile to OpenCL (and hopefully remain efficient).
 
 GPGPU is inherently parallel, and consists of up to thousands of multithreaded
 cores. The architecture, according to NVIDIA's CUDA model and language manual
-\cite{cudaguide}, is as follows: Threads are grouped in 32 called
-\textit{warps}, where each warp executes one instruction at a time in lockstep,
+\cite{cudaguide}, is as follows: Threads are grouped in 32, where groups are
+called \textit{warps}. A warp executes one instruction at a time in lockstep,
 called Single Instruction, Multiple Threads (SIMT). A program, called a
-\textit{kernel}, is executed on a \textit{grid} of \textit{blocks} (also
-called thread blocks) with a specific amount of threads per block. The number of
+\textit{kernel}, is executed on a \textit{grid} of \textit{blocks} (also called
+a thread block) with a specific amount of threads per block. The number of
 threads in a block (block size) and the number of blocks in a grid (block count)
-must be statically known prior to kernel execution, with maximum block size of
+must be statically known prior to kernel execution, with a maximum block size of
 1024 threads.
 
-SIMT allows writing parallel programs of minimal overhead w.r.t.\ synchronization
-and memory management. Each wrap, block, and grid has its own memory called
-\textit{local}, \textit{shared}, and \textit{global} memory, respectively, with
-the former being the smallest and fastest, and the latter the largest and
-slowest. This urges to keep computations closest to wrap-level. It also
-introduce the idea of coalesced memory accesses, where consecutive threads read
-consecutive memory locations, improving the amount of warp-level cache
+SIMT allows writing parallel programs of minimal overhead w.r.t.\
+synchronization and memory management. Each wrap, block, and grid has its own
+memory called \textit{local}, \textit{shared}, and \textit{global} memory,
+respectively, with the former being the smallest and fastest, and the latter the
+largest and slowest. This urges to keep computations closest to wrap-level. It
+also introduce the idea of coalesced memory accesses, where consecutive threads
+read consecutive memory locations, improving the amount of warp-level cache
 hits. E.g.\ if it is necessary for a thread to read consecutive elements from
 global memory (uncoalesced), it is generally faster to first read coalesced from
-global to shared memory, followed by the original uncoalesced read from shared to
-local memory. Figure \ref{fig:coalesced} visualizes this example.
+global to shared memory, to then be followed by the original uncoalesced read
+from shared to local memory. Figure \ref{fig:coalesced} visualizes this example.
 
 \begin{figure}
   \centering
@@ -133,11 +133,11 @@ bandwidth.
 Programming in CUDA is by means of a C++ language extension that compiles to C
 using the CUDA driver API, as described in the CUDA manual \cite{cudaguide}. The
 CPU running the compiled program is called the \textit{host} and the target GPU
-is called the \textit{device}. The extension exports some functions in the
+is called the \textit{device}. The extension exports functions in the
 \textit{alloc}-family, that allows the host to preallocate, read, and write
-memory to/from the device. Device functions (i.e. kernels) are called from the
-host and take parameters in form of pointers to memory that has been transferred
-to the device.
+memory to/from the device. Device functions (i.e.\ kernels) are called from the
+host and take parameters in the form of pointers to memory that has been
+transferred to the device.
 
 The extension exports some function execution- and variable memory- space
 specifiers. These infer to the compiler how to treat functions and memory (e.g.\
@@ -146,22 +146,22 @@ exports some device functions, most notably \texttt{\_\_syncthreads()} which
 prevents threads from continuing execution until every thread within the block
 are at that function.
 
-To accommodate the GPU architecture, the types, data structures, and control flow
-of a kernel must be statically known before run time.  In order to keep kernels
-parametric, e.g. in the type or size of integers, we can use C++ templates. They
-provide generic programming over type and value parameters that are concretized
-at compile time, as written by Stroustrup in \cite{stroustrup}. Templates
-especially prove to be a strong tool when combined with other high-level C++
-constructs, such as classes. Furthermore, since the control flow is
-predetermined, the device has no error handling. Instead, the host must
-explicitly handle errors by peeking at the device error status, making CUDA
-programming prone to bugs.
+To accommodate the GPU architecture, the types, data structures, and control
+flow of a kernel must be statically known before runtime. In order to keep
+kernels parametric, e.g. in the type or size of integers, we can use C++
+templates. They provide generic programming over type and value parameters that
+are concretized at compile time, as written by Stroustrup in
+\cite{stroustrup}. Templates especially prove to be a strong tool when combined
+with other high-level C++ constructs, such as classes. Furthermore, since the
+control flow is predetermined, the device has no error handling. Instead, the
+host must explicitly handle errors by peeking at the device error status, making
+CUDA programming prone to bugs.
 
 Lastly, threads are implicit: Kernels are launched with an \textit{execution
   configuration} of the form ``\fun{ker<<< grid, block >>>(params)}'', where
 \fun{grid} and \fun{block} specifies the grid and block dimensions,
-respectively, and are of type \fun{dim3} specifying dimensions in 3D. The kernel
-function then has access to a special set of built-in variables, notably
+respectively, and are of type \fun{dim3}, specifying dimensions in 3D. The
+kernel function then has access to a special set of built-in variables, notably
 \fun{threadIdx} and \fun{blockIdx}, containing the index of the current thread
 and block, respectively. Thus, when a kernel is executed, the code of the kernel
 runs on each of the specified threads, and we must use these special variables
@@ -195,8 +195,8 @@ domain, work is distributed amongst threads, and so it may not be an accurate
 representation of runtimes. The span (also called depth) is the amount of
 computations by each thread given infinitely many threads.
 
-We now present the most fundamental SOACs, which we use analyse parallelism
-throughout this Thesis. For simplicity, we assume their function inputs are
+We now present the most fundamental SOACs, which we use throughout this Thesis
+to analyse parallelism. For simplicity, we assume their function inputs are
 $O(1)$ in this section.
 
 First we have the combinator \fun{map} with work $O(n)$, span $O(1)$, and type
@@ -237,22 +237,23 @@ values over the destination array according to the indeces. The indeces and
 values must have same shape. Indeces that are out-of-bound results in ignoring
 the value rather than throwing an error.
 
-More combinators exists, but the four presented are the most crucial to this
+Other combinators exists, but the four presented are the most crucial to this
 Thesis (and arguably to Futhark). More information on array combinators and
-functions can be found in the Futhark standard library \cite{futprelude}. One of
-the strengths of the Futhark compiler is its ability to \textit{fuse} chains of
-SOACs. This allow us to write nice and clean code, straightforwardly model
-parallel algorithms, and let the compiler generate more complex and optimized
-GPGPU code using less intermediate values.
+functions can be found in the Futhark standard library \cite{futprelude}.
+
+One of the strengths of the Futhark compiler is its ability to \textit{fuse}
+chains of SOACs. This allow us to write nice and clean code, straightforwardly
+model parallel algorithms, and let the compiler generate more complex and
+optimized GPGPU code that use less intermediate values.
 
 While Futhark is more expressive than CUDA, it contains compromises that allows
-Futhark to compile to GPGPU code, making it restricted compared to other
+Futhark to compile to GPGPU code, making it restricted in comparison to other
 high-level functional languages such as Haskell. E.g.\ Futhark allows nested
 arrays as data structure, but all data must be flat on a GPGPU. Hence, the
 nested arrays must be regular in order for the compiler to know how to flatten
 them for execution. Another restriction is that the shape of arrays must be
-statically inferred to the compiler. This is primarily inferred in the
-type signature of Futhark functions.
+statically inferred to the compiler. This is primarily inferred in the type
+signature of Futhark functions.
 
 Overall, Futhark balances easy-of-use, power of abstractions, and parallel
 efficiency.

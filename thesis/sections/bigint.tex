@@ -15,20 +15,16 @@ u = \sum_{i=0}^{m-1}u_i\cdot B^{i}
 \end{equation}
 \end{definition}
 
-By choosing a machine word size as the base $B$ (also called the radix), the
-positional system maps directly to an array data structure. I.e.\ for a generic
-word-size \uint{} as base, the big integer $u$ is an array of size $m$ in little
-endian s.t.\ $u\bigint{0} = u_0$, $u\bigint{1} = u_1$ and so on. Furthermore,
-$u$ can then be seen as binary representation using $2^{m\log \uint{}}$ bits;
-suppose \uint{} is 64-bits and the size $m$ is 4, then $u$ is a 256-bit integer
+By choosing the size of a machine word as the base $B$ (also called the radix),
+the positional system maps directly to an array data structure of unsigned
+words. I.e.\ for an unsigned word type \uint{} of \texttt{b} bits, we get that a
+big integer $u$ of $m$ digits (also called limbs) in base $2^{\mathtt{b}}$ is
+represented by an array of type \uint{} and size $m$ in little endian s.t.\
+$u\bigint{0} = u_0$, $u\bigint{1} = u_1$, etc. Furthermore, in this
+representation, $u$ can be viewed as binary with ${\mathtt{b}\cdot m}$ bits; suppose
+a word is 64-bits and the size of the array is 4 -- then $u$ is a 256-bit integer
 where, say, the 67th bit of $u$ is the third least significant bit of the second
 digit $u\bigint{1}$.
-
-% The chosen big integer representation (equation (\ref{eq:rep})) translates
-% naturally on a computer to an array of integer words. Say we specify a big
-% integer to be an array of 64-bit integers (i.e. $B = 2^{64}$) and precision of
-% four digits (i.e. array length $m = 4$), then the big integer is equivalent to a
-% 256-bit integer.
 
 We have to make an important choice between arbitrary precision and exact
 precision integer representation. Arbitrary precision, like the name suggests,
@@ -55,14 +51,15 @@ Thus, the chosen representation for big integers is exact precision arrays. In
 turn, our arithmetics preservers the dimensions between input and output, and
 require that the input dimension matches. This setup allows us to fully utilize
 GPGPU capabilities.
+\newline
 
 So far, we have only considered unsigned integers. There exists multiple
 representations of signed integers on a binary machine, the most common being
 \textit{two's complement}. This representation does not work well with multiple
 precision, as extracting a negative number requires a bitwise negation. Instead,
 we can use \textit{sign-magnitude} representation, where a signed integer is
-represented by an absolute value and an indicator bit for the sign. The downside
-of this representation is that $0$ and $-0$ are two different numbers. This
+represented by an absolute value along with an indicator bit. The downside of
+this representation is that $0$ and $-0$ are two different numbers. This
 representation is also used in other high-efficiency libraries, such as GMP
 \cite{GMP}.
 
