@@ -6,13 +6,15 @@ FORM  = #| awk -f form-tool.awk -
 
 # TESTS
 
-.PHONY: test test-u64 test-u32
+.PHONY: test test-u64 test-u32 test-u16
 
 test: test-u64
 
 test-u64: test-gmp-validation-compile-u64 test-gmp-validation-run test-fut-validation-properties-u64
 
 test-u32: test-gmp-validation-compile-u32 test-gmp-validation-run test-fut-validation-properties-u32
+
+test-u16: test-gmp-validation-compile-u16 test-gmp-validation-run test-fut-validation-properties-u16
 
 test-gmp-validation-compile-u64:
 	@echo "## COMPILING CPU GMP-VALIDATION TESTS"
@@ -29,6 +31,14 @@ test-gmp-validation-compile-u32:
 	@echo "## COMPILING GPU GMP-VALIDATION TESTS"
 	futhark opencl --library $(TDIR)gmp-validation-lib.fut
 	gcc -DBASE=32 $(TDIR)gmp-validation.c -o $(TDIR)gmp-validation-gpu $(TDIR)gmp-validation-lib.c -lgmp -lOpenCL -lm
+
+test-gmp-validation-compile-u16:
+	@echo "## COMPILING CPU GMP-VALIDATION TESTS"
+	futhark c --library $(TDIR)gmp-validation-lib.fut
+	gcc -DBASE=16 $(TDIR)gmp-validation.c -o $(TDIR)gmp-validation-cpu $(TDIR)gmp-validation-lib.c -lgmp
+	@echo "## COMPILING GPU GMP-VALIDATION TESTS"
+	futhark opencl --library $(TDIR)gmp-validation-lib.fut
+	gcc -DBASE=16 $(TDIR)gmp-validation.c -o $(TDIR)gmp-validation-gpu $(TDIR)gmp-validation-lib.c -lgmp -lOpenCL -lm
 
 test-gmp-validation-run:
 	@echo "## RUNNING CPU GMP-VALIDATION TESTS"
@@ -47,6 +57,12 @@ test-fut-validation-properties-u32:
 	futhark test --backend=c $(TDIR)fut-validation-u32.fut $(TDIR)fut-properties-u32.fut
 	@echo "## RUNNING GPU FUT-VALIDATION AND FUT-PROPERTIES TESTS"
 	futhark test --backend=opencl $(TDIR)fut-validation-u32.fut $(TDIR)fut-properties-u32.fut
+
+test-fut-validation-properties-u16:
+	@echo "## RUNNING CPU FUT-VALIDATION AND FUT-PROPERTIES TESTS"
+	futhark test --backend=c $(TDIR)fut-validation-u16.fut $(TDIR)fut-properties-u16.fut
+	@echo "## RUNNING GPU FUT-VALIDATION AND FUT-PROPERTIES TESTS"
+	futhark test --backend=opencl $(TDIR)fut-validation-u16.fut $(TDIR)fut-properties-u16.fut
 
 # BENCHMARKS
 

@@ -70,9 +70,12 @@ def muld [m] (u: [m]ui) (d: ui) : [m]ui =
   in add ls hs
 
 -- Multiplication of `u` and `v`.
-def mul [m] (u: [m]ui) (v: [m]ui) : [m]ui = #[unsafe]
-  -- this is fine because we initially pad by a factor of 4
-  convMultV2 (u :> [4*(m/4)]ui) (v :> [4*(m/4)]ui) :> [m]ui
+def mul [m] (u: [m]ui) (v: [m]ui) : [m]ui =
+  let p = (4 - (m % 4)) % 4 -- add padding to ensure alignment
+  let pz = replicate p 0
+  let up = u ++ pz :> [4*((m+p)/4)]ui
+  let vp = v ++ pz :> [4*((m+p)/4)]ui
+  in (convMultV2 up vp :> [m+p]ui) |> take m
 
 
 --------------------------------------------------------------------------------

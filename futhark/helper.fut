@@ -6,6 +6,7 @@
 
 type ui = u64
 type ct = u32
+type qi = u64 -- DUMMY QUAD INT
 
 def HIGHEST  : ui               = u64.highest
 def bits     : i64              = 64
@@ -13,11 +14,15 @@ def fromBool : (bool -> ui)     = u64.bool
 def boolToCt : (bool -> ct)     = u32.bool
 def fromCt   : (ct -> ui)       = u64.u32
 def mulHigh  : (ui -> ui -> ui) = u64.mul_hi
+def toQi     : (ui -> qi)       = u64.u64 -- DUMMY QUAD INT
+def fromQi   : (qi -> ui)       = u64.u64 -- DUMMY QUAD INT
+def i64ToQi  : (i64 -> qi)      = u64.i64 -- DUMMY QUAD INT
 
 -- OUTCOMMENT FOR BASE `u32`
 
 -- type ui = u32
 -- type ct = u32
+-- type qi = u64 -- DUMMY QUAD INT
 
 -- def HIGHEST  : ui               = u32.highest
 -- def bits     : i64              = 32
@@ -25,6 +30,9 @@ def mulHigh  : (ui -> ui -> ui) = u64.mul_hi
 -- def boolToCt : (bool -> ct)     = u32.bool
 -- def fromCt   : (ct -> ui)       = u32.u32
 -- def mulHigh  : (ui -> ui -> ui) = u32.mul_hi
+-- def toQi     : (ui -> qi)       = u64.u32 -- DUMMY QUAD INT
+-- def fromQi   : (qi -> ui)       = u32.u64 -- DUMMY QUAD INT
+-- def i64ToQi  : (i64 -> qi)      = u64.i64 -- DUMMY QUAD INT
 
 -- OUTCOMMENT FOR BASE `u16`
 
@@ -73,8 +81,8 @@ def singleton (m: i64) (d: ui) : [m]ui =
 -- comparisons
 
 def lt [m] (u: [m]ui) (v: [m]ui) : bool =
-  map2 (\ x y -> (x < y, x == y)) u v
-  |> reduce (\ (accl, _) (l, e) -> (l || (e && accl), true) ) (false, true)
+  map2 (\ x y -> (x < y, x == y) ) u v
+  |> reduce (\ (l1, e1) (l2, e2) -> (l2 || (e2 && l1), e1 && e2) ) (false, true)
   |> fst
 
 def eq [m] (u: [m]ui) (v: [m]ui) : bool =

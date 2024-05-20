@@ -13,11 +13,11 @@ import "add"
 
 def bsub [m] (us: [m]ui) (vs: [m]ui) : ([m]ui, bool) =
   -- 1. compute sign
-  let (us, vs, sign) = if lt us vs then (vs, us, true) else (us, vs, false)
+  let (gs, ls, sign) = if lt us vs then (vs, us, true) else (us, vs, false)
 
   -- 2. compute absolute sums and carries
-  let (ws, cs) = unzip <| imap2 us vs
-    (\ u v -> let w = u-v in (w, (boolToCt (w > u)) | ((boolToCt (w==0)) << 1)))
+  let (ws, cs) = unzip <| imap2 gs ls
+    (\ g l -> let w = g-l in (w, (boolToCt (w > g)) | ((boolToCt (w==0)) << 1)))
 
   -- 3. propagate carries
   let pcs = scanExc carryProp carryPropE cs
