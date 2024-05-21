@@ -10,11 +10,11 @@ stepping stone for the algorithm and implementation of our addition
 \cite{DPPproject}. In essence, big integer addition can be reduced to a
 \texttt{map}-\texttt{scan} composition, making it run efficiently on a GPGPU.
 
-This section is structured as follows: In section \ref{subsec:addalg} we present
-an algorithm to compute big integer addition in parallel. In sections
-\ref{subsec:addcud} and \ref{subsec:addfut} we discuss how to efficiently
-implement the algorithm in CUDA and Futhark, respectively. Lastly, in section
-\ref{subsec:sub} we show how to define subtraction from the addition algorithm.
+This section is structured as follows: In \ref{subsec:addalg} we present an
+algorithm to compute big integer addition in parallel. In \ref{subsec:addcud}
+and \ref{subsec:addfut} we discuss how to efficiently implement the algorithm in
+CUDA and Futhark, respectively. Lastly, in \ref{subsec:sub} we show how to
+define subtraction from the addition algorithm.
 
 \subsection{Algorithm}
 \label{subsec:addalg}

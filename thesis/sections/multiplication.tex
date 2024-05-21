@@ -11,16 +11,17 @@ multiplication has more work, it is expected to run faster for small integers
 due to the complexities of the work-efficient algorithms, and is what GMP use
 for such integers. % TODO cite FFT and Karatsuba
 
-In section \ref{subsec:mulalg} we present a classical quadratic multiplication
-algorithm that convolutes the digits of the operands, and we discuss how to
-parallelize it. In sections \ref{subsec:mulcud} and \ref{subsec:mulfut} we
-present our CUDA and Futhark implementations, respectively, and any further
-optimizations related to the implementations. Penultimately, in section
-\ref{subsec:mulsin} we cover the special case of multiplication by a single
-precision factor, and present an algorithm that shares the behaviour and
-efficiency of an addition operation. Lastly, in section \ref{subsec:mulother} we
-give an overview of assymptoticly better algorithms with focus on Karatsuba and
-FFT -- where especially FFT is promising in a GPGPU setting.
+This section is structured as follows: In \ref{subsec:mulalg} we present a
+classical quadratic multiplication algorithm that convolutes the digits of the
+operands, and we discuss how to parallelize it. In \ref{subsec:mulcud} and
+\ref{subsec:mulfut} we present our CUDA and Futhark implementations,
+respectively, and any further optimizations related to the
+implementations. Penultimately, in \ref{subsec:mulsin} we cover the special case
+of multiplication by a single precision factor, and present an algorithm that
+shares the behaviour and efficiency of an addition operation. Lastly, in
+\ref{subsec:mulother} we give an overview of assymptoticly better algorithms
+with focus on Karatsuba and FFT -- where especially FFT is promising in a GPGPU
+setting.
 
 \subsection{Algorithm}
 \label{subsec:mulalg}
@@ -192,7 +193,7 @@ $O(m)$:
 \end{center}
 \end{definition}~
 
-\begin{figure}
+\begin{figure}[H]
 \begin{lstlisting}[language=pseudo,escapeinside={(*}{*)},frame=single]
 fun conv t = -- Parameter `t` represents current index of the m/2 threads
     k1 = t
@@ -703,11 +704,13 @@ branching into the multiplication, which is especially inefficient for batch
 processing with multiple instances per block (as diverging branches within a
 block results gives unbalanced work amongst threads).
 
-Moreover, it is essentially a parallel addition, so we will not benchmark or
+Moreover, it is essentially a parallel addition, so we do not benchmark or
 discuss it further.
 
 \subsection{Other Algorithms}
 \label{subsec:mulother}
+
+{\red [Write about FFT and mention Karatsuba.]}
 
 %%% Local Variables:
 %%% mode: LaTeX
