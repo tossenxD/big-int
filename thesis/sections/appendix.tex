@@ -58,7 +58,41 @@ Thus, equations (\ref{eq:otimesproofltr}) and (\ref{eq:otimesproofrtl}) are equa
 \label{app:B}
 
 
-\lstinputlisting[language=CPP,firstline=104,lastline=139,caption={\footnotesize CUDA convolution memory transactions to prepare addition, file \texttt{ker-mul.cu.h}.},label={cudamulmem},firstnumber=104]{../cuda/ker-mul.cu.h}
+\begin{lstlisting}[language=CPP,caption={\footnotesize CUDA convolution memory
+transactions of \textit{convmul} with sequentialization factor of 4 to prepare
+calling \textit{badd} on the four pairs of parts in registers, from file
+\texttt{ker-mul.cu.h} (slightly edited), with base class \texttt{Base}, big integer size \texttt{m}, and \texttt{ipb} instances per block.},label={cudamulmem},firstnumber=106]{../cuda/ker-mul.cu.h}
+cp4Regs2Shm(typename Base::uint_t* lhc0, typename Base::uint_t* lhc1,
+            typename Base::uint_t* shmem){
+    uint32_t off = threadIdx.x;
+    uint32_t str = ipb * m/2;
+    shmem[off] = lhc0[0];
+    shmem[off+str] = lhc0[1];
+    shmem[off+2*str] = lhc0[2];
+    shmem[off+3*str] = lhc0[3];
+
+    shmem[str-1-off] = lhc1[0];
+    shmem[2*str-1-off] = lhc1[1];
+    shmem[3*str-1-off] = lhc1[2];
+    shmem[4*str-1-off] = lhc1[3];
+}
+
+cpShm24Regs(typename Base::uint_t* shmem, typename Base::uint_t* lhc0,
+            typename Base::uint_t* lhc1){
+    uint32_t off = threadIdx.x*2;
+    uint32_t off_inst = 2*off % m;
+    uint32_t str = ipb * m/2;
+    lhc0[0] = shmem[off];
+    lhc0[1] = shmem[off+str];
+    lhc0[2] = shmem[off+2*str];
+    lhc0[3] = shmem[off+3*str];
+
+    lhc1[2] = shmem[off+1];
+    lhc1[3] = shmem[off+str+1];
+    lhc1[0] = (off_inst) ? shmem[off+2*str-1] : 0;
+    lhc1[1] = (off_inst) ? shmem[off+3*str-1] : 0;
+}
+\end{lstlisting}
 
 
 %%% Local Variables:

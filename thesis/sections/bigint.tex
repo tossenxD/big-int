@@ -68,7 +68,42 @@ efficient. In cases where signs are required, we extent by
 sign-magnitude. Furthermore, we only consider unsigned arithmetics (with
 wrap-around on overflow), as signed arithmetics are trivial to define using
 their unsigned counterpart.
+\newline
 
+Lastly, by fixing the representation of big integers to a data structure of
+arrays of unsigned machine words, we lay a foundation that allows us to
+efficiently compute arithmetics on GPGPU (and a CPU for that matter). However,
+also fixing the type of machine word (i.e.\ the base) does not increase
+performance or efficieny -- instead, the arithmetics becomes more strict,
+hardware dependent, and nonextensible.
+
+
+As a mechanism to keep the arithmetics generic over the base type in
+implementation, we utilize templates, classes, and type declariations to create
+an abstract big integer interface.\footnote{Futhark has an extensive module
+  system that supports generic programming in the same manner as C++
+  templates. However, it requires a lot of effort to wrap the whole
+  implementation inside a module with generic base type. As a simple means to
+  generallity we use type declarations -- allowing us to focus on the performance
+  aspects rather than the intricacies of functional programming.} The interface
+is as follows:
+\begin{center}
+  \begin{tabular}{cccc}
+    Name & Description & Type & Example\\
+    \hline
+    \texttt{uint\_t} & The base & unsigned integer & \texttt{uint32\_t}\\
+    \texttt{ubig\_t} & Double the base & unsigned integer & \texttt{uint64\_t}\\
+    \texttt{qint\_t} & Quadruple the base & unsigned integer & \texttt{unsigned \_\_int128}\\
+    \texttt{carry\_t} & Type of carries & unsigned integer & \texttt{uint32\_t}\\
+    \texttt{bits} & Number of bits in base & integer & $32$\\
+    \texttt{HIGHEST} & Max number in base & unsigned integer & $4294967295$\\
+  \end{tabular}
+  \end{center}
+  Note that \texttt{ubig\_t} and \texttt{qint\_t} may not exist. Hence,
+  implementations (read; optimizations) that depend on them are only correct for
+  some base types. Overall, we assume the base is either 32- or 64-bit words, as
+  these are the two most common word sizes, and, unless stated otherwise, the
+  implementations accepts and works for both bases.
 
 %%% Local Variables:
 %%% mode: LaTeX

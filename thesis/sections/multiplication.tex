@@ -190,9 +190,9 @@ $O(m)$:
     \end{tabular}
   \end{tabular}
 \end{center}
-\end{definition}
+\end{definition}~
 
-\begin{figure}[H]
+\begin{figure}
 \begin{lstlisting}[language=pseudo,escapeinside={(*}{*)},frame=single]
 fun conv t = -- Parameter `t` represents current index of the m/2 threads
     k1 = t
@@ -311,49 +311,63 @@ $\xrightarrow{\text{combines to}}$
 \subsection{CUDA Implementation}
 \label{subsec:mulcud}
 
-In this section, we introduce five CUDA versions, of which two turns out to be
-competitive (see Section \ref{sec:per}). The first version (\texttt{V1})
-implement the \textit{convmul} algorithm straightforward. The second version
-(\texttt{V2}) introduces data type optimization w.r.t. doubling wordsize for
-products, and the third version (\texttt{V3}) handles multiple instances per
-block to \texttt{V2}. Version four (\texttt{V4}) implements a sequentialization
-factor of four according to the optimization described in Section
-\ref{subsec:mulalg}, and the fifth (\texttt{V5}) add multiple instances
-per block to \texttt{V4}.
+In this section, we introduce five CUDA versions. The first version
+(\texttt{V1}) implement the \textit{convmul} algorithm straightforward, with a
+sequentialization factor of 2. The second version (\texttt{V2}) introduces a
+data type optimization w.r.t.\ doubling the word-size for keeping track of
+convolutions inside loops. This optimization effectively minimizes the amount of
+work of loops, by delaying the computations of overflows until after the loop
+has run.
 
-We decide the CUDA kernel dimensions and parameters with the following code in
-Listing \ref{mulparams}. Akin to Listing \ref{addparams} regarding addition, but
-with the blocksize rounded up to $128$ rather than $256$, which we
-experimentally found to be faster.
+The third version (\texttt{V3}) introduces multiple instances per block to the
+approach of \texttt{V2}. The fourth version (\texttt{V4}) implements a
+sequentialization factor of 4 according to the optimization that combines
+consecutive convolutions, and the fifth version (\texttt{V5}) expands
+\texttt{V4} with multiple instances per block.
 
-\begin{lstlisting}[language=CPP,caption={\footnotesize CUDA multiplication parameters and kernel dimensions.},label={mulparams}]
+We decide the CUDA kernel dimensions and parameters with the code in Listing
+\ref{mulparams}. Akin to Listing \ref{addparams} regarding addition, but with
+the blocksize rounded up to $128$ rather than $256$ (which we experimentally
+found to be faster). The sequentialization factor does not grow beyond 4, but,
+as mentioned at the end of section \ref{subsec:mulalg}, one could implement a
+version that use some multiple of 4 as sequentialization factor. Hence the CUDA
+implementations are limitied to integers of size $m\leq4096$.
+
+\begin{lstlisting}[language=CPP,caption={\footnotesize CUDA multiplication parameters and dimensions for version $v$ with size $m$ and $num\_instances$.},label={mulparams}]
 const uint32_t q = (v >= 1 && v <= 3) ? 2 : 4;
 const uint32_t ipb = (v == 3 || v == 5) ? (128 + (m/q) - 1) / (m/q) : 1;
 dim3 block(ipb*(m/q), 1, 1);
 dim3 grid (num_instances/ipb, 1, 1);
 \end{lstlisting}
 
-The section is divided in three paragraphs, describing the implementations of
-convolutions, memory layouts, and multiple instances per block,
-respectively. Combined, they describe how we implement the kernels of CUDA
-source file \texttt{ker-mul.cu.h}.
+This section is structured into three paragraphs that describes the
+implementation of convolutions, memory layouts, and multiple instances per
+block, respectively. Combined, they establish how the five CUDA kernels are
+implemented.
 
 \paragraph{Convolutions.}
-The implementations use the type \texttt{ubig\_t} of the generic base class,
-which is double the base radix (twice the bits of type \texttt{uint\_t}). The
-type is used to compute the inner products of the convolution, but it also
-allows the optimization of \texttt{V2}. The idea is to postpone the combining of
-the low and high parts of the multiplication till after the sequential
-loops. Then, the carries can propagate once instead of $i$ times for convolution
-$k_i$. The first two convolutions of Listing \ref{cudaconvs} shows the
-difference of storing intermediate convolution parts in type \texttt{uint\_t}
-(\texttt{V1}) and \texttt{ubig\_t} (\texttt{V2}). The third convolution of
-Listing \ref{cudaconvs} shows how to compute and combine two consecutive
-convolutions \texttt{(V4)}. It also reveals another upside of this optimization;
-we can reuse a digit of $u$, reducing memory usage.
+The implementations use the type \texttt{ubig\_t} of the generic base class -- a
+type that use twice as many bits as the base \texttt{uint\_t}. We use the type
+to compute the inner products of the convolutions, but it also allows the
+optimization of \texttt{V2}: The idea is to postpone the combining of the low
+and high parts of products until after the sequential loop. Then, the carries
+can be propagated once instead of $i$ times for convolution $k_i$. The first two
+convolutions of Listing \ref{cudaconvs} shows the difference of storing
+intermediate values of the convolution in type \texttt{uint\_t} (by a low, high,
+and carry part) and in type \texttt{ubig\_t} (by a low and high part only).
+
+The third convolution of Listing \ref{cudaconvs} shows how to compute and
+combine two consecutive convolutions, used in the optimized version with
+sequentialization factor of 4. The CUDA listing also reveals another upside of
+this optimization; by combining the two consecutive convolutions into one
+loop-construct, we can reuse a digit of the multiplier $u$, and thus, reduce
+memory usage further.
+
+The three presented convolutions are used to define \texttt{V1}, \texttt{V2},
+and \texttt{V4}, respectively.
 
 \begin{lstlisting}[language=CPP,escapeinside={(*}{*)},caption={\footnotesize The three convolutions used in the CUDA multiplication kernels of file \texttt{ker-mul.cu.h}.},label={cudaconvs}]
-(*{\color{Crimson}$\bullet$ \texttt{Convolution over index k as described in Figure {\hypersetup{allcolors=Crimson}\ref{fig:mulparalg}}}*)
+(*{\color{Crimson}$\bullet$ \texttt{Convolution over index k as described in Definition {\hypersetup{allcolors=Crimson}\ref{def:convmul}}}*)
     for (int i=0; i<=k; i++) {
         // compute high and low part of product
         int j = k - i;
@@ -413,11 +427,12 @@ we can reuse a digit of $u$, reducing memory usage.
 \end{lstlisting}
 
 \paragraph{Memory layout.}
-Constructing the memory layout of the original algorithm (Figure
-\ref{fig:mulparalg}) is straightforward; the shared memory is partitioned in three
-equal parts, and each thread write their two convolution parts to each of the
-three memory parts. The writes are coalesced by design. E.g. for eight elements
-and four threads, we write:
+Constructing the memory layout of \textit{convmul} with sequentialization factor
+of $q=2$ (Definition \ref{def:convmul}) is straightforward; the shared memory is
+partitioned in three, and each thread write their two convolution parts to each
+of the three memory partitions. The writes are coalesced by design. E.g. for
+eight digits and four threads, where color and superscript denotes thread and
+subscript denotes convolution, the writing becomes:
 \begin{center}
   \small
   \begin{tabular}{c}
@@ -432,37 +447,64 @@ and four threads, we write:
     \end{tabular}
   \end{tabular}
 \end{center}
-Now, reading and adding the three sub-arrays is trivial.
+Now, reading and adding the three sub-arrays in memory is trivial using
+\textit{badd} with $q=2$.
 
-On the other hand, when we optimize the additions for \texttt{V4}, we get a
-complicated memory layout (if we are to write/read coalesced). The write is
-fairly straightforward, but the read requires more care. E.g. for eight elements and two threads, suppose thread $t^i$ reads four elements to registers $t^i_0$ and four to
-$t^i_1$. Then, in order to add the parts correctly, the threads writes and reads in this
-pattern:
+On the contrary, we get a complicated memory layout (in order to read and write
+coalesced) when optimizing \textit{convmul} for $q=4$. Since we compute four
+parts per convolution, we partition the shared memory in four and write the
+convolution results to the partitions, coalesced. Reading from the first two
+partitions is straightforward, but reading from the last two partitions is
+offset by $-1$ s.t.\ if the index is out-of-bound of the partition (i.e.\ the
+first thread is reading), the constant $0$ is read instead.
+
+E.g.\ for eight digits and two threads, we get a shared memory buffer of size
+$16$ and partition it to the four buffers $\mathit{ls}$, $\mathit{hls}$,
+$\mathit{chs}$, and $\mathit{ccs}$. Now, in order to add the convolution parts
+and access memory coalesced, the reading and writing of shared memory follows
+this pattern, where color and superscript denotes thread and subscript denotes
+convolution (register):
 \begin{center}
   \small
   \begin{tabular}{c}
-    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}}
-      \color{Crimson}$t^0_{00}$ & \color{Crimson}$t^0_{12}$ & \color{RoyalBlue}$t^1_{00}$ & \color{RoyalBlue}$t^1_{12}$ & \color{Crimson}$t^0_{01}$ & \color{Crimson}$t^0_{13}$ & \color{RoyalBlue}$t^1_{01}$ & \color{RoyalBlue}$t^1_{13}$ & \color{Crimson}$t^0_{02}$ & \color{RoyalBlue}$t^1_{10}$ & \color{RoyalBlue}$t^1_{02}$ & & \color{Crimson}$t^0_{03}$ & \color{RoyalBlue}$t^1_{11}$ & \color{RoyalBlue}$t^1_{03}$ &
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      \color{Crimson}$\,t^0_{00}$ & \blue $\,t^1_{00}$ & \color{RoyalBlue}$\,t^1_{10}$ & \red $\,t^0_{10}$ & \color{Crimson}$\,t^0_{01}$ & \blue $\,t^1_{01}$ & \color{RoyalBlue}$\,t^1_{11}$ & \red$\,t^0_{11}$ & \color{Crimson}$\,t^0_{02}$ & \color{RoyalBlue}$\,t^1_{02}$ & \color{RoyalBlue}$\,t^1_{12}$ & \red $\,t^0_{12}$ & \color{Crimson}$\,t^0_{03}$ & \color{RoyalBlue}$\,t^1_{03}$ & \color{RoyalBlue}$\,t^1_{13}$ & \red $\,t^0_{13}$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ &$\,~\shortdownarrow_w$
     \end{tabular}\\
     \begin{tabular}{|C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}?C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}?C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}?C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}|}
       \hline
-      \color{Crimson}$l^0_{0}$ & \color{RoyalBlue}$l^1_{0}$ & \color{RoyalBlue}$l^1_{1}$ & \color{Crimson}$l^0_{1}$ & \color{Crimson}$\mathit{lh}^0_{0}$ & \color{RoyalBlue}$\mathit{lh}^1_{0}$ & \color{RoyalBlue}$\mathit{lh}^1_{1}$ & \color{Crimson}$\mathit{lh}^0_{1}$ & \color{Crimson}$\mathit{hc}^0_{0}$ & \color{RoyalBlue}$\mathit{hc}^1_{0}$ & \color{RoyalBlue}$\mathit{hc}^1_{1}$ & \color{Crimson}$\mathit{hc}^0_{1}$ & \color{Crimson}$\mathit{cc}^0_{0}$ & \color{RoyalBlue}$\mathit{cc}^1_{0}$ & \color{RoyalBlue}$\mathit{cc}^1_{1}$ & \color{Crimson}$\mathit{cc}^0_{1}$ \\
+      $l_{0}$ & $l_{2}$ & $l_{3}$ & $l_{4}$ & $\mathit{lh}_{0}$ & $\mathit{lh}_{1}$ & $\mathit{lh}_{2}$ & $\mathit{lh}_{3}$ & $\mathit{hc}_{0}$ & $\mathit{hc}_{1}$ & $\mathit{hc}_{2}$ & $\mathit{hc}_{3}$ & $\mathit{cc}_{0}$ & $\mathit{cc}_{1}$ & $\mathit{cc}_{2}$ & $\mathit{cc}_{3}$ \\
       \hline
+    \end{tabular}\\
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      $\,~\shortuparrow_r$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$  & $\,~\shortuparrow_{r}$ & \scriptsize $0_{r}$ & $\diagonalarrowleftup_{r}$ & $\diagonalarrowleftup_{r}$  & $\diagonalarrowleftup_{r}$  & \scriptsize $0_{r}$ & $\diagonalarrowleftup_{r}$  & $\diagonalarrowleftup_{r}$ & $\diagonalarrowleftup_{r}$
+    \end{tabular}\\
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      \color{Crimson}$t^0_{00}$ & \color{Crimson}$t^0_{12}$ & \color{RoyalBlue}$t^1_{00}$ & \color{RoyalBlue}$t^1_{12}$ & \color{Crimson}$t^0_{01}$ & \color{Crimson}$t^0_{13}$ & \color{RoyalBlue}$t^1_{01}$ & \color{RoyalBlue}$t^1_{13}$ & \color{Crimson}$t^0_{10}$ & \color{Crimson}$t^0_{02}$ & \color{RoyalBlue}$t^1_{10}$ & \color{RoyalBlue}$t^1_{02}$ & \color{Crimson}$t^0_{11}$ & \color{Crimson}$t^0_{03}$ & \color{RoyalBlue}$t^1_{11}$ & \color{RoyalBlue}$t^1_{03}$
     \end{tabular}\\[-0.5ex]
     \begin{tabular}{C{3.2cm}C{3.2cm}C{3.2cm}C{3.2cm}}
       \upbracefill & \upbracefill & \upbracefill & \upbracefill\\[-0.3ex]
       $\mathit{ls}$ & $\mathit{hls}$ & $\mathit{chs}$ & $\mathit{ccs}$
     \end{tabular}
   \end{tabular}
-\end{center}~
+\end{center}
+Afterwards, the registers in threads contains four pairs of elements to be
+added, and thus, can straightforward run \textit{badd} with sequentialization
+factor of 4 and pre-fetched values to registers -- corresponding to the addition
+of this optimization at the end of section \ref{subsec:mulalg}. Listing
+\ref{cudamulmem} in Appendix \hyperref[app:B]{B} contains the CUDA code for
+reading and writing in this pattern.
 
-Appendix Listing \ref{cudamulmem} contains CUDA code for reading and
-writing in this pattern.
+The two memory layouts are used to define define \texttt{V1} \& \texttt{V2} and
+\texttt{V4}, respectively.
 
 \paragraph{Multiple instances per block.}
-When handling multiple arithmetic instances in a cuda block, e.g. for 4
-instances of size 4, we have the following convolution pattern:
+When handling multiple arithmetic instances in a CUDA block at the same time,
+the symetrical pattern remains w.r.t.\ the work of convolutions. E.g.\ 4
+instances of size 4 have the following convolution pattern, where color denotes
+instance:
 \begin{center}
   \begin{tabular}{r}
     \begin{tabular}{|C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}
@@ -544,16 +586,19 @@ instances of size 4, we have the following convolution pattern:
     \end{tabular}
     \end{tabular}
 \end{center}
-We see that the balancing pattern still applies, i.e., indexing from both
-ends is workbalanced.
+Hence, the work-balancing pattern still applies (i.e.\ indexing from both ends
+in a thread).
 
-Thus, we also use this pattern for \texttt{V3} and \texttt{V5}. In turn, the
-memory layout also applies. However, we have to be careful when reading from the
-memory buffer, as "shifting" the layout is not sufficient get the correct
-tiling. Instead, we compute the thread-index w.r.t. segments and, if we are at
-the first thread of a segment, we fetch "0" rather than indexing to the previous
-segment. The aforementioned Listing \ref{cudamulmem} of the appendix includes
-this check.
+Thus, we use the same convolution pattern to define \texttt{V3} and \texttt{V5}
+as we use to define \texttt{V2} and \texttt{V4}, respectively. In turn, the
+memory layouts from \texttt{V2} and \texttt{V4} applies to \texttt{V3} and
+\texttt{V5} as well. However, we have to be careful when reading from the memory
+buffer of the second additive array, as shifting the layout is no longer
+sufficient to get the correct tiling. Instead, we compute the thread-index
+w.r.t.\ segments s.t.\ the first thread of a segment fetch $0$ rather than
+indexing into to the previous segment. The aforementioned CUDA code for the
+memory layout of \texttt{V4} (Appendix \hyperref[app:B]{B} Listing
+\ref{cudamulmem}) includes this segment-beginning check.
 
 \subsection{Futhark Implementation}
 \label{subsec:mulfut}
@@ -573,22 +618,27 @@ factor of 4, and the third (\texttt{V3}) allows segmented multiplication.
 \label{subsec:mulsin}
 
 Integer multiplication has some special cases; we have multiplication by 0, by 1
-and by the radix. Respectively, this is equivalent to 0, identity and a shift
-(e.g. $4 \cdot 10^1$ in decimal system is equivalent to $4 \ll 1$ and
-$4\cdot 10^2$ to $4\ll 2$ and so forth). Multiplying of big integers has another
-special case; multiplication by a single precision factor.
+and by the radix. Respectively, this is equivalent to 0, identity and
+right-shift (e.g.\ $4 \cdot 10^1$ in decimal is equivalent to $4 \ll 1$, and
+$4\cdot 10^2$ to $4\ll 2$, etc.). Multiplication with big integers has another special
+case; multiplication by a single precision factor.
 
-This case can be computed in parallel as an addition with two extra step: I)
-Multiply each digit with by the factor giving two arrays with the low and high
-parts, respectively. II) Shift the high part array by 1. III) Add the two arrays
-using the addition algorithm. Figure \ref{fig:muld} contains the pseudo-code and
-illustration of this algorithm.
+This case can be computed in parallel in three steps, using parallel addition:
+\begin{enumerate}[label=\Roman*]
+\item Multiply each digit of the big integer by the single precision factor,
+  resulting in two arrays -- one with the low parts and one with the high parts
+  of the multiplication.
+\item Shift the array with the high parts by 1.
+\item Add the two arrays using parallel addition (e.g.\ \textit{badd}).
+\end{enumerate}
+Figure \ref{fig:muld} contains a illustration and the pseudocode of this
+algorithm.
 
 \begin{figure}
   \centering
   \begin{minipage}{0.45\textwidth}
     \small
-    \texttt{Input:} $u$ and of size $m$ base $B$ and digit $d$\\
+    \texttt{Input:} $u$ of size $m$ base $B$ and digit $d$\\
     \texttt{Output:} $w$ of size $m$ in base $B$\\
     \texttt{Use:} Function \texttt{ADD} for adding big ints
 \begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)}]
@@ -639,22 +689,22 @@ w = ADD l h
       \end{tabular}
     \end{tabular}
   \end{minipage}
-  \caption{\footnotesize Pseudo-code and illustration of algorithm for parallel multiplication by single precision.}
+  \caption{\footnotesize Pseudocode and illustration of parallel algorithm for multiplication by single precision factor.}
   \label{fig:muld}
 \end{figure}
 
-We could integrate this into the multiple precision multiplication
-implementation, by simply checking whether we are in the special case (or any of
-the others for that matter). However there are two problems with this: First, we
-expect multiple precision to be more dominant than single precision for a
-multiple precision arithmetic library, and so it is not deemed worth the extra
-computation. Second, this introduces branching into the multiplication, which is
-especially troublesome for working with multiple instances per block (as
-diverging branches within a block results in unbalanced work among the threads).
+We could integrate this special case (or any of the other special cases) into
+the classical multiple precision multiplication implementation. However such an
+integration raises two concerns: First, we expect multiple precision factors to
+have the dominant occourance over single precision (because we are in the domain
+of big integers), and therefore it is not worth the cost of the extra
+computational steps required to check for special cases. Second, it introduces
+branching into the multiplication, which is especially inefficient for batch
+processing with multiple instances per block (as diverging branches within a
+block results gives unbalanced work amongst threads).
 
-Instead, we write a function for \textit{mul}tiplying a big integer by a
-\textit{d}igit, called \textit{muld}. Since it is essentially an addition, we
-will not benchmark it or discuss it further.
+Moreover, it is essentially a parallel addition, so we will not benchmark or
+discuss it further.
 
 \subsection{Other Algorithms}
 \label{subsec:mulother}
