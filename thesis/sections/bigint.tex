@@ -74,17 +74,17 @@ Lastly, by fixing the representation of big integers to a data structure of
 arrays of unsigned machine words, we lay a foundation that allows us to
 efficiently compute arithmetics on GPGPU (and a CPU for that matter). However,
 also fixing the type of machine word (i.e.\ the base) does not increase
-performance or efficieny -- instead, the arithmetics becomes more strict,
+performance or efficiency -- instead, the arithmetics becomes more strict,
 hardware dependent, and nonextensible.
 
 
 As a mechanism to keep the arithmetics generic over the base type in
-implementation, we utilize templates, classes, and type declariations to create
+implementation, we utilize templates, classes, and type declarations to create
 an abstract big integer interface.\footnote{Futhark has an extensive module
   system that supports generic programming in the same manner as C++
   templates. However, it requires a lot of effort to wrap the whole
   implementation inside a module with generic base type. As a simple means to
-  generallity we use type declarations -- allowing us to focus on the performance
+  generality we use type declarations -- allowing us to focus on the performance
   aspects rather than the intricacies of functional programming.} The interface
 is as follows:
 \begin{center}

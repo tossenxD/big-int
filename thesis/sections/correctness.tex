@@ -1,27 +1,29 @@
 \section{Correctness}
 \label{sec:cor}
 
-A big integer library is only as useful as it is correct. Furthermore, we cannot
-trust performance benchmarks of incorrect implementations, as the underlying
-algorithms may not be fully implemented.
+Our big integer arithmetic operators are defined to be exact and efficient. The
+former property collapses under incorrectness and more, the latter loose its
+meaning. Performance benchmarks of invalid implementations are not trustworthy,
+as the underlying algorithms may not be fully represented, and therefore,
+correctness is a prerequisite of measuring the efficiency of our
+implementations. Additionally, we have build a tower of arithmetics, and so the
+properties of the whole tower collapses under an invalid operator.
 
-While proofs are given in earlier sections or by the authors of the algorithms,
-this section focuses on testing the correctness of the implementations.
-
-It is not plausible to test correctness for all big integers, and we might leave
-out important input patterns by writing manual test cases. Instead, we test on
+While proofs are given by the authors of the algorithms, this section focuses on
+testing the correctness of the implementations. It is not plausible to
+exhaustively test the correctness on all big integers, and we might leave out
+important input patterns by writing manual test cases. Hence, we test on
 randomly generated big integers and compare the result of running our
-implementations against GMP's, assuming that GMP gives the correct result.
+implementations against GMP's, assuming that GMP gives the valid answer.
 
 \paragraph{Testing Methodology}
-
-Testing the correctness of CUDA functions using GMP is straightforward, because
-the functions are already implemented in C++. We simply generate some random big
-integers, call both ours and GMP's functions and compare the results. To
-generate a random big integer $u$ of precision $m$ and $\mathit{nz}$ non-zero
-digits, we use Listing \ref{brngcpp}.
-
-\begin{lstlisting}[language=CPP, caption={\footnotesize Random big integer generator in C++.}, label={brngcpp}]
+Testing the results of our CUDA implementations against GMP's is
+straightforward, because GMP can be linked to C++ and called directly in from
+our host function. We generate some random big integers on which we call both
+ours and GMP's arithmetic functions on and compare the results. To generate a
+random big integer $u$ of size $m$ and $\mathit{nz}$ non-zero digits, we use the
+code in Listing \ref{brngcpp}:
+\begin{lstlisting}[language=CPP, caption={\footnotesize Random big integer generator in C++ with $u$ of size $m$ and $nz$ non-zero digits.}, label={brngcpp}]
 for(int i = 0; i < m; i++) {
     uint32_t x = 0;
     if(i < nz) {
@@ -33,49 +35,84 @@ for(int i = 0; i < m; i++) {
 }
 \end{lstlisting}
 
-The Futhark compiler comes with a builtin testing functionality called
-\texttt{futhark-test} \cite{futguide}. It allows us to write test-programs in
-Futhark, specifying test-inputs with their the expected output for functions
-defined in the Futhark program. The inputs can be both randomly generated or
-fixed, and the output can be either fixed or automatically determined by
-compiling the function to C.
+Regarding Futhark, the compiler has a builtin test functionality called
+\texttt{futhark-test} \cite{futguide}. It allows us to write test-specifications
+in Futhark programs, which the compiler will then run. A specification consist
+of a set of inputs and their the expected outputs. The inputs can be either
+randomly generated or fixed, and the outputs can be either fixed or
+automatically determined (by assuming C as backend gives the correct result).
 
-However, we cannot import GMP to a Futhark test-program. Instead, we can write a
-C-program utilizing GMP as described above, and test our arithmetic functions
-from the C-program through an API by compiling the Futhark functions to a C
-library.
+It is not possible to directly test our Futhark implementations against GMP's
+through \texttt{futhark-test}, but it is possible indirectly by constructing the
+tests in a peculiar way: We write a small Futhark library, called
+\texttt{gmp-validation-lib.fut}, which exports exactly one of each arithmetic
+function. Each function takes exactly two inputs arrays and produce exactly one
+output array, while being agnostic to the shape of the input. I.e.\ for the
+underlying arithmetics that requires the input to be a specific shape (read;
+\textit{convmul}), the library function adds padding to ensure that the shapes
+matches. Now, we compile this library to a C API using the Futhark library
+feature \cite{futguide}.
 
-{\color{red} TODO write about C API under preliminaries}
+This produces a C header file that exports the functions and data types of the
+compiled library. In turn, we write a C-program that incorporates GMP as
+described above, and tests the Futhark arithmetic functions from the C-program
+through the API.
 
-The file \texttt{gmp-validation-lib.fut} exports exactly one version of each
-arithmetic function in both 32bit and 64bit base. We compare the exported
-functions result against GMP on randomly generated input in the file
-\texttt{gmp-validation.c}. For the sake of simplicity, the library exports the
-fundamental versions (v1's), which also allows us to test only on
-single-instance big integer inputs.
+Hence, we obtain a GMP validated \textit{black box} Futhark library. We can
+therefore substitute GMP function calls in Futhark test programs with function
+calls to this library, effectively giving us access to GMP inside the
+\texttt{futhark-test} environment.
 
-The remaining versions are tested against the GMP-validated one in the Futhark
-test-program \texttt{fut-validation.fut} by using \texttt{futhark-test}. We test
-both on single-instance and multi-instance big integer inputs. E.g. Listing
-\ref{futaddvaltest} contains the testing-functions for addition of 64bit base
-with GMP-validated library function \fun{test\_add64}.
+The test specifications assign randomly generated 2D arrays of different sizes
+as inputs and then expects the output to be \texttt{true}. The test function
+that compares our addition functions against GMP is shown in Listing
+\ref{futaddvaltest} below -- an identical test function is defined for
+multiplication. Here, \texttt{test\_add} refers to the GMP-validated addition
+and \texttt{oneAddVX} to version \texttt{X} of our addition
+implementations. Line 24 defines a validation function, lines 25-30 run our
+addition implementations, and line 31 checks that all results validate.
 
-% \lstinputlisting[language=futhark,firstline=112,lastline=127,caption={\footnotesize Futhark testing-functions for addition with 64-bit base from \texttt{fut-validation.fut}.},label={futaddvaltest},firstnumber=112]{../futhark/test/fut-validation.fut}
+\lstinputlisting[language=futhark,firstline=22,lastline=31,caption={\footnotesize Futhark testing-functions for addition with 64-bit base from \texttt{fut-validation.fut}.},label={futaddvaltest},firstnumber=22]{../futhark/test/fut-validation-main.fut}
 
-Lastly, we also test that the usual arithmetic properties hold for their
-respective operator, i.e. associativity, commutativity, distributivity,
-etc.. These properties are tested using \texttt{futhark-test} in the file
-\texttt{fut-properties.fut} and are tested independent of GMP. E.g. Listing
-\ref{futaddproptest} contains commutativity test for 64-bit base addition.
+Similarly to the definition of validation tests, we also define property-based
+tests over the usual arithmetic properties, such as commutativity for
+addition. They are included for the purpose of completeness (and a potential
+source for debugging information), but are redundant w.r.t.\ the GMP validation,
+assuming GMP gives the correct result.
 
-% \lstinputlisting[language=futhark,firstline=169,lastline=174,caption={\footnotesize Futhark commutativity test for addition with 64-bit base from \texttt{fut-properties.fut}.},label={futaddproptest},firstnumber=169]{../futhark/test/fut-properties.fut}
-
-{\color{red} TODO testing div with random $nz$ divisor to ensure meaningful tests}
+(A final note on validating division in C; the divisor use a randomly generated
+$nz$ value to avoid hitting the same special cases repeatedly, providing more
+meaningful tests.)
 
 \paragraph{Test Results}
+We run the Futhark arithmetic tests using \texttt{futhark-test} on base
+\texttt{u16}, \texttt{u32}, and \texttt{u64} integers in the size range
+$4\leq m \leq 512$ and $num\_instances = 2048$, with $ipb = 4$ where relevant. We run
+all tests twice with different backends, once on the CPU with C as backend, and
+once on the GPU with OpenCL as backend. The tests includes properties and
+validation against GMP, and they run on all four versions of \textit{badd}
+(addition) and all three versions of \textit{convmul}
+(multiplication). \uuline{All tests validates}.
 
-{\red [Missing]}
+Next is the Futhark-GMP validation in C. We test addition, subtraction,
+multiplication, and division. We run the tests of base \texttt{uint16\_t},
+\texttt{uint32\_t}, and \texttt{uint64\_t}, with division only being run on
+\texttt{uint16\_t}. They run on two different integer size patterns: 350 tests
+with $m=\{2,4,8,16,32,64,128\}$, 50 tests for each size, and 2500 tests with 50
+randomly generated sizes in the range $1\leq m \leq 512$, 50 tests for each size. The
+tests are run twice using the Futhark functions compiled to C and OpenCL,
+respectively. \uuline{All tests for addition, subtraction, and multiplication
+  validates -- division is undecided}.
 
+{\red TODO there is a bug in the tests for division and subtraction in bases
+  other than 2$^{32}$, so don't know if division validates or not right now}
+
+Lastly, we have the CUDA-GMP validations tests. We test all three versions of
+\textit{badd} and all five versions of \textit{convmul} with base
+\texttt{uint32\_t} and \texttt{uint64\_t}. The test setup is fused with the
+performance benchmark setup (i.e.\ after a benchmark has been run, the result
+gets valid), so further details about the test-configuration are in section
+\ref{sec:per}. \uuline{All tests validate}.
 
 %%% Local Variables:
 %%% mode: LaTeX

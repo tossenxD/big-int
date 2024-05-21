@@ -3,7 +3,7 @@
 
 Multiplication is the next of the basic arithmetic operators. It is more
 complicated than addition, since all digits of the multiplicand have to be
-multiplied by all digits of the multiplier, leading to asymptoticly quadratic
+multiplied by all digits of the multiplier, leading to asymptotically quadratic
 runtimes. Other more work-efficient algorithms exists, such as Karatsuba or
 Schönhage–Strassen using Fast Fourier Transform (FFT), both of which are
 mentioned by Knuth and part of GMP \cite{knuth97,GMP}. While classical
@@ -19,7 +19,7 @@ respectively, and any further optimizations related to the
 implementations. Penultimately, in \ref{subsec:mulsin} we cover the special case
 of multiplication by a single precision factor, and present an algorithm that
 shares the behaviour and efficiency of an addition operation. Lastly, in
-\ref{subsec:mulother} we give an overview of assymptoticly better algorithms
+\ref{subsec:mulother} we give an overview of asymptotically better algorithms
 with focus on Karatsuba and FFT -- where especially FFT is promising in a GPGPU
 setting.
 
@@ -231,7 +231,7 @@ compute two lower and two upper convolutions per thread -- four in total. This
 allows to prematurely compute half of the additions before the parts leave
 register memory (i.e.\ in the function \texttt{conv} of Figure
 \ref{fig:mulparalg}), and thus, necessitating only one addition after running
-the convolutions. The optimization not only reduces the communcation, but also
+the convolutions. The optimization not only reduces the communication, but also
 reduces shared memory usage by better utilizing registers. The downside is that
 it further increase the amount of sequential work within a thread by a factor of
 2. Hence, whether the optimization will pay off depends on the batch size and
@@ -239,7 +239,7 @@ number of available threads -- or if the inputs are too big to fit a CUDA block
 with sequentialization factor of 2.
 
 Figure \ref{fig:muloptmem} contains an illustration of the tiled convolution
-layout of this optimization w.r.t. threads. Now, compared to the pseudocode of
+layout of this optimization w.r.t.\ threads. Now, compared to the pseudocode of
 Figure \ref{fig:mulparalg}, a thread computes a total of twelve parts in the
 convolution function \texttt{conv}, but combines them to eight parts before
 returning -- four for the lower convolution and four for the upper. In turn, the
@@ -275,7 +275,7 @@ aforementioned upsides and a faster addition.\footnote{Experimentally, we found
   \ref{sec:add}).}  With sequentialization factor of $q=4$, it can also process
 integers at CUDA block-level of up to double the size than the one with
 $q=2$. To go beyond $q=4$, it is wiser to stack this optimizations rather than
-combining all the consecutive sequential parts, as more combinitions reduce the
+combining all the consecutive sequential parts, as more combinations reduce the
 effectiveness of the final parallel addition.
 
 
@@ -328,11 +328,11 @@ consecutive convolutions, and the fifth version (\texttt{V5}) expands
 
 We decide the CUDA kernel dimensions and parameters with the code in Listing
 \ref{mulparams}. Akin to Listing \ref{addparams} regarding addition, but with
-the blocksize rounded up to $128$ rather than $256$ (which we experimentally
+the block size rounded up to $128$ rather than $256$ (which we experimentally
 found to be faster). The sequentialization factor does not grow beyond 4, but,
 as mentioned at the end of section \ref{subsec:mulalg}, one could implement a
 version that use some multiple of 4 as sequentialization factor. Hence the CUDA
-implementations are limitied to integers of size $m\leq4096$.
+implementations are limited to integers of size $m\leq4096$.
 
 \begin{lstlisting}[language=CPP,caption={\footnotesize CUDA multiplication parameters and dimensions for version $v$ with size $m$ and $num\_instances$.},label={mulparams}]
 const uint32_t q = (v >= 1 && v <= 3) ? 2 : 4;
@@ -503,7 +503,7 @@ The two memory layouts are used to define define \texttt{V1} \& \texttt{V2} and
 
 \paragraph{Multiple instances per block.}
 When handling multiple arithmetic instances in a CUDA block at the same time,
-the symetrical pattern remains w.r.t.\ the work of convolutions. E.g.\ 4
+the symmetrical pattern remains w.r.t.\ the work of convolutions. E.g.\ 4
 instances of size 4 have the following convolution pattern, where color denotes
 instance:
 \begin{center}
@@ -603,6 +603,7 @@ memory layout of \texttt{V4} (Appendix \hyperref[app:B]{B} Listing
 
 \subsection{Futhark Implementation}
 \label{subsec:mulfut}
+{\red [TODO]}
 
 The implementation of \textit{convmul} in Futhark has one significant change
 from CUDA: There may not be a double-size type for the base type, and so we
@@ -610,10 +611,9 @@ cannot always apply the optimization of postponing the carry propagation. In
 Futharks high-level design, we do not get all the low-level C primitives, and
 that means no efficient 128-bit words.
 
-Hence, the Futhark implementation in base \texttt{u32} use this optimization,
-while base \texttt{u64} does not. The first version (\texttt{V1}) implements the
-algorithm with sequentialization factor of 2, the second (\texttt{V2}) with a
-factor of 4, and the third (\texttt{V3}) allows segmented multiplication.
+The first version (\texttt{V1}) implements the algorithm with sequentialization
+factor of 2, the second (\texttt{V2}) with a factor of 4, and the third
+(\texttt{V3}) allows segmented multiplication.
 
 \subsection{Single Precision Factor}
 \label{subsec:mulsin}
@@ -697,7 +697,7 @@ w = ADD l h
 We could integrate this special case (or any of the other special cases) into
 the classical multiple precision multiplication implementation. However such an
 integration raises two concerns: First, we expect multiple precision factors to
-have the dominant occourance over single precision (because we are in the domain
+have the dominant occurrence over single precision (because we are in the domain
 of big integers), and therefore it is not worth the cost of the extra
 computational steps required to check for special cases. Second, it introduces
 branching into the multiplication, which is especially inefficient for batch
