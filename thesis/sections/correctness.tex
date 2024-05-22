@@ -102,17 +102,14 @@ with $m=\{2,4,8,16,32,64,128\}$, 50 tests for each size, and 2500 tests with 50
 randomly generated sizes in the range $1\leq m \leq 512$, 50 tests for each size. The
 tests are run twice using the Futhark functions compiled to C and OpenCL,
 respectively. \uuline{All tests for addition, subtraction, and multiplication
-  validates -- division is undecided}.
-
-{\red TODO there is a bug in the tests for division and subtraction in bases
-  other than 2$^{32}$, so don't know if division validates or not right now}
+  validates -- tests for division does not validate}.
 
 Lastly, we have the CUDA-GMP validations tests. We test all three versions of
 \textit{badd} and all five versions of \textit{convmul} with base
 \texttt{uint32\_t} and \texttt{uint64\_t}. The test setup is fused with the
 performance benchmark setup (i.e.\ after a benchmark has been run, the result
 gets valid), so further details about the test-configuration are in section
-\ref{sec:per}. \uuline{All tests validate}.
+\ref{subsec:benchset}. \uuline{All tests validate}.
 
 %%% Local Variables:
 %%% mode: LaTeX

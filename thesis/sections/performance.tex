@@ -1,6 +1,8 @@
 \section{Performance}
 \label{sec:per}
 
+{\red [TODO; rewrite]}
+
 The main benefit of data parallel computing is superior scaling and performance
 gain on big data. As such, the big integer library written in this project must
 be efficient and perform well on medium-sized big integers, but also scale well
@@ -33,6 +35,8 @@ Section \ref{subsec:benchset} describes the benchmark setup, section
 
 \subsection{Benchmark Setup}
 \label{subsec:benchset}
+
+{\red [TODO; rewrite]}
 
 In order to understand the performance and scaling thereof, two benchmark
 structures are defined for each arithmetic function. The first structure is
@@ -73,6 +77,8 @@ directly from the mainfile \texttt{main.cu}. Each part contains a
 \texttt{Makefile} to replicate the benchmarks.
 \subsection{Performance Metrics}
 \label{subsec:perfmet}
+
+{\red [TODO; rewrite (mostly okay)]}
 
 Performance metrics are defined on an arithmetic basis, based on their
 complexity, inner workings and benchmark setup. Runtimes are measured in
@@ -128,9 +134,46 @@ CUDA in \texttt{main.cu}, but \texttt{futhark-bench} reports only the average
 runtimes (with confidence intervals). To compute the metrics for Futhark
 benchmarks, a small AWK program \texttt{form-tool.awk} is included in the
 Futhark directory and integrated in the \texttt{Makefile}'s benchmark call.
-
+\pagebreak
 \subsection{Addition Benchmark Results}
 \label{subsec:benchres}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ & 62  & --   & 146 & 161 & --   & --   & --   & --   \\\hline
+    $2^{17}$ & $2^{15}$ & 67  & --   & 161 & 163 & --   & --   & --   & --   \\\hline
+    $2^{16}$ & $2^{16}$ & 19  & 168 & 166 & 166 & 116 & 154 & 158 & 156 \\\hline
+    $2^{15}$ & $2^{17}$ & 19  & 168 & 167 & 166 & 145 & 168 & 168 & 146 \\\hline
+    $2^{14}$ & $2^{18}$ & 84  & 168 & 168 & 166 & 150 & 168 & 168 & 168 \\\hline
+    $2^{13}$ & $2^{19}$ & 164 & 168 & 168 & 164 & 156 & 168 & 168 & 168 \\\hline
+    $2^{12}$ & $2^{20}$ & 165 & 168 & 168 & 166 & 156 & 168 & 142 & 168 \\\hline
+    $2^{11}$ & $2^{21}$ & 164 & 169 & 163 & 166 & 134 & 165 & 75  & 168 \\\hline
+    $2^{10}$ & $2^{22}$ & 157 & 108 & 93  & 166 & 71  & 91  & 38  & 168 \\\hline
+    $2^{9}$  & $2^{23}$ & 119 & 55  & 47  & 167 & 36  & 47  & 20  & 168 \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of one addition in base \texttt{u64} measured in GB/s (higher is better, 192 is peak)}
+\end{table}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ & 24  & --  & 92  & 83  & --  & --  & --  & --  \\\hline
+    $2^{17}$ & $2^{15}$ & 57  & --  & 111 & 94  & --  & --  & --  & --  \\\hline
+    $2^{16}$ & $2^{16}$ & 73  & 41 & 123 & 107 & --  & --  & --  & --  \\\hline
+    $2^{15}$ & $2^{17}$ & 45  & 48 & 128 & 107 & 15 & 24 & 15 & 13 \\\hline
+    $2^{14}$ & $2^{18}$ & 98  & 51 & 112 & 107 & 18 & 27 & 16 & 13 \\\hline
+    $2^{13}$ & $2^{19}$ & 162 & 46 & 83  & 108 & 18 & 30 & 14 & 13 \\\hline
+    $2^{12}$ & $2^{20}$ & 164 & 35 & 44  & 108 & 16 & 29 & 14 & 13 \\\hline
+    $2^{11}$ & $2^{21}$ & 162 & 24 & 23  & 108 & 15 & 25 & 10 & 13 \\\hline
+    $2^{10}$ & $2^{22}$ & 153 & 12 & 12  & 108 & 7  & 13 & 5  & 13 \\\hline
+    $2^{9}$  & $2^{23}$ & 110 & 6  & 6   & 108 & 4  & 7  & 3  & 13 \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of ten additions in base \texttt{u64} measured in GB/s (higher is better, 192 is peak)}
+\end{table}
+
 
 {\red [Missing]}
 
