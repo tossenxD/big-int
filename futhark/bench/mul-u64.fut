@@ -3,6 +3,8 @@ import "../mul"
 -- Benchmarks with one instance per block and sequentialization factor of 1
 -- ==
 -- entry: oneMulV1Bench64 sixMulV1Bench64
+-- compiled random input { [16384][2][2048]u64 [16384][2][2048]u64 }
+-- compiled random input { [32768][2][1024]u64 [32768][2][1024]u64 }
 -- compiled random input { [65536][2][512]u64  [65536][2][512]u64  }
 -- compiled random input { [131072][2][256]u64 [131072][2][256]u64 }
 -- compiled random input { [262144][2][128]u64 [262144][2][128]u64 }
@@ -15,6 +17,8 @@ import "../mul"
 -- Benchmarks with one instance per block and sequentialization factor of 4
 -- ==
 -- entry: oneMulV2Bench64 sixMulV2Bench64
+-- compiled random input { [16384][4][1024]u64 [16384][4][1024]u64 }
+-- compiled random input { [32768][4][512]u64  [32768][4][512]u64  }
 -- compiled random input { [65536][4][256]u64  [65536][4][256]u64  }
 -- compiled random input { [131072][4][128]u64 [131072][4][128]u64 }
 -- compiled random input { [262144][4][64]u64  [262144][4][64]u64  }
@@ -27,6 +31,8 @@ import "../mul"
 -- Benchmarks with multiple instances per block and sequentialization factor 4
 -- ==
 -- entry: oneMulV3Bench64 sixMulV3Bench64
+-- compiled random input { [16384][1][4096]u64 [16384][1][4096]u64 }
+-- compiled random input { [32768][1][2048]u64 [32768][1][2048]u64 }
 -- compiled random input { [65536][1][1024]u64 [65536][1][1024]u64 }
 -- compiled random input { [131072][1][512]u64 [131072][1][512]u64 }
 -- compiled random input { [262144][1][256]u64 [262144][1][256]u64 }
