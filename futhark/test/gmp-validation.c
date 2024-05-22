@@ -67,13 +67,15 @@ void run_tests(uint32_t m_init, int m_grwth, uint32_t runs, struct futhark_conte
     for (uint32_t i = 0, m = m_init; i < runs;
          i++, m = (m_grwth < 0) ? rand_uint32_t() % 511 + 2 : m * m_grwth) {
 
+        int m_our = (BASE==16) ? m*2 : m;
+        int m_gmp = (BASE==16) ? m_our/2 : (BASE==64) ? 2*m_our : m_our;
         for (int j = 0; j < RUNS_PER_SIZE; j++) {
             // create some random input arrays
-            uint32_t *u = (uint32_t *) malloc(2*m * sizeof(uint32_t));
-            uint32_t *v = (uint32_t *) malloc(2*m * sizeof(uint32_t));
+            uint32_t *u = (uint32_t *) malloc(2*m_our * sizeof(uint32_t));
+            uint32_t *v = (uint32_t *) malloc(2*m_our * sizeof(uint32_t));
 
-            rand_bigint(2*m, rand_uint32_t() % (2*m) + 1, u);
-            rand_bigint(2*m, rand_uint32_t() % (2*m) + 1, v);
+            rand_bigint(2*m_our, rand_uint32_t() % (2*m_our) + 1, u);
+            rand_bigint(2*m_our, rand_uint32_t() % (2*m_our) + 1, v);
 
             uint16_t *u_16 = (uint16_t *) u;
             uint16_t *v_16 = (uint16_t *) v;
@@ -83,58 +85,58 @@ void run_tests(uint32_t m_init, int m_grwth, uint32_t runs, struct futhark_conte
             uint64_t *v_64 = (uint64_t *) v;
 
             #if BASE==16
-            struct futhark_u16_1d *u_fut_16 = futhark_new_u16_1d(ctx, u_16, m);
-            struct futhark_u16_1d *v_fut_16 = futhark_new_u16_1d(ctx, v_16, m);
+            struct futhark_u16_1d *u_fut_16 = futhark_new_u16_1d(ctx, u_16, m_our);
+            struct futhark_u16_1d *v_fut_16 = futhark_new_u16_1d(ctx, v_16, m_our);
             #endif
 
             #if BASE==32
-            struct futhark_u32_1d *u_fut_32 = futhark_new_u32_1d(ctx, u_32, m);
-            struct futhark_u32_1d *v_fut_32 = futhark_new_u32_1d(ctx, v_32, m);
+            struct futhark_u32_1d *u_fut_32 = futhark_new_u32_1d(ctx, u_32, m_our);
+            struct futhark_u32_1d *v_fut_32 = futhark_new_u32_1d(ctx, v_32, m_our);
             #endif
 
             #if BASE==64
-            struct futhark_u64_1d *u_fut_64 = futhark_new_u64_1d(ctx, u_64, m);
-            struct futhark_u64_1d *v_fut_64 = futhark_new_u64_1d(ctx, v_64, m);
+            struct futhark_u64_1d *u_fut_64 = futhark_new_u64_1d(ctx, u_64, m_our);
+            struct futhark_u64_1d *v_fut_64 = futhark_new_u64_1d(ctx, v_64, m_our);
             #endif
 
             futhark_context_sync(ctx);
 
             // allocate output arrays
-            uint32_t *w_gmp_add = (uint32_t *) malloc((2*m+1) * sizeof(uint32_t));
-            uint32_t *w_gmp_sub = (uint32_t *) malloc(2*m * sizeof(uint32_t));
-            uint32_t *w_gmp_mul = (uint32_t *) malloc(4*m * sizeof(uint32_t));
-            uint32_t *w_gmp_div = (uint32_t *) malloc(2*m * sizeof(uint32_t));
+            uint32_t *w_gmp_add = (uint32_t *) malloc((2*m_gmp+1) * sizeof(uint32_t));
+            uint32_t *w_gmp_sub = (uint32_t *) malloc(2*m_gmp * sizeof(uint32_t));
+            uint32_t *w_gmp_mul = (uint32_t *) malloc(4*m_gmp * sizeof(uint32_t));
+            uint32_t *w_gmp_div = (uint32_t *) malloc(2*m_gmp * sizeof(uint32_t));
 
-            uint32_t *w_our = (uint32_t *) malloc(2*m * sizeof(uint32_t));
-            for (uint32_t j=0; j<2*m; j++) { w_our[j] = 0; }
+            uint32_t *w_our = (uint32_t *) malloc(2*m_our * sizeof(uint32_t));
+            for (uint32_t j=0; j<2*m_our; j++) { w_our[j] = 0; }
 
             uint16_t *w_our_16 = (uint16_t *) w_our;
             uint32_t *w_our_32 = w_our;
             uint64_t *w_our_64 = (uint64_t *) w_our;
 
             #if BASE==16
-            struct futhark_u16_1d *w_fut_add_16 = futhark_new_u16_1d(ctx, w_our_16, m);
-            struct futhark_u16_1d *w_fut_sub_16 = futhark_new_u16_1d(ctx, w_our_16, m);
-            struct futhark_u16_1d *w_fut_mul_16 = futhark_new_u16_1d(ctx, w_our_16, m);
-            struct futhark_u16_1d *w_fut_div_16 = futhark_new_u16_1d(ctx, w_our_16, m);
+            struct futhark_u16_1d *w_fut_add_16 = futhark_new_u16_1d(ctx, w_our_16, m_our);
+            struct futhark_u16_1d *w_fut_sub_16 = futhark_new_u16_1d(ctx, w_our_16, m_our);
+            struct futhark_u16_1d *w_fut_mul_16 = futhark_new_u16_1d(ctx, w_our_16, m_our);
+            struct futhark_u16_1d *w_fut_div_16 = futhark_new_u16_1d(ctx, w_our_16, m_our);
             #endif
 
             #if BASE==32
-            struct futhark_u32_1d *w_fut_add_32 = futhark_new_u32_1d(ctx, w_our_32, m);
-            struct futhark_u32_1d *w_fut_sub_32 = futhark_new_u32_1d(ctx, w_our_32, m);
-            struct futhark_u32_1d *w_fut_mul_32 = futhark_new_u32_1d(ctx, w_our_32, m);
+            struct futhark_u32_1d *w_fut_add_32 = futhark_new_u32_1d(ctx, w_our_32, m_our);
+            struct futhark_u32_1d *w_fut_sub_32 = futhark_new_u32_1d(ctx, w_our_32, m_our);
+            struct futhark_u32_1d *w_fut_mul_32 = futhark_new_u32_1d(ctx, w_our_32, m_our);
             #endif
 
             #if BASE==64
-            struct futhark_u64_1d *w_fut_add_64 = futhark_new_u64_1d(ctx, w_our_64, m);
-            struct futhark_u64_1d *w_fut_sub_64 = futhark_new_u64_1d(ctx, w_our_64, m);
-            struct futhark_u64_1d *w_fut_mul_64 = futhark_new_u64_1d(ctx, w_our_64, m);
+            struct futhark_u64_1d *w_fut_add_64 = futhark_new_u64_1d(ctx, w_our_64, m_our);
+            struct futhark_u64_1d *w_fut_sub_64 = futhark_new_u64_1d(ctx, w_our_64, m_our);
+            struct futhark_u64_1d *w_fut_mul_64 = futhark_new_u64_1d(ctx, w_our_64, m_our);
             #endif
 
             futhark_context_sync(ctx);
 
             // run arithmetics using GMP
-            run_gmp(m, u_32, v_32, w_gmp_add, w_gmp_sub, w_gmp_mul, w_gmp_div);
+            run_gmp(m_gmp, u_32, v_32, w_gmp_add, w_gmp_sub, w_gmp_mul, w_gmp_div);
 
             // run arithmetics using Futhark
             #if BASE==16
@@ -162,47 +164,47 @@ void run_tests(uint32_t m_init, int m_grwth, uint32_t runs, struct futhark_conte
             #if BASE==16
             futhark_values_u16_1d(ctx, w_fut_add_16, w_our_16);
             futhark_context_sync(ctx);
-            if (eq(m/2, w_gmp_add, w_our)) { addC++; }
+            if (eq(m_gmp, w_gmp_add, w_our)) { addC++; }
 
             futhark_values_u16_1d(ctx, w_fut_sub_16, w_our_16);
             futhark_context_sync(ctx);
-            if (eq(m/2, w_gmp_sub, w_our)) { subC++; }
+            if (eq(m_gmp, w_gmp_sub, w_our)) { subC++; }
 
             futhark_values_u16_1d(ctx, w_fut_mul_16, w_our_16);
             futhark_context_sync(ctx);
-            if (eq(m/2, w_gmp_mul, w_our)) { mulC++; }
+            if (eq(m_gmp, w_gmp_mul, w_our)) { mulC++; }
 
             futhark_values_u16_1d(ctx, w_fut_div_16, w_our_16);
             futhark_context_sync(ctx);
-            if (eq(m/2, w_gmp_div, w_our)) { divC++; }
+            if (eq(m_gmp, w_gmp_div, w_our)) { divC++; }
             #endif
 
             #if BASE==32
             futhark_values_u32_1d(ctx, w_fut_add_32, w_our_32);
             futhark_context_sync(ctx);
-            if (eq(m, w_gmp_add, w_our)) { addC++; }
+            if (eq(m_gmp, w_gmp_add, w_our)) { addC++; }
 
             futhark_values_u32_1d(ctx, w_fut_sub_32, w_our_32);
             futhark_context_sync(ctx);
-            if (eq(m, w_gmp_sub, w_our)) { subC++; }
+            if (eq(m_gmp, w_gmp_sub, w_our)) { subC++; }
 
             futhark_values_u32_1d(ctx, w_fut_mul_32, w_our_32);
             futhark_context_sync(ctx);
-            if (eq(m, w_gmp_mul, w_our)) { mulC++; }
+            if (eq(m_gmp, w_gmp_mul, w_our)) { mulC++; }
             #endif
 
             #if BASE==64
             futhark_values_u64_1d(ctx, w_fut_add_64, w_our_64);
             futhark_context_sync(ctx);
-            if (eq(m, w_gmp_add, w_our)) { addC++; }
+            if (eq(m_gmp, w_gmp_add, w_our)) { addC++; }
 
             futhark_values_u64_1d(ctx, w_fut_sub_64, w_our_64);
             futhark_context_sync(ctx);
-            if (eq(m, w_gmp_sub, w_our)) { subC++; }
+            if (eq(m_gmp, w_gmp_sub, w_our)) { subC++; }
 
             futhark_values_u64_1d(ctx, w_fut_mul_64, w_our_64);
             futhark_context_sync(ctx);
-            if (eq(m, w_gmp_mul, w_our)) { mulC++; }
+            if (eq(m_gmp, w_gmp_mul, w_our)) { mulC++; }
             #endif
 
             // cleanup

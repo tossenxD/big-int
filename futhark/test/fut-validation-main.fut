@@ -21,7 +21,7 @@ def add1D [m] (u: [m]ui) (v: [m]ui) : bool =
 
 def add2D [n][m] (us: [n][m]ui) (vs: [n][m]ui) : bool =
   let (N, M) = (n/4, m/4)
-  let validP = (\ws -> map2 eq (map2 test_add us vs) ws |> reduce (&&) true)
+  let validP = (\ws -> map2 eq (map2 test_add us vs) ws |>reduce (&&) true)
   let ws0 = oneAddV0 us vs
   let ws1 = oneAddV1 us vs
   let ws2 = oneAddV2 M (us :> [n][4*M]ui) (vs :> [n][4*M]ui) :>[n][m]ui
