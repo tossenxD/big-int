@@ -48,11 +48,11 @@ using namespace std;
    |                     |                                                                        |
    |                     | Currently, these are the implemented versions:                         |
    |                     |                                                                        |
-   |                     | * ADD v1: Fundamental (see thesis report for description).             |
+   |                     | * ADD v1: Fundamental (see Thesis for description).                    |
    |                     | * ADD v2: Implements a parameterized sequentialization factor to v1.   |
    |                     | * ADD v3: Implements parameterized number of instances per block to v2.|
    |                     |                                                                        |
-   |                     | * MUL v1: Fundamental (see thesis report for description).             |
+   |                     | * MUL v1: Fundamental (see Thesis for description).                    |
    |                     | * MUL v2: Implements optimized convulution computations to v1.         |
    |                     | * MUL v3: Implements parameterized number of instances per block to v2.|
    |                     | * MUL v4: Implements a fixed sequentialization factor of 4 to v2.      |
@@ -87,7 +87,7 @@ using namespace std;
    +---------------------+------------------------------------------------------------------------+
    | FULLLER_TEST_SUITE  | By default, kernel(s) are run on 65536-bit big integers. If this       |
    |                     | parameter is set, it also runs on bigger big integers, specificically, |
-   |                     | 131072-bit, 262144-bit & 524288-bit.                                   |
+   |                     | 131072-bit & 262144-bit.                                               |
    +---------------------+------------------------------------------------------------------------+
 */
 
@@ -120,7 +120,7 @@ void gpuAdd (uint32_t num_instances, typename Base::uint_t* h_as,
     cudaMemcpy(d_bs, h_bs, mem_size_nums, cudaMemcpyHostToDevice);
 
     // 3. kernel dimensions
-    const uint32_t q = (v == 1) ? 1 : (m <= 1024) ? 4 : (m+1024-1) / 1024; // ceil(m/1024)
+    const uint32_t q = (v == 1) ? 1 : (m/4 <= 1024) ? 4 : (m+1024-1) / 1024; // ceil(m/1024)
     assert(m%q == 0 && m >= q && m/q <= 1024);
     const uint32_t ipb = (v == 3) ? (256 + m/q - 1) / (m/q) : 1; // ceil(256/(m/q))
     dim3 block(ipb*(m/q), 1, 1);
@@ -466,7 +466,6 @@ template<typename Base, uint32_t v>
 void runAdditions(uint64_t total_work, uint64_t* h_as, uint64_t* h_bs,
                   uint64_t* h_rs_gmp, uint64_t* h_rs_our) {
     #if FULLER_TEST_SUITE
-    testAddition<Base,16384,v>( total_work/16384, h_as, h_bs, h_rs_gmp, h_rs_our );
     testAddition<Base,8192,v> ( total_work/8192,  h_as, h_bs, h_rs_gmp, h_rs_our );
     testAddition<Base,4096,v> ( total_work/4096,  h_as, h_bs, h_rs_gmp, h_rs_our );
     #endif
@@ -488,7 +487,6 @@ template<typename Base, uint32_t v>
 void runMultiplications(uint64_t total_work, uint64_t* h_as, uint64_t* h_bs,
                         uint64_t* h_rs_gmp, uint64_t* h_rs_our) {
     #if FULLER_TEST_SUITE
-    testMul<Base,16384,v>( total_work/16384, h_as, h_bs, h_rs_gmp, h_rs_our );
     testMul<Base,8192,v> ( total_work/8192,  h_as, h_bs, h_rs_gmp, h_rs_our );
     testMul<Base,4096,v> ( total_work/4096,  h_as, h_bs, h_rs_gmp, h_rs_our );
     #endif
