@@ -2,8 +2,8 @@
 \label{sec:div}
 
 The last of the basic arithmetics is division. It is far more complicated than
-the others and is intrinsically in conflict with our domain. We say the division
-is \textit{exact} when the divisor precisely divides the dividend. When the
+the others and intrinsically in conflict with our domain. We say the division is
+\textit{exact} when the divisor precisely divides the dividend. When the
 division is not exact, the result is ordinarily represented by a fraction -- yet
 we do not desire to leave the domain of integers. Instead, we use the notion of
 \textit{quotient} and \textit{remainder} commonly present in integer semantics:
@@ -20,9 +20,9 @@ inverse of the divisor, also called the reciprocal. GMP use reciprocals for
 division by single precision, but since reciprocals are expensive to compute,
 their basecase division use Knuth's algorithm for long division, also known as
 \textit{grade-school} division \cite{GMP, knuth97}. This algorithm is inherently
-sequential and each iteration only find one digit of the result, yielding poor
-performance on GPGPU. As a result, we focus on algorithms based on the inverse
-of the divisor.
+sequential: It iteratively produce the result by finding one correct digit per
+iteration, and thus, unfit for GPGPU. As a result, we focus on algorithms using
+the inverse of the divisor.
 
 A well known algorithm to find reciprocals is the Newton-Raphson method. It
 takes an initial approximation, and through a series of iterative steps (also
@@ -36,15 +36,15 @@ the inverse and the intermediate approximations in iteration steps. One solution
 is to use fractions internally and convert back to integers before returning the
 output. The downsides to this solution is the potential loss of precision when
 using floating points (i.e.\ it will no longer be an exact arithmetic) and the
-GPU memory overhead of converting between representations.
+overhead of converting between representations.
 
 Instead, we use Watt's efficient and exact arithmetic algorithm for computing
-quotients, published in \cite{watt2023efficient}. The prerequisite of the
+quotients, presented in \cite{watt2023efficient}. The prerequisite of the
 algorithm is the existence of a shift operation for the chosen data type -- which
-is a very efficient operation for integers -- and the intuition is to utilize the
-shift operation in order to avoid the domain change associated with computing
-the inverse, instead computing what is referred to as the \textit{whole-shifted
-  inverse}.
+is a very efficient operation for integers -- and a multiplication method given
+as a argument. The intuition is to utilize the shift operation in order to avoid
+the domain change associated with computing the inverse, by instead computing
+what is referred to as the \textit{whole shifted inverse}.
 
 This section is structured as follows: In \ref{subsec:divalg} we give a detailed
 introduction to the algorithm formulated by Watt in \cite{watt2023efficient}. We
@@ -58,12 +58,211 @@ during the prototyping.
 
 \subsection{Algorithm}
 \label{subsec:divalg}
-{\red [Missing]}
 
-We use the notation that $m$
-remains the \textit{size} of the integer (array) while the \textit{precision}
-refers to how many digits of the integer is used. E.g. the integer
-$\bigint{2, 4, 0, 0}_{10}$ has size $4$ and precision $2$.
+Before discussing the exact division algorithm, we introduce a new notation: The
+\textit{precision} of a big integer (denoted by $p$) refers to the number of
+digits without leading zeroes. E.g.\ the integer $\arr{1,2,0}$ has size $m=3$
+and precision $p=2$.
+
+We will now give the intuition behind the algorithm defined by Watt in his paper
+\cite{watt2023efficient}, and refer to his paper for the proofs and the generic
+version. The foundation of the algorithm is a whole shift operator and a whole
+shifted inverse operator:
+
+\begin{definition}[whole shift and whole shifted inverse of big integers]
+  We define a $n \in \mathbb{Z}$ whole shift and $n' \in \mathbb{N}$ whole shifted inverse of big
+  integers $u\in \mathbb{N}$ and $v\in \mathbb{N}^{+}$ in base $B$ as:
+  \begin{equation}\label{eq:shifts}
+    \mathtt{shift}_n~u \coloneq \lfloor u \cdot B^n \rfloor \quad \qquad \mathtt{shinv}_{n'}~v \coloneq \lfloor B^{n'}/ v \rfloor
+    \end{equation}
+\end{definition}
+
+A shift in our array-oriented representation behaves similarly to a binary
+system arithmetic shift, e.g.\ $\mathtt{shift}_1~\arr{1,2,3} = \arr{0,1,2}$ and
+$\mathtt{shift}_{-1}~\arr{1,2,3} = \arr{2,3,0}$. The shifted inverse has a more
+abstract interpretation -- given some $n'>p$ it essentially behaves as a
+fractional inverse that is then "shifted into our domain". Consider the
+following example:
+
+Suppose we have the integer $u=\arr{1,2,3}$ in base $B=2^{32}$ and wish to divide
+it by the integer $v=\arr{1,1,0}$ in base $B$. Since $v$ is of precision $p=2$,
+we get a proper inverse representation of $v$ by computing the $n$ shifted
+inverse for some $n>p$. We pick $n=3$ and get:
+\begin{equation}
+\label{eq:3}
+\mathtt{shinv}_3~\arr{1,1,0} = \arr{0,4294967295,0}
+\end{equation}
+We can then multiply $u$ with the shifted inverse (expanding the result size),
+and gets:
+\begin{equation}
+  \label{eq:4}
+  \arr{1,2,3}\cdot\arr{0,4294967295,0} = \arr{0,4294967295,4294967294,4294967294,2}
+\end{equation}
+Now, since the fractional part of the inverse was "shifted into our domain" by
+3, the result of this multiplication is also shifted by 3 (from associativity of
+multiplication). Hence we shift it by $-3$ (and compress it to the original
+size):
+\begin{equation}
+  \label{eq:5}
+  \mathtt{shift}_{-3}~\arr{0,4294967295,4294967294,4294967294,2} = \arr{4294967294,2,0}
+\end{equation}
+The correct answer is $\arr{4294967295,2,0}$, so the method is off by $1$. This
+is an accommodated byproduct of computing the whole shifted inverse. However,
+the method approximates the result by at most $1$, allowing us to mechanically
+adjust the result.
+
+The formal definition given by Watt in Theorem 1 of his paper
+\cite{watt2023efficient} is as follows:
+
+\begin{definition}[quotient of big integers by whole shifted inverse]
+  For the base $B$ big integers $u$ and $v$ and some $h\in \mathbb{N}$ s.t.\
+  $u \leq B^h$, the quotient of $u$ by $v$ is:
+  \begin{equation}
+    \label{eq:defquo}
+    u~\mathtt{quo}~v = \mathtt{shift}_{-h}~ (u \cdot \mathtt{shinv}_h~v) + \delta,\quad \text{where~} \delta \in \{0,1\}
+  \end{equation}
+\end{definition}
+
+The challenge now lies in computing \texttt{shinv}. Watt's algorithm use a
+Newton iteration over integers and specialized to the base in order to use
+shifts rather than fractions. The algorithm can roughly be divided into three
+steps:
+\begin{enumerate}[label=\Roman*]
+\item Handle the special (and easy) cases, namely when $v \leq B$ or $v > B^h/2$.\label{shinvI}
+\item Find an initial approximation that guarantees the Newton iterations
+  converges fast.\label{shinvII}
+\item Refine the initial approximation iteratively until it is sufficient.\label{shinvIII}
+\end{enumerate}
+Listing \ref{shinv} below shows the pseudocode for this operation. In step
+\ref{shinvI} we have four special cases. They serves dual purposes: To guarentee
+that $B < v \leq B^h/2$ and being faster. The first case says that if $v$ only
+consists of a single digit, then we can use a division by single precision
+method instead.\footnote{As mentioned earlier in how GMP handle division, this
+  case can generally be handled more efficient.} The next two cases is if
+$v > u$ or $2v > u$ and so the quotient is $0$ and $1$, respectively. The last
+case is when $v$ is exactly a power of its base, and we can use the rule
+$x^a/x^b=x^{a-b}$ instead. However, this is where we introduce our revisions, because the refinement methods use ...
+
+
+\begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode for computing \texttt{shinv}$_h~v$ in base $B$, where $B^k \leq v < B^{k+1}$, \texttt{quo}$_{\mathtt{digit}}$ and \texttt{*}$_{\mathtt{digit}}$ are quotetion and multiplication by single precision, respectively, and \texttt{REFINE} is some refinement method.},label={shinv}]
+fun SHINV h k v =
+  -- 1. Special cases (!{\hypersetup{allcolors=ForestGreen}\ref{shinvI}}!)
+  if v          <  B!$^{\phantom{\texttt{h}}}$! then return B!$^\mathtt{h}$! quo!$_{\texttt{digit}}$! v[0]
+  if v          >  B!$^\texttt{h}$! then return 0
+  if (v *!$_{\texttt{digit}}$! 2) >  B!$^\texttt{h}$! then return 1
+  if v          == B!$^\mathtt{k}$! then return B!$^{\texttt{h}-\texttt{k}}$!
+  -- 2. Initial approximation (!{\hypersetup{allcolors=ForestGreen}\ref{shinvII}}!)
+  V = v[k-2] + (v[k-1] * B) + (v[k] * B!$^{\texttt{2}}$!)
+  w = (B!$^{\texttt{4}}$! - V) / V + 1
+  -- 3. Refine until sufficient (!{\hypersetup{allcolors=ForestGreen}\ref{shinvIII}}!)
+  if h - k <= 2 then return shift (h - k - 2) w 
+  return REFINE v w h k 2
+\end{lstlisting}
+
+
+
+
+
+\begin{figure}
+{
+\hrule\vspace*{-0.4ex}
+\begin{minipage}{.45\textwidth}
+\begin{lstlisting}[language=pseudo,frame=,escapeinside={!}{!}]
+-- finds `k` s.t. !$\green \texttt{B}^{\texttt{k}} \leq \texttt{v} < \texttt{B}^{\texttt{k}+\texttt{1}}$!
+fun FINDK v =
+  k = (sizeof v) - 1
+  while v[k] == 0 do
+    k -= 1
+  return k
+
+-- finds `p` s.t. !$\green \texttt{v} < \texttt{B}^{\texttt{p}}$!
+fun PREC v =
+  return FUNDK v + 1
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}{.45\textwidth}
+\begin{lstlisting}[language=pseudo,firstnumber=11,frame=,escapeinside={!}{!}]
+-- finds `h` s.t. !$\green \texttt{u} \leq \texttt{B}^{\texttt{h}}$!
+fun FINDH u =
+  h = FINDK u
+  if u[h] == 1
+  then return u
+  else return u + 1
+
+-- computes !$\green ( \texttt{v}\cdot \texttt{w})~\texttt{rem}~\texttt{B}^{\texttt{L}}$!
+fun MULMOD v w L =
+  return MUL (take L v) (take L w)
+\end{lstlisting}
+\end{minipage}\vspace*{-0.8ex}
+\hrule
+}
+\caption{\footnotesize Helpers for Watt's division algorithm, where MUL is some given multiplication method.}
+\label{divhelpers}
+\end{figure}
+
+
+The term $B^h-v \cdot w$ appears in each iteration step. While it can be computed
+straightforward, Watt increases the efficiency by using close products. The idea
+is that in cases where the product $v\cdot w$ is close to $B^h$ by a factor of
+$|B^h- v\cdot w|\leq B^L, L < h$, only the lower $L$ digits of the product is
+needed. Hence, we can use a truncated multiplication of size $L$ rather than the
+size of $v$ and $w$. Listing \ref{powdiff} shows the pseudocode for this
+computation:
+\begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode computing $B^{h}- v \cdot w$ efficiently using close products and helpers from Listing \ref{divhelpers}, where $l$ is number of correct digits in $w$, \texttt{SUB} is big int subtraction, \texttt{false} is unsigned, and \texttt{true} is signed.},label={powdiff}]
+fun POWDIFF v w h l =
+  L = (PREC v) + (PREC w) - l + 1
+  -- Constant case where !$\green\texttt{v}\cdot \texttt{w} = \texttt{0}$!, so result is B!$^{\green\texttt{h}}$!
+  if (v == 0) || (w == 0) then return (B!$^{\texttt{h}}$!, false)
+  -- Worst case where the multiplication !$\green\texttt{v}\cdot \texttt{w}$! is in full size
+  if L >= h               then return SUB B!$^{\texttt{h}}$! (MUL v w)
+  -- Close product case where only the lower L digits of !$\green\texttt{v}\cdot \texttt{w}$! is needed
+  P = MULMOD v w L
+  if P      == 0 then return (P, false)
+  if P[L-1] == 0 then return (P, true)
+  return SUB B!$^{\texttt{L}}$! P
+\end{lstlisting}
+
+
+REMAINING:
+\begin{lstlisting}[language=pseudo,escapeinside={!}{!},]
+-- l is the number of leading correct digits
+fun REFINE v w h k l =
+  g = 2
+  w = shift g w
+  while h - k > l do
+    m = min l (h - k + 1 - l)
+    s = max 0 (k - 2*l + 1 - g)
+    w = shift (-1) (STEP (k + l + m - s + g) (shift (-s) v) w m l g)
+    l += m - 1
+  return shift (-g) w
+
+-- l is the number of correct digits and m the additional digits needed
+fun STEP h v w m l g =
+  -- 1. Compute !$\green \texttt{B}^{\texttt{h}}- \texttt{v} \cdot \texttt{w}$!
+  (pwd, sign) = POWDIFF v w (h-m) (l-g)
+  -- 2. Compute and return !$\green\texttt{w}+ \lfloor \texttt{w} \cdot ( \texttt{B}^{\texttt{h}}- \texttt{v}\cdot \texttt{w})\cdot \texttt{B}^{\texttt{-h}}\rfloor$!
+  if sign
+  then return SUB!$_{\texttt{abs}}$! (shift m w) (shift (2*m - h) (MUL w pwd))
+  else return ADD!$_{\phantom{\texttt{abs}}}$! (shift m w) (shift (2*m - h) (MUL w pwd))
+
+fun DIV u v =
+  -- 1. Find assumptions
+  h = FINDH u
+  k = FINDK v
+  -- 2. Avoid non-terminating loop
+  if k == 1 then u = shift 1 u
+                 v = shift 1 v
+                 h += 1
+                 k += 1
+  -- 3. Find quotient and remainder
+  q = shift (-h) (MUL u (SHINV h k v))
+  r = SUB!$_{\texttt{abs}}$! u (MUL q v)
+  -- 4. Find !\green$\delta$!
+  if (r >= v) then q += 1
+                   r -= v
+  return (q, r)
+\end{lstlisting}
+
 
 \subsection{Prototype}
 \label{subsec:divproto}

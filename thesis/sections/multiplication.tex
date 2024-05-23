@@ -195,7 +195,7 @@ $O(m)$:
 
 \begin{figure}[H]
 \begin{lstlisting}[language=pseudo,escapeinside={(*}{*)},frame=single]
-fun conv t = -- Parameter `t` represents current index of the m/2 threads
+fun CONV t = -- Parameter `t` represents current index of the m/2 threads
     k1 = t
     k2 = m - 1 - k1            -- The indices `k1` and `k2` represents the
     l1, l2, h1, h2, c1, c2 = 0 -- upper and lower `k` handled by thread `t`
@@ -214,10 +214,10 @@ fun conv t = -- Parameter `t` represents current index of the m/2 threads
 
     return (l1, l2, h1, h2, c1, c2)
 
-(l1, l2, h1, h2, c1, c2) = map conv (0..(m/2)-1)
+(l1, l2, h1, h2, c1, c2) = map CONV (0..(m/2)-1)
 l = concat l1 (reverse l2)           -- The second half of the
-h = shift (concat h1 (reverse h2)) 1 -- convolutions are computed in
-c = shift (concat c1 (reverse c2)) 2 -- reverse order due to work balancing
+h = shift 1 (concat h1 (reverse h2)) -- convolutions are computed in
+c = shift 2 (concat c1 (reverse c2)) -- reverse order due to work balancing
 r = ADD l h
 w = ADD r c
 \end{lstlisting}
@@ -229,7 +229,7 @@ While we cannot optimize the asymptotics of the algorithm, we can eliminate one
 of the additions, decreasing the amount of communication. The intuition is to
 compute two lower and two upper convolutions per thread -- four in total. This
 allows to prematurely compute half of the additions before the parts leave
-register memory (i.e.\ in the function \texttt{conv} of Figure
+register memory (i.e.\ in the function \texttt{CONV} of Figure
 \ref{fig:mulparalg}), and thus, necessitating only one addition after running
 the convolutions. The optimization not only reduces the communication, but also
 reduces shared memory usage by better utilizing registers. The downside is that
@@ -645,7 +645,7 @@ algorithm.
 \begin{lstlisting}[language=pseudo,frame=,escapeinside={(*}{*)}]
 l = map (*(*$_{\mathtt{low}}$*) d) u
 h = map (*(*$_{\mathtt{high}}$*) d) u
-h = shift h 1
+h = shift 1 h
 w = ADD l h
 \end{lstlisting}
   \end{minipage}

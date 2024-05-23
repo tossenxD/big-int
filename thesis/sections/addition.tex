@@ -416,11 +416,11 @@ execute instructions in lockstep. Figure \ref{fig:warpscan} contains an
 illustration of this algorithm. It works in three steps with synchronization
 in-between:
 \begin{enumerate}[label=\Roman*]
-\item Each warp scans it's elements in $\log \mathit{warpsize}$ iterations.
+\item Each warp scans it's elements in $\log \mathit{warpsize}$ iterations.\label{scanI}
 \item The end-of-warp results are put in the first warp, synchronized, and then
-  scanned.
-\item The results of ``II'' are fetched, synchronized, and distributed over the
-  results ``I''.
+  scanned.\label{scanII}
+\item The results of \ref{scanII} are fetched, synchronized, and distributed over the
+  results \ref{scanI}.
 \end{enumerate}
 
 \begin{figure}
