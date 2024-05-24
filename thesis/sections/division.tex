@@ -18,7 +18,7 @@ a pair.
 A common way to reason about division is to multiply the dividend with the
 inverse of the divisor, also called the reciprocal. GMP use reciprocals for
 division by single precision, but since reciprocals are expensive to compute,
-their basecase division use Knuth's algorithm for long division, also known as
+their base case division use Knuth's algorithm for long division, also known as
 \textit{grade-school} division \cite{GMP, knuth97}. This algorithm is inherently
 sequential: It iteratively produce the result by finding one correct digit per
 iteration, and thus, unfit for GPGPU. As a result, we focus on algorithms using
@@ -41,10 +41,10 @@ overhead of converting between representations.
 Instead, we use Watt's efficient and exact arithmetic algorithm for computing
 quotients, presented in \cite{watt2023efficient}. The prerequisite of the
 algorithm is the existence of a shift operation for the chosen data type -- which
-is a very efficient operation for integers -- and a multiplication method given
-as a argument. The intuition is to utilize the shift operation in order to avoid
-the domain change associated with computing the inverse, by instead computing
-what is referred to as the \textit{whole shifted inverse}.
+is a efficient operation for integers -- and a multiplication method given as a
+argument. The intuition is to utilize the shift operation in order to avoid the
+domain change associated with computing the inverse, by instead computing what
+is referred to as the \textit{whole shifted inverse}.
 
 This section is structured as follows: In \ref{subsec:divalg} we give a detailed
 introduction to the algorithm formulated by Watt in \cite{watt2023efficient}. We
@@ -84,10 +84,11 @@ abstract interpretation -- given some $n'>p$ it essentially behaves as a
 fractional inverse that is then "shifted into our domain". Consider the
 following example:
 
+\begin{example}
 Suppose we have the integer $u=\arr{1,2,3}$ in base $B=2^{32}$ and wish to divide
 it by the integer $v=\arr{1,1,0}$ in base $B$. Since $v$ is of precision $p=2$,
 we get a proper inverse representation of $v$ by computing the $n$ shifted
-inverse for some $n>p$. We pick $n=3$ and get:
+inverse for some $n>p$. We pick $n=3$:
 \begin{equation}
 \label{eq:3}
 \mathtt{shinv}_3~\arr{1,1,0} = \arr{0,4294967295,0}
@@ -108,13 +109,14 @@ size):
 \end{equation}
 The correct answer is $\arr{4294967295,2,0}$, so the method is off by $1$. This
 is an accommodated byproduct of computing the whole shifted inverse. However,
-the method approximates the result by at most $1$, allowing us to mechanically
-adjust the result.
+the method approximates the result by an difference of at most $1$, allowing us
+to mechanically adjust the result.\newline
+\end{example}
 
 The formal definition given by Watt in Theorem 1 of his paper
 \cite{watt2023efficient} is as follows:
 
-\begin{definition}[quotient of big integers by whole shifted inverse]
+\begin{definition}[quotient of big integers by whole shifted inverse]\label{def:quo}
   For the base $B$ big integers $u$ and $v$ and some $h\in \mathbb{N}$ s.t.\
   $u \leq B^h$, the quotient of $u$ by $v$ is:
   \begin{equation}
@@ -134,34 +136,65 @@ steps:
 \item Refine the initial approximation iteratively until it is sufficient.\label{shinvIII}
 \end{enumerate}
 Listing \ref{shinv} below shows the pseudocode for this operation. In step
-\ref{shinvI} we have four special cases. They serves dual purposes: To guarentee
-that $B < v \leq B^h/2$ and being faster. The first case says that if $v$ only
-consists of a single digit, then we can use a division by single precision
-method instead.\footnote{As mentioned earlier in how GMP handle division, this
-  case can generally be handled more efficient.} The next two cases is if
-$v > u$ or $2v > u$ and so the quotient is $0$ and $1$, respectively. The last
-case is when $v$ is exactly a power of its base, and we can use the rule
-$x^a/x^b=x^{a-b}$ instead. However, this is where we introduce our revisions, because the refinement methods use ...
+\ref{shinvI} we have four special cases. They serves dual purposes: To guarantee
+that $B < v \leq B^h/2$ (an assumption of the initial approximation for fast
+convergence) and to be faster. The first case is when $v$ only consists of a
+single digit, and we use a division by single precision method.\footnote{As
+  mentioned earlier in how GMP handle division, this case can generally be
+  handled more efficient.} The next two cases is if $v > u$ or $2v > u$ and so
+the inverse is $0$ and $1$, respectively. The last case is when $v$ is exactly a
+power of its base, and we can use the rule $x^a/x^b=x^{a-b}$ instead.
 
+Step \ref{shinvII} computes the initial approximation using the last three
+digits of $v$, e.g.\ for $v$ of size $m$ we get $V= \arr{v[m-3],v[m-2],v[m-1]}$.
+However, this is where we introduce our revision: Computing $V$ in this manner
+requires $v \geq B^2$, which is not guaranteed by the special cases. This function
+instead assumes that the precision of $v$ is not 2, i.e.
+$B^k\leq v < B^{k+1} \land k \neq 1$. We show how to enforce this assumption when
+presenting Listing \ref{div}, and shortly see why the assumption is important.
 
-\begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode for computing \texttt{shinv}$_h~v$ in base $B$, where $B^k \leq v < B^{k+1}$, \texttt{quo}$_{\mathtt{digit}}$ and \texttt{*}$_{\mathtt{digit}}$ are quotetion and multiplication by single precision, respectively, and \texttt{REFINE} is some refinement method.},label={shinv}]
+Hence, the initial approximation of $w$ (line 9) always consists of two leading
+correct digits. Step \ref{shinvIII} checks whether the shifted inverse consists
+of one or two digits, and return the approximation accordingly. If it needs more
+digits of precision, it starts the refinement process using the specialized
+Newton iteration. Watt presents three refinement methods with a varying degree
+of optimizations. The method we use is the optimal (\texttt{refine3} of
+Algorithm 1 in \cite{watt2023efficient}), which we describe shortly when
+presenting Listing \ref{refine}. However, it use something called
+\textit{shorter iterates} which has the side effect of each iteration being one
+digit short of doubling the precision. This means that the number of correct
+leading digits, from now on referred to as $l$, must be $\geq 2$. Thus, we if
+$k = 1$ and we are in the case where $h-k>2$, then we would start refining on
+$l=1$, and so one digit short of doubling $l=1$ is $l=1$, and hence, the
+refinement never increases the precision and runs forever.
+
+\begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode for computing \texttt{shinv}$_h~v$ in base $B$, where $B^k \leq v < B^{k+1}, k\neq 1$, \texttt{quo}$_{\mathtt{digit}}$ and \texttt{*}$_{\mathtt{digit}}$ are quotient and multiplication by single precision, and \texttt{REFINE} is an approximation refinement method.},label={shinv}]
 fun SHINV h k v =
-  -- 1. Special cases (!{\hypersetup{allcolors=ForestGreen}\ref{shinvI}}!)
+  -- !{\hypersetup{allcolors=ForestGreen}\ref{shinvI}}! Special cases
   if v          <  B!$^{\phantom{\texttt{h}}}$! then return B!$^\mathtt{h}$! quo!$_{\texttt{digit}}$! v[0]
   if v          >  B!$^\texttt{h}$! then return 0
   if (v *!$_{\texttt{digit}}$! 2) >  B!$^\texttt{h}$! then return 1
   if v          == B!$^\mathtt{k}$! then return B!$^{\texttt{h}-\texttt{k}}$!
-  -- 2. Initial approximation (!{\hypersetup{allcolors=ForestGreen}\ref{shinvII}}!)
+  -- !{\hypersetup{allcolors=ForestGreen}\ref{shinvII}}! Initial approximation
   V = v[k-2] + (v[k-1] * B) + (v[k] * B!$^{\texttt{2}}$!)
   w = (B!$^{\texttt{4}}$! - V) / V + 1
-  -- 3. Refine until sufficient (!{\hypersetup{allcolors=ForestGreen}\ref{shinvIII}}!)
+  -- !{\hypersetup{allcolors=ForestGreen}\ref{shinvIII}}! Refine until sufficient
   if h - k <= 2 then return shift (h - k - 2) w 
   return REFINE v w h k 2
 \end{lstlisting}
 
-
-
-
+We will now present how to compute Definition \ref{def:quo} using \texttt{SHINV}
+and how to enforce the assumption $k\neq 1$ using shifts. The Pseudocode is in
+Listing \ref{div} and contains four steps. Step 1.\ (lines 3-4) computes the
+assumptions straightforward using helpers from Figure \ref{divhelpers}. Step
+2.\ handles the case $k=1$ by shifting both $u$ and $v$ by one. Note, a $n$-shift
+is equivalent to multiplying by $B^n$, so the quotient is
+unaffected. Furthermore, the relation between $h$ and $k$ remains the same, so
+we do not introduce further iterations inside \texttt{SHINV}. Step 3.\ computes
+the quotient and remainder from Equation (\ref{eq:defquo}) straightforward with
+$\delta=0$, using some multiplication method \texttt{MUL} and absolute subtraction
+method \texttt{SUB}$_{\mathtt{abs}}$. Lastly, step 4.\ finds $\delta$ and adjusts the
+result accordingly, by checking whether the remainder is nonsensical.
 
 \begin{figure}
 {
@@ -191,7 +224,7 @@ fun FINDH u =
 
 -- computes !$\green ( \texttt{v}\cdot \texttt{w})~\texttt{rem}~\texttt{B}^{\texttt{L}}$!
 fun MULMOD v w L =
-  return MUL (take L v) (take L w)
+  return take L (MUL v w)
 \end{lstlisting}
 \end{minipage}\vspace*{-0.8ex}
 \hrule
@@ -200,15 +233,92 @@ fun MULMOD v w L =
 \label{divhelpers}
 \end{figure}
 
+\begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode for computing $u~\mathtt{quo}~v$ and $u~ \mathtt{rem}~ v$ using Definition \ref{def:quo}, where \texttt{MUL} is some big int multiplication method, \texttt{SUB} subtraction method, \texttt{ADD} addition method, and with helpers from Listing \ref{divhelpers}.},label={div}]
+fun DIV u v =
+  -- 1. Find assumptions
+  h = FINDH u
+  k = FINDK v
+  -- 2. Avoid non-terminating loop
+  if k == 1 then u = shift 1 u
+                 v = shift 1 v
+                 h += 1
+                 k += 1
+  -- 3. Find quotient and remainder
+  q = shift (-h) (MUL u (SHINV h k v))
+  r = SUB!$_{\texttt{abs}}$! u (MUL q v)
+  -- 4. Adjust for !\green$\delta$!
+  if (r >= v) then q = ADD q 1
+                   r = SUB r v
+  return (q, r)
+\end{lstlisting}
 
-The term $B^h-v \cdot w$ appears in each iteration step. While it can be computed
-straightforward, Watt increases the efficiency by using close products. The idea
-is that in cases where the product $v\cdot w$ is close to $B^h$ by a factor of
-$|B^h- v\cdot w|\leq B^L, L < h$, only the lower $L$ digits of the product is
-needed. Hence, we can use a truncated multiplication of size $L$ rather than the
-size of $v$ and $w$. Listing \ref{powdiff} shows the pseudocode for this
-computation:
-\begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode computing $B^{h}- v \cdot w$ efficiently using close products and helpers from Listing \ref{divhelpers}, where $l$ is number of correct digits in $w$, \texttt{SUB} is big int subtraction, \texttt{false} is unsigned, and \texttt{true} is signed.},label={powdiff}]
+Next, we present the refinement method used by \texttt{SHINV}. The pseudocode is
+in Listing \ref{refine} and contains no alterations to the original formulation
+in \cite{watt2023efficient}. It use the method \texttt{STEP} to compute a Newton
+iteration, which we shortly discuss when presenting Listing \ref{step}. This
+method expands the specialized Newton iteration with two concepts;
+\textit{shorter iterates} and \textit{divisor prefixes}. Shorter iterates is the
+idea that not all digits of the intermediate results between iterations
+matters. Since the precision roughly doubles, only the leading $l$ digits of the
+intermediate results contributes to the refinement at each iteration. Line 5
+computes the number of leading digits relevant for the current iteration. It
+effectively allows us to truncate the size of of the big integers in the
+\texttt{STEP} function, rather than doing each step in full size, s.t.\ the size
+of the integers in each Newton step roughly doubles at each iteration.
+
+In turn, this introduces the need for \textit{guard digits} because the
+truncated sized steps may differ from the full sized steps, but only in the two
+least significant digits. Hence, we use $2$ guard digits as defined in line 2,
+and shift the approximate $w$ accordingly.
+
+Lastly, the divisor prefixes is the idea that when the divisor $v$ is large
+relative to shifted inverse approximated at each iteration, some of the leading
+digits of $v$ does not contribute to the result of the iteration step. Instead,
+we use a prefix of $v$ to further truncate the size of the big integers at each
+step. This process too is imprecise, but it is defined such that it is accounted
+for by the 2 guard digits. The scaling of $v$ is determined in line 6.
+
+\begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode for refining the shifted inverse approximation $w$ of $l$ correct leading digits using the Newton iterate step function \texttt{STEP} of Listing \ref{step}, where the computational work of finding iterates is reduced by using shorter iterates and divisor prefixes.},label={refine}]
+fun REFINE v w h k l =
+  g = 2          -- guard digits to account for shorter
+  w = shift g w  -- iterate and divisor prefix inexactness
+  while h - k > l do
+    n = min l (h - k + 1 - l)   -- `n` is amount to grow the iterate
+    s = max 0 (k - 2*l + 1 - g) -- `s` is amount to scale `v` with
+    w = shift (-1) (STEP (k + l + n - s + g) (shift (-s) v) w n l g)
+    l += n - 1                  -- `l` is amount of correct leading digits
+  return shift (-g) w
+\end{lstlisting}
+
+Next up is the Newton step function \texttt{STEP}. Its pseudocode is in Listing
+\ref{step}. This is where most of the computational work lies since it contains
+two multiplications. The function computes
+$\mathit{step}(h,v,w,n) = w\cdot B^n + \lfloor w \cdot (B^{h-n} - v \cdot w) \cdot B^{2n - h}\rfloor$ as
+given by Watt in \cite{watt2023efficient}. From the calling procedure of
+\texttt{STEP} in \texttt{REFINE}, we get that the function corresponds to
+$w\cdot B^l + \lfloor w \cdot (B^{l} - B^{-k+s-g} \cdot \lfloor v\cdot B^{-s} \rfloor \cdot w)\rfloor$, which satisfies the
+properties of divisor prefix and shorter iterates proofed by Watt. We have made
+no alterations to the original function formulation, except for explicitly
+handling the sign and magnitude of the \texttt{POWDIFF} function.
+
+\begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode for computing a Newton step of the refinement method in Listing \ref{refine} for big ints $v$ and $w$ defined as $\mathit{step}(h,v,w,n) = w\cdot B^n + \lfloor w \cdot (B^{h-n} - v \cdot w) \cdot B^{2n - h}\rfloor$. $h$ is the parameter and $n$ the number of more digits to correctly refine in this step. $l$ is the number of leading digits currently correct and $g$ is the amount of guard digits added by the refinement method -- which are both passed down to and enables optimizations in the function \texttt{POWDIFF} given in Listing \ref{powdiff} that computes $B^{h-n}-v\cdot w$. \texttt{MUL} is some big int multiplication method, \texttt{SUB}$_{\mathtt{abs}}$ is absolute subtraction for big ints, and \texttt{ADD} is addition for big ints.},label={step}]
+fun STEP h v w n l g =
+  -- 1. Compute !$\green \texttt{B}^{\texttt{h}- \texttt{n}}- \texttt{v} \cdot \texttt{w}$!
+  (pwd, sign) = POWDIFF v w (h-n) (l-g)
+  -- 2. Compute and return !$\green\texttt{w} \cdot \texttt{B}^{\texttt{n} - \texttt{h}}+ \lfloor \texttt{w} \cdot ( \texttt{B}^{\texttt{h}}- \texttt{v}\cdot \texttt{w})\cdot \texttt{B}^{\texttt{2n} - \texttt{h}}\rfloor$!
+  if sign
+  then return SUB!$_{\texttt{abs}}$! (shift n w) (shift (2*n - h) (MUL w pwd))
+  else return ADD!$_{\phantom{\texttt{abs}}}$! (shift n w) (shift (2*n - h) (MUL w pwd))
+\end{lstlisting}
+
+Lastly is the function \texttt{POWDIFF}. The term $B^h-v \cdot w$ appears in each
+iteration step. While it can be computed straightforward, Watt increases the
+efficiency by using close products. The idea is that in cases where the product
+$v\cdot w$ is close to $B^h$ by a factor of $|B^h- v\cdot w|\leq B^L, L < h$, only the
+lower $L$ digits of the product $v \cdot w$ is needed. Hence, we can use a truncated
+multiplication of size $L$ rather than the size of $v$ and $w$. Listing
+\ref{powdiff} shows the pseudocode for this function:
+\begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode computing $\mathit{powdiff(v,w,h)}=B^{h}- v \cdot w$ efficiently using close products and helpers from Listing \ref{divhelpers}, where $l$ is number of correct leading digits in $w$, \texttt{MUL} is a big int multiplication method, and \texttt{SUB} is signed big int subtraction, with \texttt{false} indicating unsigned and \texttt{true} signed.},label={powdiff}]
 fun POWDIFF v w h l =
   L = (PREC v) + (PREC w) - l + 1
   -- Constant case where !$\green\texttt{v}\cdot \texttt{w} = \texttt{0}$!, so result is B!$^{\green\texttt{h}}$!
@@ -222,49 +332,24 @@ fun POWDIFF v w h l =
   return SUB B!$^{\texttt{L}}$! P
 \end{lstlisting}
 
-
-REMAINING:
-\begin{lstlisting}[language=pseudo,escapeinside={!}{!},]
--- l is the number of leading correct digits
-fun REFINE v w h k l =
-  g = 2
-  w = shift g w
-  while h - k > l do
-    m = min l (h - k + 1 - l)
-    s = max 0 (k - 2*l + 1 - g)
-    w = shift (-1) (STEP (k + l + m - s + g) (shift (-s) v) w m l g)
-    l += m - 1
-  return shift (-g) w
-
--- l is the number of correct digits and m the additional digits needed
-fun STEP h v w m l g =
-  -- 1. Compute !$\green \texttt{B}^{\texttt{h}}- \texttt{v} \cdot \texttt{w}$!
-  (pwd, sign) = POWDIFF v w (h-m) (l-g)
-  -- 2. Compute and return !$\green\texttt{w}+ \lfloor \texttt{w} \cdot ( \texttt{B}^{\texttt{h}}- \texttt{v}\cdot \texttt{w})\cdot \texttt{B}^{\texttt{-h}}\rfloor$!
-  if sign
-  then return SUB!$_{\texttt{abs}}$! (shift m w) (shift (2*m - h) (MUL w pwd))
-  else return ADD!$_{\phantom{\texttt{abs}}}$! (shift m w) (shift (2*m - h) (MUL w pwd))
-
-fun DIV u v =
-  -- 1. Find assumptions
-  h = FINDH u
-  k = FINDK v
-  -- 2. Avoid non-terminating loop
-  if k == 1 then u = shift 1 u
-                 v = shift 1 v
-                 h += 1
-                 k += 1
-  -- 3. Find quotient and remainder
-  q = shift (-h) (MUL u (SHINV h k v))
-  r = SUB!$_{\texttt{abs}}$! u (MUL q v)
-  -- 4. Find !\green$\delta$!
-  if (r >= v) then q += 1
-                   r -= v
-  return (q, r)
-\end{lstlisting}
+Thus, by using our defined \texttt{DIV}, the revised \texttt{SHINV}, and the big
+integer specialized \texttt{REFINE}, \texttt{STEP}, \texttt{POWDIFF} and helper
+functions, we achieve an exact division operator for big integers. It relies on
+arithmetic operators for addition, subtraction, and multiplication of big
+integers (such as \textit{badd}, \textit{bsub}, and \textit{convmul}), but is
+independent from the implementation of said operators. Hence, it is possible to
+e.g.\ use different operators for different input sizes. The asymptotics is
+dominated by the choice of multiplication operator (given that the addition and
+subtraction is efficiently implemented). The iterative refinement process takes
+$\lceil \log (h-k) \rceil$ iterations, and each iteration step runs two
+multiplications. Due to the structure and optimizations of the refinement
+process, the work is $O(M(m))$, where $M(m)$ is the work of the chosen
+multiplication operator and $m$ is the size of the input integers.
 
 
-\subsection{Prototype}
+
+
+\subsection{Overall Thoughts and Prototype}
 \label{subsec:divproto}
 {\red [TODO; rewrite]}
 
@@ -372,7 +457,7 @@ notable subroutines and how we handle them.
 
 % From the definition of modulo, $a \% b = a - \lfloor \frac{a}{c} \rfloor \cdot b$,
 
-\subsection{Futhark Implementation}
+\subsection{Parallelization and Futhark Implementation}
 \label{subsec:divfut}
 
 {\red [Missing]}
