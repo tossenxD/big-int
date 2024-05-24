@@ -48,13 +48,13 @@ is referred to as the \textit{whole shifted inverse}.
 
 This section is structured as follows: In \ref{subsec:divalg} we give a detailed
 introduction to the algorithm formulated by Watt in \cite{watt2023efficient}. We
-also present some revisions to the algorithm -- notably an unconsidered corner
-case -- and reflect on its adaptability to the domain of big integers. In
-\ref{subsec:divproto} we show a sequential prototype of the algorithm written in
-C. It serves to fully understand the complexities involved in adapting the
-algorithm to big integers. Lastly, in \ref{subsec:divfut} we demonstrate how to
-parallelize the algorithm using Futhark, based on the methods we discovered
-during the prototyping.
+also present a revision to the algorithm regading an unconsidered corner case,
+and specialize it to the domain of big integers. In \ref{subsec:divproto} we
+further discuss its adaptability w.r.t.\ big integers, and raise concerns and
+solutions based on a sequential prototype of the algorithm written in C. It
+serves to fully understand the complexities involved in adapting the algorithm
+to big integers. Lastly, in \ref{subsec:divfut} we give an overview on how to
+parallelize the algorithm based on Futhark.
 
 \subsection{Algorithm}
 \label{subsec:divalg}
@@ -344,167 +344,84 @@ subtraction is efficiently implemented). The iterative refinement process takes
 $\lceil \log (h-k) \rceil$ iterations, and each iteration step runs two
 multiplications. Due to the structure and optimizations of the refinement
 process, the work is $O(M(m))$, where $M(m)$ is the work of the chosen
-multiplication operator and $m$ is the size of the input integers.
+multiplication operator and $m$ is the size of the input integers
+\cite{watt2023efficient}.
 
 
 
 
-\subsection{Overall Thoughts and Prototype}
+\subsection{Reflections and Prototyping}
 \label{subsec:divproto}
-{\red [TODO; rewrite]}
 
-We started by writing a prototype of the algorithm in C to better understand the
-inner workings of the algorithm. In its creation, we discovered some
-optimization with respect to our big integer data structure. Here are some
-notable subroutines and how we handle them.
+This section discuss some concerns and solutions about the presented
+algorithm. We wrote a sequential low-level prototype of the algorithm in C to
+better understand its adaptation of our big integer representation. In its
+creation, we discovered multiple interresting subject matters -- some of which
+are included in the pseudocode given in section \ref{subsec:divalg}, and some of
+which we present now.
 
-\begin{itemize}[leftmargin=*]
-\item \textbf{Base Powers}\\
-  These are prominent throughout the algorithm, and comes in a multitude of
-  usecases. However, most of the time they express something structural about a
-  big integer, and hence, can be optimized to a constant work check on the
-  integer.
+\paragraph{Initial Approximation}
+The initial approximation is found in step II of Listing \ref{shinv}. It gathers
+the three leading digits of $v$ in $V$ and then finds $B^4-V$, giving a four
+digit result. It then divides those four digits by $V$, giving a one or two
+digit result. Hence, the quadruple base type \texttt{qint\_t} is necessary to
+efficiently compute the initial approximation with register arithmetics. This
+restricts a CUDA implementation to base \texttt{uint32\_t} and Futhark to
+\texttt{u16}. In C, this process corresponds to Listing \ref{initC}:
+\begin{lstlisting}[language=CPP,caption={\footnotesize C form initial approximation of \texttt{SHINV} efficient in base \texttt{uint\_t} of \texttt{bits} and quad type \texttt{quint\_t}.},label={initC},escapeinside={!}{!}]
+quint_t V = (quint_t) v[k-2];                        // V  = v[k-2]
+V +=       ((quint_t) v[k-1]) << bits;               // V += v[k-1] !$\green\cdot$! B!$\green ^{\texttt{1}}$!
+V +=       ((quint_t) v[k])   << (2*bits);           // V += v[k]   !$\green\cdot$! B!$\green ^{\texttt{2}}$!
 
-  E.g. consider the comparison $v > B^h$ for a big integer $v$ of precision $m$
-  in base $B$. Instead of constructing $B^h$ and compare it to $v$, we can
-  simply check whether any digits are index greater than $h$ are non-zero, the
-  digit exactly at index $h$ is greater than $1$, or simply shortcircuit if
-  $m < d$.
-\item \textbf{Multmod}\\
-  For big integers $u$ and $v$ in base $B$, we define
-  $\fun{MultMod}(u,v,d) = (u \cdot v) \% (B^d)$. At first glance, this function
-  requires to double the precision $m$ for the multiplication, and then run a
-  computationally heavy modulus operation. However, taking the modulus of $B^d$
-  corresponds to zeroing out the $m \log B - d$ upper bits of an integer.
+quint_t r = (((quint_t) 0) - V) / V + ((quint_t) 1); // r = (B!$\green ^\texttt{4}$! - V) / V + 1
 
-  Thus, as these bits will not contribute to the result, $\fun{MultMod}$ is
-  equivalent to a truncated multiplication. I.e. exact precision multiplication
-  of precision $\fun{min}(d, m)$.
+w[0] = (uint_t) r;                                   // w = r 
+w[1] = (uint_t) (r >> bits);                         // (assuming w was 0)
+\end{lstlisting}
 
-\item \textbf{Initial Approximation}\\
-  The initial approximation is 4 digits divided by 2 digits and can be computed
-  efficiently using register arithmetics, if we have access to registers of
-  4$\times$ base size.
+\paragraph{Base Powers}
+These are prominent throughout the algorithm, and comes in a multitude of
+usecases. When multiplied, they take shape of a \texttt{shift} operation, as
+already incoorporated into the pseudocode. In the \texttt{POWDIFF} function,
+they are returned or otherwise used directly, and hence, require construction in
+a new memory space.
 
-\item \textbf{PowDiff}\\
-  This function computes the power difference of two big integers, their base
-  and an exponent, defined $\fun{PowDiff}(u, v, h) = B^h - u \cdot v$. This function
-  requires sign extension. However, instead of modifying our domain to signed
-  big integers, we can simply return a boolean sign indicator - the sign will
-  only dictate whether we add or subtract in the $\fun{Step}$-function, but the
-  result will be unsigned regardless.
+Remaining is the special cases of step I in the \texttt{SHINV} function. The
+base powers are operands to comparisons that express something structural about
+the divisor $v$. Hence, they can be integrated in said comparisons, avoiding
+their construction.  E.g.\ consider the second case $v > B^h$. This optimizes to
+the check: $\exists i\in \mathbb{N}.~(h<i<m \land v[i] \neq 0) \lor (h = i<m \land v[i] > 1)$.
 
-\item \textbf{Approximation Factor}\\
-  Since the algorithm approximates the exact result by a factor of 1, i.e.
-  $\delta = \{0,1\}$. We were not able to predict $\delta$, but it is trivially decidable
-  by reversing the division with multiplication. This requires one extra
-  multiplication, but is essentially free if we consider the remainder to be
-  part of the algorithms output.
-\end{itemize}
+(On a similar note, the multiplication by single precision of the third special
+case $2v > B^h$ should be treated as $v > B^h/2$ and integrated in the
+comparison as well.)
 
-% \subsection{Single Precision Divisor}
-% % In the prototype, a standard Long Division algorithm is used. Another way to
-% % express the computation of long division is:
-% % \begin{equation}
-% %   \label{eq:1}
-% %   q_i = \dfrac{\sum_{j=i}^{m-1} u_j \cdot B^{j-i}}{v}\% B
-% % \end{equation}
-% % E.g. consider the decimal number 500 divided by 4: We have
-% % $q_0 = (500 / 4) \% 10 = 5$, $q_1 = (50 / 4) \% 10 = 2$ and
-% % $q_2 = (5 / 4) \% 10 = 1$, i.e., the number 125.
+\paragraph{Preallocating Memory}
+Throughout this Thesis, we have considered arithmetics of big integers to preserve
+the input shape on output. The efficiency of this algorithm require fine control
+over the size of operands at each iteration, so we need to adjust input-output
+sizes according the iteration number. Furthermore, it is ideal to
+preallocate a memory region large enough to hold the biggest intermediate value
+of the refinement, rather than periodically doubling the memory regions of the
+operands. From the analysis in Watt's paper \cite{watt2023efficient}, the size
+of the operands at iteration $i$ is at most $2^i$. Since we have
+$\lceil \log (h-k) \rceil$ iterations, we get the maximum operand size
+$2^{\lceil \log (h-k) \rceil}$.
 
-% % We have the following rule for division and modulus:
-% % \begin{equation}
-% % \label{eq:2}
-% % \frac{a}{b} \% c = () \% c
-% % \end{equation}
-% % \begin{equation}
-% %   \label{eq:1}
-% %   q_i = \dfrac{\sum_{j=i}^{m-1} \left( (u_j \% v)\cdot B^{j-i}\right) }{v}\% B
-% % \end{equation}
-% % \begin{equation}
-% %   \label{eq:1}
-% %   r_i = \left( \sum_{j=i}^{m-1} u_j \cdot B^{j-i} \right) \% v
-% % \end{equation}
 
-% % ~
-
-% The quotient of size $m$ big integer $u$ and digit $d$ in base $B$ can be
-% computed as:
-% \begin{equation}
-%   \label{eq:1}
-%   q_i = \dfrac{\sum_{j=i}^{m-1} u_j \cdot B^{j-i}}{d}\% B
-% \end{equation}
-% E.g. consider the decimal number 500 divided by 4: We have
-% $q_0 = (500 / 4) \% 10 = 5$, $q_1 = (50 / 4) \% 10 = 2$ and
-% $q_2 = (5 / 4) \% 10 = 1$, i.e., the number 125. This approach does not fit a
-% wordsize, as it includes the big integer $u$.
-
-% In the sequential prototype, a standard Long Division algorithm is
-% used\footnote{Since the divisor is single precision, it is called Short Division
-%   instead of Long Division.}. The algorithm computes the partial quotient
-% $q_{i\in\{0,..,m-1\}}$, using the partial remainder $r_{i\in\{0,..,m\}}$ as follows:
-% \begin{equation}
-%   \label{eq:1}
-%   q_i = \left( r_{i+1} \cdot B + u_i\right) / d
-% \end{equation}
-% \begin{equation}
-%   \label{eq:1}
-%   r_i = \begin{cases} \left( r_{i+1} \cdot B + u_i\right) \% d & \text{if}~i<m \\ 0 & \text{otherwise} \end{cases}
-% \end{equation}
-% The intermideate results fits in a double word, and the algorithm is inherently
-% sequential from left-to-right.
-
-% From the definition of modulo, $a \% b = a - \lfloor \frac{a}{c} \rfloor \cdot b$,
+\paragraph{Guard Digits}
+In order to get our prototype to validate, we adjusted the amount of guard
+digits in the refinement method from $2$ to $m$, with $m$ being the size of the
+inputs. Currently, we are not aware whether it is related to the algorithm or an
+error in the prototype.
 
 \subsection{Parallelization and Futhark Implementation}
 \label{subsec:divfut}
 
 {\red [Missing]}
 
+multiple instances per block
 
-
-
-% As an example, lets handrun divison $\frac{u}{v}$ on the big integers $u = \texttt{[8,0,0,5]}$ and $v = \texttt{[4,2,0,0]}$ in base $B=2^{32}$. First, we must find $h$ such that $u\leq B^h$. A trivial pick is the precision of $u$ since the most significant digit is non-zero, i.e., $h=4$. Now comes the tricky part; we must find the whole shifted inverse of $v$ with respect to $h$, i.e., $\mathtt{shinv}_hv$.
-
-% First we must find $k$ such that $B^k\leq v < B^{k+1}$. This is simply the precision - 1, so we have $k = 1$. Next we have the four special cases which guarantee that $B < v \leq \frac{B^h}{2}$. The first case is if $v < B$, or, if only the first digit of $v$ is set. The second case is if $v > B^h$, which means that $v>u$ and the division $\frac{u}{v}$ floors to $0$. The third case is if $2v > B^h$, which means that the division floors to $1$. The last case is if $v = B^k$, which means that $v$ is exactly a multiple of the base, and so the whole shifted inverse of $v$ is also a multiple of the base.
-
-% In our example, we hit none of these special cases. Thus, we continue to compute a initial approximation of the whole shifted inverse. This approximation is computed by a division of a 4-digit big integer by a 2-digit big integer. Since we use base $B = 2^{32}$, we could do this in as one division in base $2^{128}$. However we chose to implement it, we get:
-% \[l = \mathtt{min}(k,2) = \mathtt{min}(1,2) = 1\]
-% \[V = \sum_{i=0}^lv_{k-l+i}B^i = 4 * B^0 + 2 * B^{1} = 8589934596\]
-% \[w = (B^{2l}- V ) / (V + 1) = 18446744065119617020 / 8589934597 = 2147483645\]
-% Hence, the initial approximation is the big integer $w = \mathtt{[2147483645,0,0,0]}$.
-
-% We then check if this approximation is sufficient by the condition $h-k \leq l$, or in our case, $3 \leq 1$, which is clearly false. Since it is not a sufficient, we start refining. Let us consider \texttt{refine3} as the refine method, since this is the best proposed method.
-
-% In this method, we have 2 guard digits, i.e:
-% \[g = 2\]
-% \[w = \mathtt{shift}_2w = \mathtt{[0,0,2147483645,0]}\]
-% We then start the iterative refinement. This lasts until the sufficiency-condition above becomes true. We can see $l$ as the number of digits that are correctly approximated and $h - k$ as the total number of digits to approximate. In each iteration, we first find how much to grow $w$ denoted $n$ and how to scale $w$ in the iteration denoted $s$. In our case, we have:
-% \[n = \mathtt{min}(h-k+1, l) = \mathtt{min}(2, 1) = 1\]
-% \[s = \mathtt{max}(0, k - 2l + 1 - g) = \mathtt{max}(0,-2) = 0\]
-% Now comes the meat of the iterations; we take a refinement \texttt{step}:
-% \[ \mathtt{step}(k + l + n - s + g, \mathtt{shift}_{-s}v, w, n, l, g) = \mathtt{step}(3, 0, w, n, l, g)\]
-% First we shift $w$ by the growth factor:
-% \[w0 = \mathtt{shift}_nw = \mathtt{shift}_1 \mathtt{[0,0,2147483645,0]}= \mathtt{[0,0,0,2147483645]}\]
-
-% Next up we compute the \texttt{powdiff} of $w$.
-% \[w1 = \mathtt{powdiff}(v,w,h-n,l-g) = \mathtt{powdiff}(0,w,2,-1)\]
-% This function computes $B^{h}-v\cdot w = B^{2}-0\cdot w = B^2$, but let us see how. First we find the difference between the number of approximated digits minus the guard digits and the precision after the multiplication plus 1:
-% \[ L = \mathtt{prec}~v + \mathtt{prec}~w - l + 1 = 0 + 2 + 1 + 1 = 4\]
-% Then, we check whether we can easily compute this, which we can if $w = 0 \lor v = 0 \lor L \geq h$, which is the case right now since $v = 0$ and also $L = 4 \geq 2 = h$. Hence, we return $B^{h}=B^{2}=18446744073709551616$.
-
-% Now when we have the \texttt{powdiff}, we get our $w1$, which we then multiply by $w$:
-% \[w1 = \mathtt{powdiff}(v,w,h-n,l-g) = 18446744073709551616\]
-% \[w2 = w \times w1 = 730750817644604358339027025968017687532661637120\]
-% As a big integer, we get $w2 = \mathtt{[0,0,0,0,2147483645]}$, which we now shift by $2n - h$:
-% \[w3 = \mathtt{shift}_{2n - h}w2 = \mathtt{shift}_{2 - 3}w2 = \mathtt{shift}_{-1}w2 = \mathtt{[0,0,0,2147483645]}\]
-% Lastly, we add $w3$ and $w0$, and so we get:
-% \[ w0 + w2 =  \mathtt{[0,0,0,2147483645]} + \mathtt{[0,0,0,2147483645]} = \mathtt{[0,0,0,4294967290]}\]
-% Now that we have the result of \texttt{step}, we shift it by $-1$:
-% \[w = \mathtt{shift}_{-1} \mathtt{[0,0,0,4294967290]} = \mathtt{[0,0,4294967290]}\]
-% Then we update the number of digits taken into account in the approximation by:
-% \[l = l + n - 1 = 1 + 1 - 1 = 1\]
 
 %%% Local Variables:
 %%% mode: LaTeX
