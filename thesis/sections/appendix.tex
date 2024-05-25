@@ -3,22 +3,27 @@
 \subsection*{A}
 \label{app:A}
 
-\begin{proof}[Proof of associativity for (\ref{eq:otimesopt})]
-  We want to show $x \otimes (y \otimes z) = (x \otimes y) \otimes z$. From left-to-right we have:
+\begin{proof}[Proof of associativity for operator $\otimes$ of Equation (\ref{eq:otimesopt})]
+  We want to show:
+\begin{equation}
+  \label{eq:aconc}
+  x \otimes (y \otimes z) = (x \otimes y) \otimes z
+\end{equation}
+From right-to-left we have:
 \begin{align}
   (x \otimes y) \otimes z &= (~\underbrace{(((x~\&~(y \gg 1))~|~y)~\&~1)~|~(x~\&~y~\&~2)}_{\alpha}~) \otimes z\\
               &= (((\alpha~\&~(z \gg 1))~|~z)~\&~1)~|~(\alpha~\&~z~\&~2)\\
               \label{eq:otimesproofltr}
               &= (((\alpha~\&~1)~\&~(z \gg 1))~|~(z~\&~1))~|~((\alpha~\&~2)~\&~z)
 \end{align}
-From right-to-left we have:
+From left-to-right we have:
 \begin{align}
   x \otimes (y \otimes z) &= x \otimes (~\underbrace{((y~\&~(z \gg 1))~|~z)~\&~1)~|~(y~\&~z~\&~2)}_{\beta}~)\\
   &= (((x~\&~(\beta \gg 1))~|~\beta)~\&~1)~|~(x~\&~\beta~\&~2)\\
   \label{eq:otimesproofrtl}
   &= ((x~\&~(\beta \gg 1)~\&~1)~|~(\beta~\&~1))~|~(x~\&~(\beta~\&~2))
 \end{align}
-We must now show that equation (\ref{eq:otimesproofltr}) is equal to
+We must now show that Equation (\ref{eq:otimesproofltr}) is equal to
 (\ref{eq:otimesproofrtl}). Consider the second clause. Since $(1~\&~2)$ is $0$,
 so is the first clause of both $(\alpha~\&~2)$ and $(\beta~\&~2)$. Furthermore, we have
 that $2~\&~2$ is the same as $2$. Thus, we have:
@@ -40,7 +45,7 @@ We have $((y \gg 1)~\&~(z \gg 1)) = (y~\&~z \gg 1) = (y~\&~z~\&~2 \gg 1)$ and ge
   \phantom{((\alpha~\&~1)\&}&= (x~\&~((y~\&~z~\&~2) \gg 1)~\&~1)~|~((y~\&~(z \gg 1))~|~z)~\&~1)\\
   &= (x~\&~(\beta \gg 1)~\&~1)~|~(\beta~\&~1)
 \end{align}
-Thus, equations (\ref{eq:otimesproofltr}) and (\ref{eq:otimesproofrtl}) are equal, and hence, $x \otimes (y \otimes z) = (x \otimes y) \otimes z$.
+Thus, Equations (\ref{eq:otimesproofltr}) and (\ref{eq:otimesproofrtl}) are equal, and hence, (\ref{eq:aconc}) holds and $\otimes$ is associative.
 \end{proof}
 
 \begin{proof}[Proof that (\ref{eq:otimesneopt}) is left-associative neutral element for (\ref{eq:otimesopt})] By exhaustive evaluation we have:
@@ -93,6 +98,36 @@ cpShm24Regs(typename Base::uint_t* shmem, typename Base::uint_t* lhc0,
     lhc1[1] = (off_inst) ? shmem[off+3*str-1] : 0;
 }
 \end{lstlisting}
+
+\subsection*{C}
+\label{app:C}
+
+\begin{proof}[Proof of associativity for operator $\odot$ of Equation (\ref{eq:lt})] We want to show:
+  \begin{equation}
+    \label{eq:ccon}
+    \tup{\mathit{l1}}{\mathit{e1}} \odot (\tup{\mathit{l2}}{\mathit{e2}} \odot \tup{\mathit{l3}}{\mathit{e3}}) = (\tup{\mathit{l1}}{\mathit{e1}} \odot \tup{\mathit{l2}}{\mathit{e2}}) \odot \tup{\mathit{l3}}{\mathit{e3}}
+\end{equation}
+  By definition we get from left-to-right:
+\begin{align}
+  \tup{\mathit{l1}}{\mathit{e1}} \odot (&\tup{\mathit{l2}}{\mathit{e2}} \odot \tup{\mathit{l3}}{\mathit{e3}})\\
+  &= \tup{\mathit{l1}}{\mathit{e1}} \odot \tup{\mathit{l3} \lor (\mathit{e3} \land \mathit{l2})}{\mathit{e2} \land \mathit{e3}}\\
+  &= \tup{(\mathit{l3} \lor (\mathit{e3} \land \mathit{l2})) \lor ((\mathit{e2} \land \mathit{e3}) \land \mathit{l1})}{\mathit{e1} \land (\mathit{e2} \land \mathit{e3})}\\
+  &= \tup{(\mathit{l3} \lor (\mathit{e3} \land (\mathit{l2} \lor (\mathit{e2} \land \mathit{l1})))}{(\mathit{e1} \land \mathit{e2}) \land \mathit{e3}}\\
+  &= \tup{\mathit{l2} \lor (\mathit{e2} \land \mathit{l1})}{\mathit{e1} \land \mathit{e2}} \odot \tup{\mathit{l3}}{\mathit{e3}}\\
+  &= (\tup{\mathit{l1}}{\mathit{e1}} \odot \tup{\mathit{l2}}{\mathit{e2}}) \odot \tup{\mathit{l3}}{\mathit{e3}}\label{eq:ccon2}
+\end{align}
+Equation (\ref{eq:ccon2}) is equal to the right-hand-side of (\ref{eq:ccon}), and thus, operator $\odot$ is associative.
+\end{proof}
+
+\begin{proof}[Proof that $\tup{\mathtt{F}}{\mathtt{T}}$ is left-associative neutral element for $\odot$ of (\ref{eq:lt})] By exhaustive evaluation:
+\begin{align}
+  \label{eq:otimesneproof}
+  \tup{\mathtt{F}}{\mathtt{T}} \odot \tup{\mathtt{F}}{\mathtt{F}} &= \tup{\mathtt{F} \lor (\mathtt{F} \land \mathtt{F})}{\mathtt{F} \land \mathtt{F}} = \tup{\mathtt{F}}{\mathtt{F}} \\
+  \tup{\mathtt{F}}{\mathtt{T}} \odot \tup{\mathtt{F}}{\mathtt{T}} &= \tup{\mathtt{F} \lor (\mathtt{T} \land \mathtt{F})}{\mathtt{T} \land \mathtt{T}} = \tup{\mathtt{F}}{\mathtt{T}} \\
+  \tup{\mathtt{F}}{\mathtt{T}} \odot \tup{\mathtt{T}}{\mathtt{F}} &= \tup{\mathtt{T} \lor (\mathtt{F} \land \mathtt{F})}{\mathtt{T} \land \mathtt{F}} = \tup{\mathtt{T}}{\mathtt{F}} \\
+  \tup{\mathtt{F}}{\mathtt{T}} \odot \tup{\mathtt{T}}{\mathtt{T}} &= \tup{\mathtt{T} \lor (\mathtt{T} \land \mathtt{F})}{\mathtt{T} \land \mathtt{T}} = \tup{\mathtt{T}}{\mathtt{T}}
+\end{align}
+\end{proof}
 
 
 %%% Local Variables:

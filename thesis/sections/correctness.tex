@@ -91,7 +91,7 @@ $num\_instances = 2048$, with $ipb = 4$ where relevant. We run all tests twice
 with different backends, once on the CPU with C as backend, and once on the GPU
 with OpenCL as backend. The tests includes properties and validation against
 GMP, and they run on all four versions of \textit{badd} (addition) and all three
-versions of \textit{convmul} (multiplication). \uuline{All tests validates}.
+versions of \textit{convmul} (multiplication). \uline{All tests validates}.
 
 Next is the Futhark-GMP validation in C. We test addition, subtraction,
 multiplication, and division. We run the tests of base \texttt{uint16\_t},
@@ -100,15 +100,15 @@ multiplication, and division. We run the tests of base \texttt{uint16\_t},
 with $m=\{2,4,8,16,32,64,128\}$, 50 tests for each size, and 2500 tests with 50
 randomly generated sizes in the range $1\leq m \leq 512$, 50 tests for each size. The
 tests are run twice using the Futhark functions compiled to C and OpenCL,
-respectively. \uuline{Tests for addition, subtraction, and multiplication does
-  validate -- tests for division does not validate}.
+respectively. \uline{Tests for addition, subtraction, and multiplication
+  validates -- tests for division does not validate}.
 
 Lastly, we have the CUDA-GMP validations tests. We test all three versions of
 \textit{badd} and all five versions of \textit{convmul} with base
 \texttt{uint32\_t} and \texttt{uint64\_t}. The test setup is fused with the
 performance benchmark setup (i.e.\ after a benchmark has been run, the result
 gets valid), so further details about the test-configuration are in section
-\ref{subsec:benchset}. \uuline{All tests validate}.
+\ref{subsec:benchset}. \uline{All tests validate}.
 
 %%% Local Variables:
 %%% mode: LaTeX

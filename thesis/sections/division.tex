@@ -48,7 +48,7 @@ is referred to as the \textit{whole shifted inverse}.
 
 This section is structured as follows: In \ref{subsec:divalg} we give a detailed
 introduction to the algorithm formulated by Watt in \cite{watt2023efficient}. We
-also present a revision to the algorithm regading an unconsidered corner case,
+also present a revision to the algorithm regarding an unconsidered corner case,
 and specialize it to the domain of big integers. In \ref{subsec:divproto} we
 further discuss its adaptability w.r.t.\ big integers, and raise concerns and
 solutions based on a sequential prototype of the algorithm written in C. It
@@ -69,7 +69,7 @@ We will now give the intuition behind the algorithm defined by Watt in his paper
 version. The foundation of the algorithm is a whole shift operator and a whole
 shifted inverse operator:
 
-\begin{definition}[whole shift and whole shifted inverse of big integers]
+\begin{definition}[whole shift and whole shifted inverse of big integers]\label{def:shifts}
   We define a $n \in \mathbb{Z}$ whole shift and $n' \in \mathbb{N}$ whole shifted inverse of big
   integers $u\in \mathbb{N}$ and $v\in \mathbb{N}^{+}$ in base $B$ as:
   \begin{equation}\label{eq:shifts}
@@ -185,16 +185,21 @@ fun SHINV h k v =
 
 We will now present how to compute Definition \ref{def:quo} using \texttt{SHINV}
 and how to enforce the assumption $k\neq 1$ using shifts. The Pseudocode is in
-Listing \ref{div} and contains four steps. Step 1.\ (lines 3-4) computes the
-assumptions straightforward using helpers from Figure \ref{divhelpers}. Step
-2.\ handles the case $k=1$ by shifting both $u$ and $v$ by one. Note, a $n$-shift
-is equivalent to multiplying by $B^n$, so the quotient is
-unaffected. Furthermore, the relation between $h$ and $k$ remains the same, so
-we do not introduce further iterations inside \texttt{SHINV}. Step 3.\ computes
-the quotient and remainder from Equation (\ref{eq:defquo}) straightforward with
-$\delta=0$, using some multiplication method \texttt{MUL} and absolute subtraction
-method \texttt{SUB}$_{\mathtt{abs}}$. Lastly, step 4.\ finds $\delta$ and adjusts the
-result accordingly, by checking whether the remainder is nonsensical.
+Listing \ref{div} and contains four steps:
+\begin{enumerate}
+\item Lines 3-4 computes the assumptions straightforward using helpers from
+  Figure \ref{divhelpers}.
+\item Lines 6-9 handles the case $k=1$ by shifting both $u$ and $v$ by
+  one. Note, a shift is equivalent to a multiplication by definition, so the
+  quotient is unaffected. Furthermore, the relative difference of $h$ and $k$ is
+  unchanged, so no further iterations are introduced.
+\item Lines 11-12 finds the quotient and remainder using Equation
+  (\ref{eq:defquo}) with $\delta=0$, some big integer multiplication method
+  \texttt{MUL}, and some absolute subtraction method
+  \texttt{SUB}$_{\mathtt{abs}}$.
+\item Lines 14-16 checks the value of $\delta = \{0,1\}$ based on the nonsensicality
+  of the remainder, and adjusts the quotient and remainder accordingly.
+\end{enumerate}
 
 \begin{figure}
 {
@@ -229,7 +234,7 @@ fun MULMOD v w L =
 \end{minipage}\vspace*{-0.8ex}
 \hrule
 }
-\caption{\footnotesize Helpers for Watt's division algorithm, where MUL is some given multiplication method.}
+\caption{\footnotesize Helpers for Watt's division algorithm, where \texttt{MUL} is some given multiplication method.}
 \label{divhelpers}
 \end{figure}
 
@@ -350,13 +355,13 @@ multiplication operator and $m$ is the size of the input integers
 
 
 
-\subsection{Reflections and Prototyping}
+\subsection{General Reflections and Prototyping}
 \label{subsec:divproto}
 
 This section discuss some concerns and solutions about the presented
 algorithm. We wrote a sequential low-level prototype of the algorithm in C to
 better understand its adaptation of our big integer representation. In its
-creation, we discovered multiple interresting subject matters -- some of which
+creation, we discovered multiple interesting subject matters -- some of which
 are included in the pseudocode given in section \ref{subsec:divalg}, and some of
 which we present now.
 
@@ -382,7 +387,7 @@ w[1] = (uint_t) (r >> bits);                         // (assuming w was 0)
 \paragraph{Base Powers}
 These are prominent throughout the algorithm, and comes in a multitude of
 usecases. When multiplied, they take shape of a \texttt{shift} operation, as
-already incoorporated into the pseudocode. In the \texttt{POWDIFF} function,
+already incorporated into the pseudocode. In the \texttt{POWDIFF} function,
 they are returned or otherwise used directly, and hence, require construction in
 a new memory space.
 
@@ -418,10 +423,150 @@ error in the prototype.
 \subsection{Parallelization and Futhark Implementation}
 \label{subsec:divfut}
 
-{\red [Missing]}
+While Section \ref{subsec:divproto} focused on general reflections, this section
+focuses on concerns and solutions regarding parallelization and a Futhark
+implementation. The implementation we developed is not efficient and only
+partially validates, but it illustrates some of the complexities involved in a
+parallel adaptation of the algorithm -- which we will now present.
 
-multiple instances per block
+\paragraph{Multiple Instances per Block}
+In our other arithmetics we incorporate multiple big integer instances per CUDA
+block, which are then handled by segmented operations. It allows to maintain the
+efficiency of the arithmetics when processing small integers. However, Watt's
+algorithm contains branching of the following forms:
 
+Most apparent is the special cases of \texttt{SHINV}, directly returning from
+the function. Then there is the close product optimizations in \texttt{POWDIFF}
+and the divisor prefixes and shorter iterates optimizations in \texttt{REFINE}
+and \texttt{STEP}, which computes multiplications of various lengths inputs
+based on the precision of the integers. Lastly, the number of sequential Newton
+iterations in the refinement process directly depends on the precision of the
+inputs too.
+
+Hence, the division algorithm is not suitable for a segmented usecase and
+handling multiple instances per block is not efficient.
+
+\paragraph{Work Balancing}
+The interest is to implement the algorithm at CUDA block-level and in a single
+kernel. This restricts the number of threads per integer, but more importantly,
+it restricts the implementation to only use one execution configuration. In
+turn, the kernel must be able to handle all the various lengths arithmetics
+within the specified configuration.
+
+A naïve solution spawns the kernel with the number of threads needed to
+efficiently run the arithmetic of greatest length. However, this results in
+threads idling for arithmetics of shorter length, overall decreasing the
+efficiency. Likewise, if the kernel spawns with too few threads, the
+sequentialization factor of the arithmetic of greatest length may exhaust
+registers and local memory, overall decreasing the efficiency as well.
+
+An efficient solution requires running the big integer arithmetics in the kernel
+with varying degrees of intra-thread sequentialization, as well as finding the
+optimal kernel configurations.
+
+\paragraph{Shift Operator}
+Shifting a big integer in parallel is very efficient and equivalent to a map, as
+seen on the Futhark code in Listing \ref{shiftfut}. In CUDA, the operator
+becomes in-place by the transforming the map in two: Fetch the designated digit
+$\shortrightarrow$ synchronize $\shortrightarrow$ write the digit.
+\begin{lstlisting}[language=futhark,caption={\footnotesize Shift operator (Definition \ref{def:shifts}) in Futhark from file \texttt{helper.fut}.},firstnumber=96,label={shiftfut}]
+def shift [m] (n: i64) (u: [m]ui) : [m]ui =
+  map (\ i -> let off = i - n -- positive for right, negative for left
+              in if off >= 0 && off < m then u[off] else 0) (iota m)
+\end{lstlisting}
+
+\paragraph{Division by Single Precision}
+The first special case of \texttt{SHINV} where $v<B$ requires quotient by a
+single precision integer (digit). The intuition follows from Definition
+\ref{def:bigints} and states that the quotient of a size $m$ integer $u$ by
+digit $d$ in base $B$ can be computed as:
+\begin{equation}
+  \label{eq:divsing}
+  q_i = \dfrac{\sum_{j=i}^{m-1} u_j \cdot B^{j-i}}{d}~ \mathtt{rem}~ B
+\end{equation}
+E.g.\ consider the decimal number 300 divided by 4: We have
+$q_0 = (300 / 4)~ \mathtt{rem}~ 10 = 5$, $q_1 = (30 / 4)~ \mathtt{rem}~ 10 = 7$
+and $q_2 = (3 / 4)~\mathtt{rem}~10 = 0$, giving the number 75. This approach
+includes the big integer $u$ and does not fit in a word. However, Equation
+\ref{eq:divsing} can be rephrased in terms of the standard long division
+(grade-school) method. The method formalizes to computing the partial quotient
+$q_{i\in\{0,..,m-1\}}$ using the partial remainder $r_{i\in\{0,..,m\}}$ as follows:
+\begin{align}
+  q_i &= \left( r_{i+1} \cdot B + u_i\right)~ \mathtt{quo}~ d\\
+  r_i &= \begin{cases} \left( r_{i+1} \cdot B + u_i\right)~ \mathtt{rem}~d & \text{if}~i<m \\ 0 & \text{otherwise} \end{cases}
+\end{align}
+The intermediate results of this approach fits in a double word. This algorithm
+is a simple solution (opposed to e.g.\ GMP's) and the one occupying our
+sequential prototype. However, it is inherently right-to-left
+sequential and unsuitable for parallel computation.
+
+We recognise three approaches:
+\begin{enumerate}
+\item The long division algorithm may be parallelized over a scan (similarly to
+  addition).\label{divbysing1}
+\item Computing an inverse (e.g.\ a whole shifted inverse by a method similar to
+  \texttt{SHINV}) may be efficient in parallel, but requires a multiplication
+  afterwards.\label{divbysing2}
+\item Shifting both $u$ and $v$ by two when $k = 0$ (similarly to the shift by
+  one when $k=1$).\label{divbysing3}
+\end{enumerate}
+
+The potentialities of approach \ref{divbysing1} and \ref{divbysing2} are unknown
+to us and beyond the scope of this Thesis. Hence, we use approach
+\ref{divbysing3} for our parallel Futhark implementation.
+
+\paragraph{Assumptions, Comparisons, and Signed Subtraction}
+The algorithm features multiple comparisons of big integers, all of which
+parallelizes to map-reduce compositions. First, consider the special cases of
+\texttt{SHINV}. As mentioned in Section \ref{subsec:divproto}, they can be
+optimized to a unary comparison over the big integer. Following the example of
+that section, the second special case $v > B^h$ parallelizes to Listing
+\ref{gtbpow}:
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark function to check $u > B^i$ in parallel for some big int $u$ in base $B$ from file \texttt{div.fut}.},label={gtbpow},firstnumber=29]
+def gtBpow [m] (u: [m]ui) (i: i64) : bool =
+  map2 (\ x j -> (x > 1 && j == i) || (x > 0 && j > i) ) u (iota m)
+  |> reduce (||) false
+\end{lstlisting}
+Next, we have the equalities involved with the \texttt{POWDIFF}
+function. Equality of big integers corresponds to equality between digits, which
+parallelizes straightforward. Then there are the structural assumptions of big
+integers, written sequentially as the helpers \texttt{FINDK}, \texttt{FINDH},
+and \texttt{PREC} of Figure \ref{divhelpers}. They parallelize to a map-reduce
+composition that finds the greatest nonzero index. E.g.\ Listing \ref{findk}
+shows a parallel \texttt{FINDK}, where the map-reduce is equivalent to the
+\textit{max} function over the indices of nonzero digits in the input:
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark function to find $i$ for big integer $u$ in base $B$ s.t.\ $B^i \leq u < B^{i+1}$ from file \texttt{div.fut}.},label={findk},firstnumber=39]
+def findk [m] (u: [m]ui) : i64 =
+  map2 (\ x i -> if x != 0 then i else 0 ) u (iota m)
+  |> reduce (\ acc i -> if i != 0 then i else acc ) 0
+\end{lstlisting}
+
+Penultimately, the subtraction presented in Section \ref{subsec:sub} is
+unsigned, yet \texttt{POWDIFF} requires signed subtraction. Extending the
+subtraction to signs is trivial by determining the relation between the
+operands. For this purpose, we use the general big integer `$<$` comparison of
+Listing \ref{lt}. The map in line 84 checks whether the digits of the inputs are
+less than or equal. Then, in line 85, we reduce with the following operator:
+\begin{equation}
+  \label{eq:lt}
+  \tup{\mathit{l1}}{\mathit{e1}} \odot \tup{\mathit{l2}}{\mathit{e2}} \coloneq \tup{\mathit{l2} \lor (\mathit{e2} \land \mathit{l1})}{\mathit{e1} \land \mathit{e2}}
+\end{equation}
+The rationale is: If it is less than in the most significant digits, then the
+whole integer is less than -- if it is equal in the most significant digits, then
+it is decided in the least significant digits. The left-associative neutral
+element of $\odot$ is $\tup{\mathtt{False}}{\mathtt{True}}$. Proofs of associativity
+and neutral element are included in Appendix \hyperref[app:C]{C}.
+
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark function to check $u < v$ in parallel for big ints $u$ and $v$ from file \texttt{helper.fut}.},label={lt},firstnumber=83]
+def lt [m] (u: [m]ui) (v: [m]ui) : bool =
+  map2 (\ x y -> (x < y, x == y) ) u v
+  |> reduce (\(l1,e1) (l2,e2) -> (l2 || (e2 && l1), e1 && e2)) (false,true)
+  |> fst -- `fst` extracts the first tuple field
+\end{lstlisting}
+
+Lastly, we have the `$\geq$` associated with finding $\delta$ (line 14 of Listing
+\ref{div}). This can be done efficiently by negating the result of the `$<$`
+operator of Listing \ref{lt} above.
 
 %%% Local Variables:
 %%% mode: LaTeX
