@@ -3,12 +3,12 @@
 
 For the arithmetics to be efficient, they must be implemented at a CUDA
 block-level, thus, minimizing the communication overhead by utilizing the faster
-block-level shared memory for intermediate results. For CUDA, this is achieved
-manually by the execution configuration and the methods deployed to index over
-kernel parameters. However, for Futhark, the compiler ultimately determines how
-to map it. Hence, we use the compiler attribute \texttt{\#[only\_intra]} when
-batch processing arithmetics in Futhark, telling the compiler to only map the
-arithmetics at block-level (intra-block).
+block-level shared memory for intermediate results. In CUDA programs, this is a
+manual process achieved by the execution configuration and the methods deployed
+to index over kernel parameters. However, for Futhark, the compiler ultimately
+determines how to map it. Hence, we use the compiler attribute
+\texttt{\#[only\_intra]} when batch processing arithmetics in Futhark, telling
+the compiler to only map the arithmetics at block-level (intra-block).
 
 In principle, any arithmetic function only requires global memory access to read
 the inputs and write the output. In Futhark, this can be a bit involved,
@@ -21,11 +21,11 @@ Given we optimize for block-level, the arithmetics are confined to run on at
 most 1024 threads.  Hence, the implementation is aimed at medium-sized big
 integers, as when the block-size exceeds 1024, the arithmetics is not able to
 run. This is an artificial barrier, as we can introduce sequentialization within
-each thread to allow bigger integer sizes. E.g. consider the example given in
+each thread to allow bigger integer sizes. E.g.\ consider the example given in
 Figure \ref{fig:seqexa}. In the left illustration, each of the $512$ digits of
-the big integer is handled by a separate thread, giving $512$ threads. On the
-right, each thread instead handle two digits sequentially, giving only $256$
-threads.
+the big integer is handled by a separate thread, giving a block size of
+$512$. In the right illustration, each thread handles two digits sequentially,
+giving a block size of $256$ instead.
 
 \begin{figure}
   \centering
@@ -57,57 +57,55 @@ threads.
         \hline
       \end{tabular}\\
     \end{minipage}
-    \caption{\footnotesize Example of sequentialization within parallel threads.}
+    \caption{\footnotesize Example of sequentialization within parallel threads to reduce CUDA block size.}
     \label{fig:seqexa}
 \end{figure}
 
-However, when we increase the sequentialization factor within a thread, we
-decrease the amount of parallelism within the program. Thus, the bigger the
-integer, the less efficient the implementation (for sizes that otherwise would
-exceed CUDA block limits). This only holds up to a certain input size, because
-the block-level shared memory also grows with the integer size, resulting in an
-out-of-memory error for integers too big.
+However, when the sequentialization factor within parallel threads increases,
+the amount of parallelism within the program decreases. Furthermore, handling
+many digits sequentially per threads may exhaust the local memory. Thus, the
+bigger the integers are, the less efficient the implementation becomes (for
+sizes that otherwise would exceed CUDA block limits). This only holds up to a
+certain input size, because the block-level shared memory also grows with the
+integer size, resulting in an out-of-memory error for integers too big.
 
 Likewise, we can also have big integer sizes that are too small to efficiently
-compute in parallel. Consider again the example of Figure \ref{fig:seqexa} and
-suppose array $w$ consists of 16 digits instead of 512 -- then we have 16 and 8
-threads to handle $w$, respectively, neither of which fits in a warp. I.e.\ we
-have 16 and 24 threads, respectively, that idles when computing $w$.
+compute in parallel. Suppose a each thread process a digit of the input, and the
+input big integer consists of 16 digits -- then we have 16 threads processing and
+16 threads idling. This is not a problem when we only compute arithmetics on a
+single big integer, but effectively halves throughput when batch processing
+enough integers to consume the whole device.
 
-This is not a problem when we only compute arithmetics on a single big integer,
-but can significantly impede performance when batch processing. Suppose we
-process 1024 big integers of size 16, meaning 1024 CUDA blocks with one warp per
-block. Furthermore, suppose we only have access to 512 warps on our GPU. Then,
-each warp must compute two blocks, and within each block, half of threads are
-idle -- in principle giving us half the throughput compared to 1024 integers of
-size 32.
+Again, this is an artificial barrier, as we can combine (\textit{flatten}) big
+integers and handle them \textit{segmented} within a block. E.g.\ combining two
+integers per block in the above example is enough to fulfill a warp. This is not
+necessarily double the performance, since flattening, unflattening, and
+segmented operations comes with a cost, but the cost is overshadowed by the
+benefits (no idling threads) when processing many instances over smaller
+integers.\newline
 
-Again, this is an artificial barrier, as we can conjoin two big integers and
-handle them segmented within a warp. This process is called \textit{flattening},
-and operations working on flattened data structures are called \textit{segmented
-  operations}. Thus, in this example, we now get 512 blocks, which can be
-computed by the 512 warps in one sweep. This is not necessarily double the
-performance, since flattening, unflattening, and segmented operations comes with
-a cost, but in these cases, the cost may be well worth it when handling many
-arithmetic instances of smaller big integers.
+To summerize, the arithmetics is implemented at CUDA block-level aimed at
+medium-sized integers. They must increase the sequentialization factor within
+threads to allow bigger input integers (up to a limit). The throughput may
+improve from integrating segmented operations, processing multiple instances of
+arithmetics per CUDA block.
 
-% if literature on flattening is needed, maybe this?
-% \cite{Henriksen:2017:FPF:3062341.3062354}
+We take inspiration from the strategy behind the GMP library: They write
+multiple parameterized versions of each arithmetic function (including multiple
+algorithms), and dynamically (or by tuning) choose the best performing based on
+the input sizes \cite{GMP}. While we do not implement multiple algorithms, we
+implement multiple versions of the same algorithm with a gradual degree of
+optimization -- e.g.\ with and without the ability to process multiple instances
+per block.
 
-In regards to the strategy of implementing these optimizations, we take
-inspiration from the GMP library: They write multiple parameterized versions of
-each arithmetic function (including multiple algorithms), and dynamically (or by
-tuning) choose the best performing based on the current size \cite{GMP}.
-
-Inspired by their strategy, we implement multiple versions of arithmetics, with
-a varying degree of optimizations, and determine what version (optimizations)
-outperforms the others, by an experimental approach over the integer size and
-number of arithmetic instances. Since performance is the main concern, we assume
-that the size and number of inputs divides exact to implementations exhibiting
-sequentialization and segmentation.\footnote{This assumption does not restrict
-  the usefulness of the implementations, as we could simply pad inputs.}
-
-
+We expect the most optimized version to consistently perform best, but run
+experiments and benchmarks over the size of integers on all versions. It reveals
+the performance gain of each optimization and possibly find versions most suited
+for specific inputs. Since performance is the main concern, we assume that the
+size of integers and number per block divides the block dimensions exact for
+kernels exhibiting sequentialization and segmentation.\footnote{Assumption does
+  not restrict the usefulness of the implementations since inputs can be padded
+  to fit.}
 
 %%% Local Variables:
 %%% mode: LaTeX

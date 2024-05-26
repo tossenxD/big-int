@@ -1,0 +1,59 @@
+\section{Software Structure}
+\label{sec:cont}
+
+Various big integer arithmetic implementations has been developed as part of
+this Thesis. The code is publicly available at the GitHub repository
+\url{https://github.com/tossenxD/big-int}, where the latest commit of writing
+has ID {\red <INSERT LATEST COMMIT>}.
+
+The repository is structured as follows: The directories \texttt{cuda},
+\texttt{futhark}, and \texttt{prototypes} contains CUDA, Futhark, and C code,
+respectively. Each directory includes a \texttt{README} with detailed
+explainations of the setup and a \texttt{Makefile} to replicate the results of
+this Thesis.
+
+\paragraph{CUDA}
+The files \texttt{ker-add.cu.h} and \texttt{ker-mul.cu.h} contains the kernels
+for addition and multiplication. The arithmetics are gradually optimized over
+three and five versions, respectively, kept in the files for the sake of
+comparison. The kernels are called from the main file \texttt{main.cu}, which
+serves to generate inputs, check for errors, test the arithmetics, and run
+benchmarks. The heading of the main file defines numerous parameters specifying
+integer base, kernel version, what to run, etc., which can manually be adjusted.
+
+The \texttt{Makefile} offers two ways to run the main file -- one with a normal
+and one with a small amount of work. They are invoked by \texttt{\$ make} and
+\texttt{\$ make small}, respectively.
+
+Files to run CGBN is in the subdirectory \texttt{cgbn}, but has a similar setup
+to the primary files.
+
+\paragraph{Futhark}
+The files \texttt{add.fut}, \texttt{sub.fut}, \texttt{mul.fut}, and
+\texttt{div.fut} contains Futhark programs with big integer addition,
+subtraction, multiplication, and division. The addition and multiplication has four
+and three versions, respectively, similarly to the CUDA kernels. The big integer
+base type can be configured in the file \texttt{helper.fut}. While the programs
+will compile for all base types, the division program is nonsensical for bases
+other than \texttt{u16}.
+
+The subdirectories \texttt{test} and \texttt{bench} contains the Futhark test
+and benchmark programs. Benchmarks are straightforward, and can be run by
+\texttt{\$ make add-uX} or \texttt{\$ make mul-uX}, where \texttt{X} is the bits
+of the specified base type (64 is default and 16 is not supported).
+
+The tests includes a C file that is tricky to call -- using the \texttt{Makefile}
+is recommended. They can be run with \texttt{\$ make test-uX}, where \texttt{X}
+is the bits of the base type (64 is default).
+
+\paragraph{Prototype}
+The file \texttt{div.c} contains a sequential prototype for big integer
+division, that may be of interrest to run experiments. It can be called either
+with random or fixed inputs as \texttt{\$ make random} or \texttt{\$ make
+  fixed}. Both the number of random inputs and the form of the fixed inputs can
+be adjusted in the \texttt{Makefile}. A 1000 random inputs is default.
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "../main"
+%%% End:

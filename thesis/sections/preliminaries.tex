@@ -1,178 +1,216 @@
 \section{Preliminaries}
 \label{sec:pre}
-Parallel execution of code has two forms: Task parallelism and data
-parallelism. Task parallelism is single processor, multiple memory regions,
-whereas data parallelism is multiple processors, single memory region. In this
-Thesis, we are interested in utilizing a data parallel programming environment
-to speed up traditional arithmetics of big integers.
+Common procesors in a computer includes a Central Processing Unit (CPU) and a
+Graphics Processing Unit (GPU). The CPU typically executes general purpose
+routines, while the GPU is specialized in massive parallel processing of the
+numerous vectors that constitutes computer graphics. However, the GPU is not
+confined to processing graphics and can act as a General Purpose GPU (GPGPU) to
+execute general parallel routines.
 
-A Central Processing Unit (CPU) is not suitable for data parallel execution, as
-it is specialized in task parallelism (i.e.\ controlling the many concurrent
-tasks usually running on a computer). However, many modern computers have a
-Graphics Processing Unit (GPU) as well, which is a specialized hardware
-component for handling the multitude of vectors that constitutes computer
-graphics.  Vectorized computations are data parallel by nature, and thus, GPUs
-provides a suitable architecture for this Thesis. It is called General Purpose
-GPU (GPGPU) usage, since we do not intent to process graphics.
+Compared to the CPU, GPGPU has the benefits of higher instruction throughput and
+higher bandwidth (achieved by various design differences such as increased core
+count), but has the main drawback of requiring substantially more effort to
+properly utilize. For our purposes, GPGPU provides a significant performance
+speedup and scaleability in exchange for parallel algorithms and programs of
+greater complexity.
 
-Compared to a CPU, GPGPU has the benefits of higher instruction throughput
-(e.g.\ by increasing the core count) and higher bandwidth (e.g. by decreasing
-memory management), but comes with the disadvantage of almost no dynamic control
-flow or memory management abstractions. For our purpose, we can achieve
-significant performance efficiency in exchange for more complex algorithms and
-programmability.
-
-In this section; we present GPGPU hardware architecture and parallel execution
-in \ref{subsec:gpgpu}, the CUDA programming language in \ref{subsec:cuda}, and
-the Futhark programming language in \ref{subsec:futhark}.
+This section is structured as follows: In \ref{subsec:gpgpu} we introduce the
+GPGPU architecture and parallel execution model. In \ref{subsec:cuda} we give an
+overview of the CUDA C++ environment, which allows interfacing with low-level
+GPU primitives in the high-level language C++. In \ref{subsec:futhark} we give
+an overview of the high-level programming language Futhark that can compile to
+GPU executable code without the need to manually manage low-level primitives.
 
 \subsection{GPGPU Architecture}
 \label{subsec:gpgpu}
 
-There are two main interfaces for interacting with a GPU: OpenCL and CUDA, the
-former being an API for an open set of standards and instructions, and the latter
-a proprietary API for NVIDIA GPUs consisting of specialized instructions. In
-this Thesis, we focus on NVIDIA GPU architecture, as I) these are highly
-efficient, II) there exists a state-of-the-art big integer library in CUDA
-called CGBN \cite{CGBN}, which we can use as a base of comparison, and III) the
-Futhark contributions can compile to OpenCL (and hopefully remain efficient).
+There are two main interfaces for a GPU: OpenCL and CUDA, the former being an
+API for an open set of standards and instructions, and the latter a proprietary
+API for NVIDIA GPUs consisting of specialized instructions. This Thesis choose
+to focus on the NVIDIA GPU architecture, yet the algorithmic aspects are kept
+general and allows for OpenCL operability, along with the software developed in
+Futhark compiles to both models.
 
-GPGPU is inherently parallel, and consists of up to thousands of multithreaded
-cores. The architecture, according to NVIDIA's CUDA model and language manual
+GPGPU is parallel by design and consists of up to thousands of multithreaded
+cores. The architecture, according to NVIDIA's own CUDA C++ programming guide
 \cite{cudaguide}, is as follows: Threads are grouped in 32, where groups are
 called \textit{warps}. A warp executes one instruction at a time in lockstep,
 called Single Instruction, Multiple Threads (SIMT). A program, called a
 \textit{kernel}, is executed on a \textit{grid} of \textit{blocks} (also called
-a thread block) with a specific amount of threads per block. The number of
+a thread block) with a specified amount of threads per block. The number of
 threads in a block (block size) and the number of blocks in a grid (block count)
 must be statically known prior to kernel execution, with a maximum block size of
-1024 threads.
+1024 threads. Each wrap, block, and grid has its own memory called
+\textit{local}, \textit{shared}, and \textit{global} memory, respectively, with
+the former being the smallest and fastest, and the latter the largest and
+slowest.
 
 SIMT allows writing parallel programs of minimal overhead w.r.t.\
-synchronization and memory management. Each wrap, block, and grid has its own
-memory called \textit{local}, \textit{shared}, and \textit{global} memory,
-respectively, with the former being the smallest and fastest, and the latter the
-largest and slowest. This urges to keep computations closest to wrap-level. It
-also introduce the idea of coalesced memory accesses, where consecutive threads
-read consecutive memory locations, improving the amount of warp-level cache
-hits. E.g.\ if it is necessary for a thread to read consecutive elements from
-global memory (uncoalesced), it is generally faster to first read coalesced from
-global to shared memory, to then be followed by the original uncoalesced read
-from shared to local memory. Figure \ref{fig:coalesced} visualizes this example.
+synchronization and memory latency. It urges to keep procedures closest to
+wrap-level, utilizing faster memory, lockstep execution, and optimizing for
+locality of reference within a warp. This introduce the idea of
+\textit{coalesced memory accesses}, where consecutive threads access consecutive
+memory locations, resulting in as few memory transactions as possible, and
+necessary for maintaining high bandwidth while accessing global memory. However,
+consecutive threads may not be supposed to access consecutive elements. In such
+case, it is faster to use shared memory as a buffer s.t.\ transactions between
+shared and global memory are coalesced, and the original uncoalesced
+transactions are between shared and local memory. Figure \ref{fig:coalesced}
+illustrates this approach with an example. While we may not gain much speed in
+the shown example, it becomes a significant latency reduction with many more
+threads and elements per threads.
 
-\begin{figure}
-  \centering
-  {
-    \centering
-    \begin{tabular}{C{0.45\textwidth}|C{0.45\textwidth}}
+\begin{figure} \centering
+  { \centering \small
+    \begin{tabular}{C{0.03\textwidth}C{0.45\textwidth}C{0.45\textwidth}}
+      & \footnotesize Consecutive threads reads pairwise elements from global memory & \footnotesize Consecutive threads 1.\ reads consecutive from global memory, 2.\ writes consecutive to shared memory, 3.\ read pairwise from shared memory.
+      \end{tabular}\\[0.5ex]
+    \begin{tabular}{C{0.0275\textwidth}?C{0.45\textwidth}|C{0.45\textwidth}}
+      $G_{\mathit{id}}$ &
       \begin{tabular}{|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|}
-        \hline
-        $g_0$ & $g_1$ & $g_2$ & $g_{3}$ & $g_{4}$ & $g_{5}$ & $g_6$ & $g_7$\\
-        \hline
-      \end{tabular}
-      &
+\hline $g_0$ & $g_1$ & $g_2$ & $g_{3}$ & $g_{4}$ & $g_{5}$ & $g_6$ & $g_7$\\
+\hline
+      \end{tabular} &
       \begin{tabular}{|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|}
-        \hline
-        $g_0$ & $g_1$ & $g_2$ & $g_{3}$ & $g_{4}$ & $g_{5}$ & $g_6$ & $g_7$\\
-        \hline
+\hline $g_0$ & $g_1$ & $g_2$ & $g_{3}$ & $g_{4}$ & $g_{5}$ & $g_6$ & $g_7$\\
+\hline
       \end{tabular}\\
+      &
 \begin{tabular}{C{0.003cm}C{0.003cm}C{0.42cm}C{0.003cm}C{0.003cm}C{0.42cm}C{0.003cm}C{0.003cm}C{0.4cm}C{0.003cm}C{0.003cm}C{0.12cm}}
-        $\shortuparrow_{r}$ & $\diagonalarrow$ & & $\shortuparrow_{r}$ & $\diagonalarrow$ & & $\shortuparrow_{r}$ & $\diagonalarrow$ & & $\shortuparrow_{r}$ & $\diagonalarrow$ & \\
-      \end{tabular}
-              &
+$\shortuparrow_{r}$ & $\diagonalarrow$ & & $\shortuparrow_{r}$ &
+$\diagonalarrow$ & & $\shortuparrow_{r}$ & $\diagonalarrow$ & &
+$\shortuparrow_{r}$ & $\diagonalarrow$ & \\
+      \end{tabular} &
       \begin{tabular}{C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}}
-        $~\shortuparrow_{r}$ & $~\shortuparrow_{r}$  & $~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ \\
+$~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ &
+$~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ &
+$~\shortuparrow_{r}$ & $~\shortuparrow_{r}$ \\
       \end{tabular}\\[-0.7ex]
+      $T_{\mathit{id}}$ &
 \begin{tabular}{C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}}
-        $~t_0$ &  & $~t_1$ & & $~t_{2}$ & & $~t_3$ & \\
-      \end{tabular}
-              &
+$~t_0$ & & $~t_1$ & & $~t_{2}$ & & $~t_3$ & \\
+      \end{tabular} &
       \begin{tabular}{C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}}
-        $~t_0$ & $~t_1$  & $~t_2$ & $~t_3$ & $~t_{0}$ & $~t_1$ & $~t_2$ & $~t_3$ \\
+$~t_0$ & $~t_1$ & $~t_2$ & $~t_3$ & $~t_{0}$ & $~t_1$ & $~t_2$ & $~t_3$ \\
       \end{tabular}\\[-0.7ex]
-      &
+       & &
       \begin{tabular}{C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}}
-        $~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$  & $~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ \\
+$~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ &
+$~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ &
+$~\shortdownarrow_{w}$ & $~\shortdownarrow_{w}$ \\
       \end{tabular}\\
-      &
+      $S_{\mathit{id}}$ & &
       \begin{tabular}{|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|C{0.4cm}|}
-        \hline
-        $s_0$ & $s_1$ & $s_2$ & $s_{3}$ & $s_{4}$ & $s_{5}$ & $s_6$ & $s_7$\\
-        \hline
+\hline $s_0$ & $s_1$ & $s_2$ & $s_{3}$ & $s_{4}$ & $s_{5}$ & $s_6$ & $s_7$\\
+\hline
       \end{tabular}\\
-      &
+      & &
       \begin{tabular}{C{0.003cm}C{0.003cm}C{0.42cm}C{0.003cm}C{0.003cm}C{0.42cm}C{0.003cm}C{0.003cm}C{0.4cm}C{0.003cm}C{0.003cm}C{0.12cm}}
-        $\shortuparrow_{r}$ & $\diagonalarrow$ & & $\shortuparrow_{r}$ & $\diagonalarrow$ & & $\shortuparrow_{r}$ & $\diagonalarrow$ & & $\shortuparrow_{r}$ & $\diagonalarrow$ & \\
+$\shortuparrow_{r}$ & $\diagonalarrow$ & & $\shortuparrow_{r}$ &
+$\diagonalarrow$ & & $\shortuparrow_{r}$ & $\diagonalarrow$ & &
+$\shortuparrow_{r}$ & $\diagonalarrow$ & \\
       \end{tabular}\\[-0.7ex]
-      &
+       $T_{\mathit{id}}$ & &
       \begin{tabular}{C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}C{0.41cm}}
-        $~t_0$ &  & $~t_1$ & & $~t_{2}$ & & $~t_3$ & \\
+$~t_0$ & & $~t_1$ & & $~t_{2}$ & & $~t_3$ & \\
       \end{tabular}\\
-      \end{tabular}
-    }
-    \caption{\footnotesize Coalesced memory use example. Left-hand-side shows 4
-      threads reading 8 elements uncoalesced from global memory $G$, while
-      right-hand-side shows a 2-step coalesced read using shared memory $S$.}
+    \end{tabular}
+  }
+  \caption{\footnotesize Example of coalesced global memory access using a
+    shared memory buffer -- $G$ denotes global memory cells, $S$ shared memory
+    cells, $T$ the threads, and $r$-$w$ indicates read-write
+    transactions. Left-hand-side shows uncoalesced global memory access, while
+    right-hand-side shows coalesced access in 3 steps.}
     \label{fig:coalesced}
   \end{figure}
 
 
-An important side-effect of SIMT is no branch prediction and no divergent
-control flow within warps. I.e.\ suppose only 1 thread in a warp choose an
-\fun{if}-branch; then, the remaining 31 threads cannot proceed execution before
-the first thread has finished. Instead, the 31 threads executes the
-\texttt{if}-branch in lockstep with the 1 thread (on dummy data).
+  An important side-effect of SIMT is no divergent control flow (branching)
+  within warps. I.e.\ suppose only 1 thread in a warp choose an \fun{if}-branch;
+  then, the remaining 31 threads cannot proceed execution before the first
+  thread has finished, and instead, executes the \texttt{if}-branch instructions
+  on dummy data.
 
-Thus, in order to write efficient parallel programs on a GPGPU, we must reduce
-the amount of branches and make use of fast memory, optimizing throughput and
-bandwidth.
+  Thus, in order to construct efficient programs for GPGPU that exhibit high
+  throughput and bandwidth, they must be inherently parallel, contain minimal
+  amount of branching, use fast memory, run as close to warp-level as possible,
+  and access global memory coalesced.
 
-\subsection{The CUDA Programming Interface}
+\subsection{The CUDA C++ Programming Interface}
 \label{subsec:cuda}
 
-Programming in CUDA is by means of a C++ language extension that compiles to C
-using the CUDA driver API, as described in the CUDA manual \cite{cudaguide}. The
-CPU running the compiled program is called the \textit{host} and the target GPU
-is called the \textit{device}. The extension exports functions in the
-\textit{alloc}-family, that allows the host to preallocate, read, and write
-memory to/from the device. Device functions (i.e.\ kernels) are called from the
-host and take parameters in the form of pointers to memory that has been
-transferred to the device.
+In this Thesis, we interface with CUDA by means of a C++ language extension that
+compiles a program to both a CPU and GPU executable portion using C and the CUDA
+driver API, as described in the CUDA C++ guide \cite{cudaguide}. The CPU running
+the initial program is called the \textit{host} and the target GPU is called the
+\textit{device}. The extension exports functions in the \textit{alloc}-family,
+that allows the host to preallocate, read, and write memory of the
+device. Device functions (i.e.\ kernels) are called from the host and take
+parameters in the form of pointers to memory already transferred to the device.
 
 The extension exports some function execution- and variable memory- space
 specifiers. These infer to the compiler how to treat functions and memory (e.g.\
-host or device function, shared or local memory, etc.). The extension also
-exports some device functions, most notably \texttt{\_\_syncthreads()} which
-prevents threads from continuing execution until every thread within the block
-are at that function.
+host, kernel, or device function, shared or local memory, etc.). The extension
+also exports some device functions, notably the function
+\texttt{\_\_syncthreads()}. It creates a barrier preventing threads from further
+code execution until all threads within the block has reached that barrier.
 
-To accommodate the GPU architecture, the types, data structures, and control
-flow of a kernel must be statically known before runtime. In order to keep
-kernels parametric, e.g. in the type or size of integers, we can use C++
-templates. They provide generic programming over type and value parameters that
-are concretized at compile time, as written by Stroustrup in
+In order to write parametric kernels in e.g.\ the type or size of big integers,
+we can use C++ templates. They provide generic programming over type and value
+parameters that are concretized at compile time, as written by Stroustrup in
 \cite{stroustrup}. Templates especially prove to be a strong tool when combined
-with other high-level C++ constructs, such as classes. Furthermore, since the
-control flow is predetermined, the device has no error handling. Instead, the
-host must explicitly handle errors by peeking at the device error status, making
-CUDA programming prone to bugs.
+with other high-level C++ constructs, such as classes.  (On a side note, the
+CUDA design has no explicit error handling on the device. Instead, CUDA API
+calls returns error codes, which the host must then explicitly check and
+handle.)
 
-Lastly, threads are implicit: Kernels are launched with an \textit{execution
+Lastly, threads are implicit: Kernels launch with an \textit{execution
   configuration} of the form ``\fun{ker<<< grid, block >>>(params)}'', where
 \fun{grid} and \fun{block} specifies the grid and block dimensions,
-respectively, and are of type \fun{dim3}, specifying dimensions in 3D. The
-kernel function then has access to a special set of built-in variables, notably
-\fun{threadIdx} and \fun{blockIdx}, containing the index of the current thread
-and block, respectively. Thus, when a kernel is executed, the code of the kernel
-runs on each of the specified threads, and we must use these special variables
-for explicit thread indexing.
+respectively, and are of type \fun{dim3}, denoting the specifications in 3D. The
+spawned kernel has access to a set of special objects, notably \fun{threadIdx},
+\fun{blockIdx}, and \fun{blockDim} containing the index of the currently
+executing thread, the index of the block it belongs to, and block size,
+respectively. Thus, the executable kernel code is run on each of the specified
+threads, and spatial awareness within a thread is achieved explicitly through
+the special objects -- as demonstrated in the following example:
 
-From now on, we assume:
+\begin{example}[a simple CUDA C++ program]\label{ex:cuda}
+  The following program is a simple example of the general routines
+  involved with parallel programming through the CUDA C++ extension.
+\begin{lstlisting}[language=CPP,escapeinside={(*}{*)}]
+(*{\color{Crimson}$\bullet$ \texttt{Kernel function that increments $n$ integers of the input array by one.}*)
+template<int n> __global__ void incrKernel(int* input, int* output) {
+  // find the global thread ID of the currently executing thread
+  const unsigned int global_id = blockDim.x*blockIdx.x + threadIdx.x;
+  // if its ID does not exceed the input size, it executes the operation
+  if (global_id < n)
+    output[global_id] = input[global_id] + 1;
+}
+(*{\color{Crimson}$\bullet$ \texttt{Host function to execute the above kernel assuming array $\mathit{h\_mem}$ contains $n$ integers.}*)
+...
+  // allocate and transfer memory to device
+  int *d_mem_in, *d_mem_out;
+  cudaMalloc((void**) &d_mem, n * sizeof(int));
+  cudaMemcpy(d_mem_in, h_mem, n * sizeof(int), cudaMemcpyHostToDevice);
+  // execute the kernel below with (*\green $\lceil n/512 \rceil$*) blocks of 512 threads each
+  dim3 block (512, 1, 1);
+  dim3 grid (1 + ((n - 1)/512), 1, 1);
+  incrKernel<n><<< block, grid >>>(d_mem_in, d_mem_out);
+  // fetch results
+  cudaMemcpy(h_mem, d_mem_out, n * sizeof(int), cudaMemcpyDeviceToHost);
+...
+\end{lstlisting}
+\end{example}
+
+From now on, we denote a CUDA C++ program simply as a CUDA program and assume:
 \begin{itemize}
   \renewcommand\labelitemi{--}
-\item Kernel dimensions to be 1D, so \texttt{threadIdx.x} refer to the current thread index.
-  \item The existence of sensible host functions to execute and error-check kernels.
-  \item A small library of common subroutines such as accessing global memory coalesced.
+\item Kernel dimensions to be 1D (as they are in Example \ref{ex:cuda} above).
+\item The existence of sensible host functions to execute and error-check
+  kernels.
+\item A small library of common subroutines such as accessing global memory
+  coalesced.
 \end{itemize}
 These assumptions allow us to focus on the implementation of algorithms.
 
@@ -189,74 +227,82 @@ terms sequential semantics, while still being able to compile to (efficient)
 parallel code.
 
 Analyzing the asymptotics of parallel programs is separated into \textit{work}
-and \textit{span}. Work refers to the amount of computations in the program,
-which we traditionally use for estimating runtimes. However, in the parallel
-domain, work is distributed amongst threads, and so it may not be an accurate
-representation of runtimes. The span (also called depth) is the amount of
-computations by each thread given infinitely many threads.
+and \textit{depth}. Work refers to the total amount of computations in the
+program -- known as the traditional basis of time complexity analysis. However,
+in the parallel domain, work is distributed amongst threads, and so it may not
+be an accurate representation of runtimes. The depth (also called span) is the
+amount of sequential work within a thread given infinitely many threads.
 
 We now present the most fundamental SOACs, which we use throughout this Thesis
-to analyse parallelism. For simplicity, we assume their function inputs are
-$O(1)$ in this section.
+to analyse parallelism.\footnote{Other combinators exists, but these are the
+  most crucial to this Thesis. More information on array combinators and
+  functions can be found in the Futhark standard library \cite{futprelude}.} We
+assume their function inputs are $O(F_{w}(n))$ and $O(F_d(n))$.
 
-First we have the combinator \fun{map} with work $O(n)$, span $O(1)$, and type
-signature
-\begin{equation}
-\mathtt{map}:(\tau \to \tau') \to \arr{\tau} \to \arr{\tau'}
-\end{equation}
-It distributes a function over an array, also known from other functional
-languages such as Haskell \cite{marlow2010haskell}. It is inherently parallel
-with no dependencies between the data of the array.
+First we have the combinator \fun{map} of work $O(n\cdot F_w(n))$ and depth
+$O(F_d(n))$. It distributes a function over an array (known from other
+functional languages such as Haskell \cite{marlow2010haskell}) and can
+inherently be executed in parallel. The type signature and semantics are:
+\begin{align}
+  &\mathtt{map}:(\tau \to \tau') \to \arr{\tau} \to \arr{\tau'}\\
+  &\mathtt{map}~f~[a_0,~a_1,...,~a_{n-1}] \coloneq [f~a_0,~f~a_1,...,~f~a_{n-1}]
+\end{align}
 
-Next we have the combinator \fun{reduce} with work $O(n)$, span $O(\log n)$, and
-type signature
-\begin{equation}
-\mathtt{reduce}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \tau
-\end{equation}
-The semantics is akin to a \fun{fold} from other functional languages, but with
-one big difference: The operator must be associative and have a neutral
-element. By these assumptions, the array can be accumulated in $O(\log n)$
-steps.
+Next we have the combinator \fun{reduce} of work $O(n\cdot F_w(n))$ and depth
+$O(\log n \cdot F_w(n))$.  The semantics is akin to a \fun{fold} from other
+functional languages, but with one big difference: The operator must be
+associative and have a left-associative neutral element, allowing the array can
+be accumulated in $O(\log n)$ steps. The type signature and semantics are:
+\begin{align}
+  &\mathtt{reduce}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \tau\\
+  & \mathtt{reduce} \oslash e~[a_0,~a_1,...,~a_{n-1}] \coloneq e \oslash a_0 \oslash a_1 \oslash ...\oslash a_{n-1}
+\end{align}
 
-On that note we have the combinator \fun{scan} with work $O(n)$, span
-$O(\log n)$, and signature
-\begin{equation}
-\mathtt{scan}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \arr{\tau}
-\end{equation}
-The semantics corresponds to an accumulated reduction over the input array (also
-called a prefix sum), and so the associativity and neutral element restrictions
-of the operator apply.
+Similarly, we have the combinator \fun{scan} with work $O(n\cdot F_w(n))$ and depth
+$O(\log n \cdot F_w(n))$. The semantics corresponds to an accumulated reduction over
+the input array (also called a prefix sum), and so the associativity and neutral
+element restrictions of the operator applies as well. The type signature and
+semantics are:
+\begin{align}
+  &\mathtt{scan}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \arr{\tau}\\
+  & \mathtt{scan} \oslash e~[a_0,~a_1,...,~a_{n-1}] \coloneq [e \oslash a_0,~e \oslash a_0 \oslash a_1,..., e \oslash a_0 \oslash a_1 \oslash ...\oslash a_{n-1}]
+\end{align}
 
-Lastly we have the combinator \fun{scatter} with work $O(n)$, span $O(1)$, and
-type signature
+Lastly we have the combinator \fun{scatter} with work $O(n)$ and depth $O(1)$.
+It takes a destination, index, and value array, and performes an in-place
+distribution of the values over the destination array according to the
+indeces. The indeces and values must have same shape. Values are ignored for
+indeces that are out-of-bound. The type signature is:
 \begin{equation}
 \mathtt{scatter}:\arr{\tau} \to \arr{\mathtt{i64}} \to \arr{\tau} \to \arr{\tau}
 \end{equation}
-It takes a destination, index, and value array, and in-place distributes the
-values over the destination array according to the indeces. The indeces and
-values must have same shape. Indeces that are out-of-bound results in ignoring
-the value rather than throwing an error.
-
-Other combinators exists, but the four presented are the most crucial to this
-Thesis (and arguably to Futhark). More information on array combinators and
-functions can be found in the Futhark standard library \cite{futprelude}.
 
 One of the strengths of the Futhark compiler is its ability to \textit{fuse}
-chains of SOACs. This allow us to write nice and clean code, straightforwardly
-model parallel algorithms, and let the compiler generate more complex and
-optimized GPGPU code that use less intermediate values.
+chains of \texttt{map}-\texttt{reduce} compositions. This allow us to write nice
+and clean code, straightforwardly model parallel algorithms, and let the
+compiler generate more complex and optimized GPGPU code that use less
+intermediate values and instructions.
 
-While Futhark is more expressive than CUDA, it contains compromises that allows
-Futhark to compile to GPGPU code, making it restricted in comparison to other
-high-level functional languages such as Haskell. E.g.\ Futhark allows nested
-arrays as data structure, but all data must be flat on a GPGPU. Hence, the
-nested arrays must be regular in order for the compiler to know how to flatten
-them for execution. Another restriction is that the shape of arrays must be
-statically inferred to the compiler. This is primarily inferred in the type
-signature of Futhark functions.
+While Futhark is more clean and succint than CUDA, it contains compromises that
+allows Futhark to compile to GPGPU code, making it restricted in comparison to
+other high-level functional languages such as Haskell. E.g.\ Futhark allows
+nested arrays as data structure, but all data must be flat on a GPGPU. Hence,
+the nested arrays must be regular in order for the compiler to know how to
+flatten them for execution. The shape of arrays must be statically inferred to
+the compiler too -- primarily part of the type signature of functions, but can be
+manually inferred. Example \ref{ex:fut} shows the difference in CUDA and Futhark
+clearly:
 
-Overall, Futhark balances easy-of-use, power of abstractions, and parallel
-efficiency.
+\begin{example}[a simply Futhark program]\label{ex:fut}
+  The following program is a Futhark translation of the CUDA program of Example
+  \ref{ex:cuda} that increments the integers in a given array by one:
+\begin{lstlisting}[language=futhark]
+def incrFut [n] (input: [n]i32) : [n]i32 = map (+ 1) input
+\end{lstlisting}
+\end{example}
+
+Overall, Futhark is meant to balance usability, power of abstractions, and
+parallel efficiency.
 
 %%% Local Variables:
 %%% mode: LaTeX

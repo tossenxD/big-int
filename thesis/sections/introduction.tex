@@ -2,6 +2,17 @@
 \label{sec:intro}
 {\red [Missing]}
 
+% Lastly, the files \texttt{div.c} and \texttt{div.fut} contains implementations
+% of exact big integer division by whole shifted inverse. The C implementation is
+% a sequential adaptation of the algorithm proposed by Watt in
+% \cite{watt2023efficient}, wherefrom we parallelize in the Futhark
+% implementation. These are not performance-optimized in the same manner as
+% addition and multiplication, but moreso serves as a proof of concept of a
+% parallel implementation of the algorithm. During the development we found some
+% valuable insight, notably a corner case unconsidered in the original formulation
+% of the algorithm. Hence, we also present a revised algorithm specialized for big
+% integers and parallel execution.
+
 %%% Local Variables:
 %%% mode: LaTeX
 %%% TeX-master: "../main"

@@ -38,9 +38,9 @@ worrying about the sufficiency of the underlying data structure.
 However, the cost of this abstraction is the requirement for dynamic memory
 allocation to handle overflows. This may be a slight inefficiency on a CPU
 architecture and be well worth the level of abstraction, but dynamic memory
-management is problematic on a GPU, since all memory sizes must be statically
-known, as discussed in section \ref{sec:pre}. Hence, arbitrary precision is an
-unsuitable representation for parallel computing.
+management is problematic on a GPU because of the memory hierachy discussed in
+section \ref{subsec:gpgpu}. Hence, arbitrary precision is an unsuitable
+representation for parallel computing.
 
 Exact precision integers are bounded by a specified size, making them more
 suitable for a GPU architecture. The size can still be arbitrarily specified and
@@ -50,25 +50,23 @@ integer), but the exact size remains known.
 Thus, the chosen representation for big integers is exact precision arrays. In
 turn, our arithmetics preservers the dimensions between input and output, and
 require that the input dimension matches. This setup allows us to fully utilize
-GPGPU capabilities.
-\newline
+GPGPU capabilities.  \newline
 
 So far, we have only considered unsigned integers. There exists multiple
 representations of signed integers on a binary machine, the most common being
 \textit{two's complement}. This representation does not work well with multiple
 precision, as extracting a negative number requires a bitwise negation. Instead,
 we can use \textit{sign-magnitude} representation, where a signed integer is
-represented by an absolute value along with an indicator bit. The downside of
-this representation is that $0$ and $-0$ are two different numbers. This
-representation is also used in other high-efficiency libraries, such as GMP
-\cite{GMP}.
+represented by an absolute value (magnitude) along with an indicator (sign). The
+downside of this representation is that $0$ and $-0$ are two different
+numbers. This representation is also used in other high-efficiency libraries,
+such as GMP \cite{GMP}.
 
 We use unsigned integers as the internal representation, as this is more
 efficient. In cases where signs are required, we extent by
 sign-magnitude. Furthermore, we only consider unsigned arithmetics (with
 wrap-around on overflow), as signed arithmetics are trivial to define using
-their unsigned counterpart.
-\newline
+their unsigned counterpart.  \newline
 
 Lastly, by fixing the representation of big integers to a data structure of
 arrays of unsigned machine words, we lay a foundation that allows us to
@@ -100,10 +98,10 @@ is as follows:
   \end{tabular}
   \end{center}
   Note that \texttt{ubig\_t} and \texttt{qint\_t} may not exist. Hence,
-  implementations (read; optimizations) that depend on them are only correct for
-  some base types. Overall, we assume the base is either 32- or 64-bit words, as
+  implementations that depend on those types are only correct for some choices
+  of base type. Overall, we assume the base is either 32- or 64-bit words, as
   these are the two most common word sizes, and, unless stated otherwise, the
-  implementations accepts and works for both bases.
+  implementations type checks for both bases.
 
 %%% Local Variables:
 %%% mode: LaTeX

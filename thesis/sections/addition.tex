@@ -326,9 +326,9 @@ Appendix \hyperref[app:A]{A}.
 
 Thus, when using the \textit{badd} algorithm presented in Definition
 \ref{def:bitwise}, we get that both $\oplus$, $\otimes$ and \texttt{f} are
-$O(1)$. Therefore, the \fun{map}s exhibit work $O(m)$ and span $O(1)$, and the
-\fun{scan} work $O(m)$ and span $O(\log m)$. Hence, the total work is $O(m)$ and
-the span $O(\log m)$.
+$O(1)$. Therefore, the \fun{map}s exhibit work $O(m)$ and depth $O(1)$, and the
+\fun{scan} work $O(m)$ and depth $O(\log m)$. Hence, the total work is $O(m)$ and
+the depth $O(\log m)$.
 
 As a final note, we can stay in the lane of bitwise optimizations when it comes
 to handling multiple instances per CUDA block. Extending the algorithm to work
@@ -359,8 +359,8 @@ version (\texttt{V1}) is the fundamental implementation that follows the
 algorithm presented in Figure \ref{fig:addpar} closely.
 
 The second version (\texttt{V2}) attempts to efficiently sequentialize the
-parallelism in excess: Since the operation runs in sub-linear span (with two of
-the three steps being a constant span), we expect the threads to have an excess
+parallelism in excess: Since the operation runs in sub-linear depth (with two of
+the three steps being a constant depth), we expect the threads to have an excess
 amount of parallelism spent on communication (waiting for memory and
 synchronizations). Increasing the sequentialization factor decrease the amount
 of communication, and, in this case, increase the performance. This optimization
