@@ -84,7 +84,7 @@ segmented operations comes with a cost, but the cost is overshadowed by the
 benefits (no idling threads) when processing many instances over smaller
 integers.\newline
 
-To summerize, the arithmetics is implemented at CUDA block-level aimed at
+To summarize, the arithmetics is implemented at CUDA block-level aimed at
 medium-sized integers. They must increase the sequentialization factor within
 threads to allow bigger input integers (up to a limit). The throughput may
 improve from integrating segmented operations, processing multiple instances of

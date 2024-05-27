@@ -1,6 +1,6 @@
 \section{Preliminaries}
 \label{sec:pre}
-Common procesors in a computer includes a Central Processing Unit (CPU) and a
+Common processors in a computer includes a Central Processing Unit (CPU) and a
 Graphics Processing Unit (GPU). The CPU typically executes general purpose
 routines, while the GPU is specialized in massive parallel processing of the
 numerous vectors that constitutes computer graphics. However, the GPU is not
@@ -11,7 +11,7 @@ Compared to the CPU, GPGPU has the benefits of higher instruction throughput and
 higher bandwidth (achieved by various design differences such as increased core
 count), but has the main drawback of requiring substantially more effort to
 properly utilize. For our purposes, GPGPU provides a significant performance
-speedup and scaleability in exchange for parallel algorithms and programs of
+speedup and scalability in exchange for parallel algorithms and programs of
 greater complexity.
 
 This section is structured as follows: In \ref{subsec:gpgpu} we introduce the
@@ -26,10 +26,10 @@ GPU executable code without the need to manually manage low-level primitives.
 
 There are two main interfaces for a GPU: OpenCL and CUDA, the former being an
 API for an open set of standards and instructions, and the latter a proprietary
-API for NVIDIA GPUs consisting of specialized instructions. This Thesis choose
-to focus on the NVIDIA GPU architecture, yet the algorithmic aspects are kept
-general and allows for OpenCL operability, along with the software developed in
-Futhark compiles to both models.
+platform for NVIDIA GPUs consisting of specialized instructions. This Thesis
+focus on CUDA, yet the algorithmic aspects are kept general and allows for
+OpenCL operability, along with the software developed in Futhark compiling to
+both models.
 
 GPGPU is parallel by design and consists of up to thousands of multithreaded
 cores. The architecture, according to NVIDIA's own CUDA C++ programming guide
@@ -217,14 +217,14 @@ These assumptions allow us to focus on the implementation of algorithms.
 \subsection{The Futhark Programming Language}
 \label{subsec:futhark}
 
-Futhark is a high-level pure functional language with emphasis on data-parallel
-array programming, as described in its guide and book
-\cite{futguide,ParallelProgrammingInFuthark}. It is hardware-agnostic and can
-compile to both sequential or parallel C, OpenCL, and CUDA code. The fundamental
-design of Futhark revolves around \textit{Second-Order Array Combinators}
-(SOACs). They are array-functions that are easy to reason about and define in
-terms sequential semantics, while still being able to compile to (efficient)
-parallel code.
+Futhark is a high-level pure functional language with emphasis on data parallel
+array programming
+\cite{ParallelProgrammingInFuthark,Henriksen:2017:FPF:3062341.3062354}. It is
+hardware-agnostic and can compile to both sequential or parallel C, OpenCL, and
+CUDA code \cite{futguide2}. The fundamental design of Futhark revolves around
+\textit{Second-Order Array Combinators} (SOACs). They are array-functions that
+are easy to reason about and define in terms sequential semantics, while still
+being able to compile to (efficient) parallel code.
 
 Analyzing the asymptotics of parallel programs is separated into \textit{work}
 and \textit{depth}. Work refers to the total amount of computations in the
@@ -235,14 +235,14 @@ amount of sequential work within a thread given infinitely many threads.
 
 We now present the most fundamental SOACs, which we use throughout this Thesis
 to analyse parallelism.\footnote{Other combinators exists, but these are the
-  most crucial to this Thesis. More information on array combinators and
+  most crucial to this Thesis. An overview of the array combinators and
   functions can be found in the Futhark standard library \cite{futprelude}.} We
 assume their function inputs are $O(F_{w}(n))$ and $O(F_d(n))$.
 
 First we have the combinator \fun{map} of work $O(n\cdot F_w(n))$ and depth
 $O(F_d(n))$. It distributes a function over an array (known from other
 functional languages such as Haskell \cite{marlow2010haskell}) and can
-inherently be executed in parallel. The type signature and semantics are:
+inherently be executed in parallel. The type signature and semantics is:
 \begin{align}
   &\mathtt{map}:(\tau \to \tau') \to \arr{\tau} \to \arr{\tau'}\\
   &\mathtt{map}~f~[a_0,~a_1,...,~a_{n-1}] \coloneq [f~a_0,~f~a_1,...,~f~a_{n-1}]
@@ -252,7 +252,7 @@ Next we have the combinator \fun{reduce} of work $O(n\cdot F_w(n))$ and depth
 $O(\log n \cdot F_w(n))$.  The semantics is akin to a \fun{fold} from other
 functional languages, but with one big difference: The operator must be
 associative and have a left-associative neutral element, allowing the array can
-be accumulated in $O(\log n)$ steps. The type signature and semantics are:
+be accumulated in $O(\log n)$ steps. The type signature and semantics is:
 \begin{align}
   &\mathtt{reduce}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \tau\\
   & \mathtt{reduce} \oslash e~[a_0,~a_1,...,~a_{n-1}] \coloneq e \oslash a_0 \oslash a_1 \oslash ...\oslash a_{n-1}
@@ -262,17 +262,17 @@ Similarly, we have the combinator \fun{scan} with work $O(n\cdot F_w(n))$ and de
 $O(\log n \cdot F_w(n))$. The semantics corresponds to an accumulated reduction over
 the input array (also called a prefix sum), and so the associativity and neutral
 element restrictions of the operator applies as well. The type signature and
-semantics are:
+semantics is:
 \begin{align}
   &\mathtt{scan}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \arr{\tau}\\
   & \mathtt{scan} \oslash e~[a_0,~a_1,...,~a_{n-1}] \coloneq [e \oslash a_0,~e \oslash a_0 \oslash a_1,..., e \oslash a_0 \oslash a_1 \oslash ...\oslash a_{n-1}]
 \end{align}
 
 Lastly we have the combinator \fun{scatter} with work $O(n)$ and depth $O(1)$.
-It takes a destination, index, and value array, and performes an in-place
+It takes a destination, index, and value array, and performs an in-place
 distribution of the values over the destination array according to the
-indeces. The indeces and values must have same shape. Values are ignored for
-indeces that are out-of-bound. The type signature is:
+indices. The indices and values must have same shape. Values are ignored for
+indices that are out-of-bound. The type signature is:
 \begin{equation}
 \mathtt{scatter}:\arr{\tau} \to \arr{\mathtt{i64}} \to \arr{\tau} \to \arr{\tau}
 \end{equation}
@@ -283,7 +283,7 @@ and clean code, straightforwardly model parallel algorithms, and let the
 compiler generate more complex and optimized GPGPU code that use less
 intermediate values and instructions.
 
-While Futhark is more clean and succint than CUDA, it contains compromises that
+While Futhark is more clean and succinct than CUDA, it contains compromises that
 allows Futhark to compile to GPGPU code, making it restricted in comparison to
 other high-level functional languages such as Haskell. E.g.\ Futhark allows
 nested arrays as data structure, but all data must be flat on a GPGPU. Hence,
