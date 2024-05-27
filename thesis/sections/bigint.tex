@@ -30,7 +30,7 @@ We have to make an important choice between arbitrary precision and exact
 precision integer representation. Arbitrary precision, like the name suggests,
 means that the precision is not bounded by software, and so we never loose
 precision from arithmetic operations (as long as we have enough memory to house
-the result). This is for example implemented in Haskell and in GMP
+the result). This is e.g.\ implemented in Haskell and in GMP
 \cite{marlow2010haskell,GMP}. It provides a great deal of abstraction, as there
 can occur no overflows. In other words, it allows the programmer to work without
 worrying about the sufficiency of the underlying data structure.
@@ -50,7 +50,7 @@ integer), but the exact size remains known.
 Thus, the chosen representation for big integers is exact precision arrays. In
 turn, our arithmetics preservers the dimensions between input and output, and
 require that the input dimension matches. This setup allows us to fully utilize
-GPGPU capabilities.  \newline
+GPGPU capabilities. \bigskip
 
 So far, we have only considered unsigned integers. There exists multiple
 representations of signed integers on a binary machine, the most common being
@@ -66,7 +66,7 @@ We use unsigned integers as the internal representation, as this is more
 efficient. In cases where signs are required, we extent by
 sign-magnitude. Furthermore, we only consider unsigned arithmetics (with
 wrap-around on overflow), as signed arithmetics are trivial to define using
-their unsigned counterpart.  \newline
+their unsigned counterpart. \bigskip
 
 Lastly, by fixing the representation of big integers to a data structure of
 arrays of unsigned machine words, we lay a foundation that allows us to
@@ -74,7 +74,6 @@ efficiently compute arithmetics on GPGPU (and a CPU for that matter). However,
 also fixing the type of machine word (i.e.\ the base) does not increase
 performance or efficiency -- instead, the arithmetics becomes more strict,
 hardware dependent, and nonextensible.
-
 
 As a mechanism to keep the arithmetics generic over the base type in
 implementation, we utilize templates, classes, and type declarations to create

@@ -37,9 +37,9 @@ for(int i = 0; i < m; i++) {
 
 Regarding Futhark, the compiler has a builtin test functionality called
 \texttt{futhark-test} \cite{futguide}. It allows us to write test-specifications
-in Futhark programs, which the compiler will then run. A specification consist
-of a set of inputs and their the expected outputs. The inputs can be either
-randomly generated or fixed, and the outputs can be either fixed or
+in Futhark programs that the compiler can generate and run. A specification
+consist of a set of inputs and their the expected outputs. The inputs can be
+either randomly generated or fixed, and the outputs can be either fixed or
 automatically determined (by assuming C as backend gives the correct result).
 
 It is not possible to directly test our Futhark implementations against GMP's
@@ -80,7 +80,7 @@ addition. They are included for the purpose of completeness (and a potential
 source for debugging information), but are redundant w.r.t.\ the GMP validation,
 assuming GMP gives the correct result.
 
-(A final note on validating division in C; the divisor use a randomly generated
+(A final note on validating division in C; the divisor has a randomly generated
 $nz$ value to avoid hitting the same special cases repeatedly, providing more
 meaningful tests.)
 
@@ -95,7 +95,7 @@ versions of \textit{convmul} (multiplication). \uline{All tests validates}.
 
 Next is the Futhark-GMP validation in C. We test addition, subtraction,
 multiplication, and division. We run the tests of base \texttt{uint16\_t},
-\texttt{uint32\_t}, and \texttt{uint64\_t}, with division only being run on
+\texttt{uint32\_t}, and \texttt{uint64\_t}, with division only ran on
 \texttt{uint16\_t}. They run on two different integer size patterns: 350 tests
 with $m=\{2,4,8,16,32,64,128\}$, 50 tests for each size, and 2500 tests with 50
 randomly generated sizes in the range $1\leq m \leq 512$, 50 tests for each size. The

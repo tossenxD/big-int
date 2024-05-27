@@ -1,27 +1,29 @@
 \section{Classical Multiplication}
 \label{sec:mul}
 
-Multiplication is the next of the basic arithmetic operators. It is more
-complicated than addition, since all digits of the multiplicand have to be
-multiplied by all digits of the multiplier, leading to asymptotically quadratic
-runtimes. Other more work-efficient algorithms exists, such as Karatsuba or
-Schönhage–Strassen using Fast Fourier Transform (FFT), both of which are
-mentioned by Knuth and part of GMP \cite{knuth97,GMP}. While classical
-multiplication has more work, it is expected to run faster for small integers
-due to the complexities of the work-efficient algorithms, and is what GMP use
-for such integers. % TODO cite FFT and Karatsuba
+Multiplication is next of the basic arithmetic operators. It is more complex
+than addition and subtraction, clasically requiring all digits of the
+multiplicand to be multiplied by all digits of the multiplier, which leading to
+asymptotically quadratic work. Other well known algorithms of sub-quadratic work
+exists, namely Karatsuba, Toom-Cook, and FFT-based multiplication, all mentioned
+by Knuth and part of GMP \cite{GMP,knuth97}. Karatsuba and Toom-Cook are viewed
+as practical algorithms, but are usually modelled by recursion making them less
+straightforward for GPGPU. FFT multiplication is an involved process consisting
+of multiple data structure conversions (and possibly leaving the domain of
+integers), but has shown to run fast on GPGPU \cite{Bantikyan2014BigIM,
+  oancea2024gpu}. While classical multiplication has quadratic work, it is
+expected to run faster for smalller sized integers due to the complexities
+involved with the sub-quadratic algorithms. This Thesis focus on the classical
+approach.
 
 This section is structured as follows: In \ref{subsec:mulalg} we present a
 classical quadratic multiplication algorithm that convolutes the digits of the
 operands, and we discuss how to parallelize it. In \ref{subsec:mulcud} and
 \ref{subsec:mulfut} we present our CUDA and Futhark implementations,
 respectively, and any further optimizations related to the
-implementations. Penultimately, in \ref{subsec:mulsin} we cover the special case
+implementations. Lastly, in \ref{subsec:mulsin} we cover the special case
 of multiplication by a single precision factor, and present an algorithm that
-shares the behaviour and efficiency of an addition operation. Lastly, in
-\ref{subsec:mulother} we give an overview of asymptotically better algorithms
-with focus on Karatsuba and FFT -- where especially FFT is promising in a GPGPU
-setting.
+shares the behaviour and efficiency of an addition operation.
 
 \subsection{Algorithm}
 \label{subsec:mulalg}
@@ -163,8 +165,9 @@ $O(m)$:
   a thread index ${t\in \{0,..,(m/2)-1\}}$, computes a low, high, and carry part
   of both convolution $t$ and convolution $m-1-t$. Lines 20-25 calls the main
   function on each thread and adds the convolution parts according to following
-  memory layout, where color and superscript denotes what thread has computed
-  the part and subscript denotes what convolution the part comes from:
+  memory layout, where color and superscript denotes the thread that has
+  computed the part, and subscript denotes the convolution that the part
+  originates from:
 \begin{center}
   \small
   \begin{tabular}{c}
@@ -243,11 +246,11 @@ layout of this optimization w.r.t.\ threads. Now, compared to the pseudocode of
 Figure \ref{fig:mulparalg}, a thread computes a total of twelve parts in the
 convolution function \texttt{conv}, but combines them to eight parts before
 returning -- four for the lower convolution and four for the upper. In turn, the
-memory layout is trickier to construct, requiring threads to alternate writing
-their parts in pairs to the additive arrays. E.g.\ with four threads we get that
-the final parallel addition of the convolution-results corresponds to the
-following memory layout, where color and superscript denotes what thread has
-computed the part and subscript denotes the part number:
+memory layout is trickier to construct, requiring threads to alternate in
+writing pairs of their parts to the additive arrays. E.g.\ with four threads we
+get that the final parallel addition of the convolution-results corresponds to
+the following memory layout, where color and superscript denotes the thread that
+has computed the part, and subscript denotes the part number:
 
 \begin{center}
   \small
@@ -272,9 +275,9 @@ The optimized memory layout perfectly partitions into a parallel addition
 operator with sequentialization factor of 4, and thus, yielding both the
 aforementioned upsides and a faster addition.\footnote{Experimentally, we found
   addition with sequentialization factor of 4 to be the fastest (see section
-  \ref{sec:add}).}  With sequentialization factor of $q=4$, it can also process
-integers at CUDA block-level of up to double the size than the one with
-$q=2$. To go beyond $q=4$, it is wiser to stack this optimizations rather than
+  \ref{sec:add}).}  With a sequentialization factor of $q=4$ rather than $q=2$,
+it can also process integers at CUDA block-level of up to double the size. To go
+beyond $q=4$, it is speculated wiser to stack this optimizations rather than
 combining all the consecutive sequential parts, as more combinations reduce the
 effectiveness of the final parallel addition.
 
@@ -317,7 +320,7 @@ In this section, we introduce five CUDA versions. The first version
 sequentialization factor of 2. The second version (\texttt{V2}) introduces a
 data type optimization w.r.t.\ doubling the word-size for keeping track of
 convolutions inside loops. This optimization effectively minimizes the amount of
-work of loops, by delaying the computations of overflows until after the loop
+work in loops, by delaying the propagation of overflows until after the loop
 has run.
 
 The third version (\texttt{V3}) introduces multiple instances per block to the
@@ -331,7 +334,7 @@ We decide the CUDA kernel dimensions and parameters with the code in Listing
 the block size rounded up to $128$ rather than $256$ (which we experimentally
 found to be faster). The sequentialization factor does not grow beyond 4, but,
 as mentioned at the end of section \ref{subsec:mulalg}, one could implement a
-version that use some multiple of 4 as sequentialization factor. Hence the CUDA
+version with a sequentialization factor that is a multiple of 4. Hence the CUDA
 implementations are limited to integers of size $m\leq4096$.
 
 \begin{lstlisting}[language=CPP,caption={\footnotesize CUDA multiplication parameters and dimensions for version $v$ with size $m$ and $num\_instances$.},label={mulparams}]
@@ -352,8 +355,8 @@ type that use twice as many bits as the base \texttt{uint\_t}. We use the type
 to compute the inner products of the convolutions, but it also allows the
 optimization of \texttt{V2}: The idea is to postpone the combining of the low
 and high parts of products until after the sequential loop. Then, the carries
-can be propagated once instead of $i$ times for convolution $k_i$. The first two
-convolutions of Listing \ref{cudaconvs} shows the difference of storing
+can be propagated once, rather than $i$ times for convolution $k_i$. The first
+two convolutions of Listing \ref{cudaconvs} shows the difference in storing
 intermediate values of the convolution in type \texttt{uint\_t} (by a low, high,
 and carry part) and in type \texttt{ubig\_t} (by a low and high part only).
 
@@ -431,9 +434,9 @@ and \texttt{V4}, respectively.
 Constructing the memory layout of \textit{convmul} with sequentialization factor
 of $q=2$ (Definition \ref{def:convmul}) is straightforward; the shared memory is
 partitioned in three, and each thread write their two convolution parts to each
-of the three memory partitions. The writes are coalesced by design. E.g. for
-eight digits and four threads, where color and superscript denotes thread and
-subscript denotes convolution, the writing becomes:
+of the three memory partitions. The writes are coalesced by design. E.g.\ for
+eight digits and four threads, where color and superscript denotes thread, and
+subscript denotes convolution, the writes are:
 \begin{center}
   \small
   \begin{tabular}{c}
@@ -491,14 +494,14 @@ convolution (register):
     \end{tabular}
   \end{tabular}
 \end{center}
-Afterwards, the registers in threads contains four pairs of elements to be
-added, and thus, can straightforward run \textit{badd} with sequentialization
-factor of 4 and pre-fetched values to registers -- corresponding to the addition
-of this optimization at the end of section \ref{subsec:mulalg}. Listing
-\ref{cudamulmem} in Appendix \hyperref[app:B]{B} contains the CUDA code for
-reading and writing in this pattern.
+Afterwards, the registers of threads contains four pairs of elements to be
+added, and thus, can straightforward use \textit{badd} with sequentialization
+factor of 4 and values pre-fetched to registers -- corresponding to the addition
+at the end of section \ref{subsec:mulalg}. Listing \ref{cudamulmem} in Appendix
+\hyperref[app:B]{B} contains the CUDA code for reading and writing in this
+pattern.
 
-The two memory layouts are used to define define \texttt{V1} \& \texttt{V2} and
+The two memory layouts are used to define \texttt{V1} \& \texttt{V2} and
 \texttt{V4}, respectively.
 
 \paragraph{Multiple instances per block.}
@@ -595,11 +598,11 @@ as we use to define \texttt{V2} and \texttt{V4}, respectively. In turn, the
 memory layouts from \texttt{V2} and \texttt{V4} applies to \texttt{V3} and
 \texttt{V5} as well. However, we have to be careful when reading from the memory
 buffer of the second additive array, as shifting the layout is no longer
-sufficient to get the correct tiling. Instead, we compute the thread-index
+sufficient to get the correct tiling. Instead, we compute the thread index
 w.r.t.\ segments s.t.\ the first thread of a segment fetch $0$ rather than
-indexing into to the previous segment. The aforementioned CUDA code for the
-memory layout of \texttt{V4} (Appendix \hyperref[app:B]{B} Listing
-\ref{cudamulmem}) includes this segment-beginning check.
+indexing to the previous segment. The aforementioned CUDA code for the memory
+layout of \texttt{V4} (Appendix \hyperref[app:B]{B} Listing \ref{cudamulmem})
+includes this segment-beginning check.
 
 \subsection{Futhark Implementation}
 \label{subsec:mulfut}
@@ -632,7 +635,7 @@ This case can be computed in parallel in three steps, using parallel addition:
 \item Shift the array with the high parts by 1.
 \item Add the two arrays using parallel addition (e.g.\ \textit{badd}).
 \end{enumerate}
-Figure \ref{fig:muld} contains a illustration and the pseudocode of this
+Figure \ref{fig:muld} contains an illustration and the pseudocode of this
 algorithm.
 
 \begin{figure}
@@ -694,23 +697,18 @@ w = ADD l h
   \label{fig:muld}
 \end{figure}
 
-We could integrate this special case (or any of the other special cases) into
-the classical multiple precision multiplication implementation. However such an
-integration raises two concerns: First, we expect multiple precision factors to
-have the dominant occurrence over single precision (because we are in the domain
-of big integers), and therefore it is not worth the cost of the extra
-computational steps required to check for special cases. Second, it introduces
-branching into the multiplication, which is especially inefficient for batch
-processing with multiple instances per block (as diverging branches within a
-block results gives unbalanced work amongst threads).
+We could integrate this special case (along with the other special cases) into
+the classical multiplication implementation. However, such an integration raises
+two concerns: First, we expect multiple precision factors to have the dominant
+occurrence over single precision (because we are in the domain of big integers),
+and therefore it is not worth the cost of the extra computational steps required
+to check for special cases. Second, it introduces branching into the
+multiplication, which is especially inefficient for batch processing with
+multiple instances per block (as diverging branches within a block gives
+unbalanced work amongst threads).
 
 Moreover, it is essentially a parallel addition, so we do not benchmark or
 discuss it further.
-
-\subsection{Other Algorithms}
-\label{subsec:mulother}
-
-{\red [Missing -- write about FFT and mention Karatsuba.]}
 
 %%% Local Variables:
 %%% mode: LaTeX

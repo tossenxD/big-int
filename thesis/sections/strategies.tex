@@ -62,27 +62,27 @@ giving a block size of $256$ instead.
 \end{figure}
 
 However, when the sequentialization factor within parallel threads increases,
-the amount of parallelism within the program decreases. Furthermore, handling
-many digits sequentially per threads may exhaust the local memory. Thus, the
-bigger the integers are, the less efficient the implementation becomes (for
+the amount of parallelism within the program decreases. Furthermore,
+sequentially handling many digits per thread may exhaust the local memory. Thus,
+the bigger the integers are, the less efficient the implementation becomes (for
 sizes that otherwise would exceed CUDA block limits). This only holds up to a
 certain input size, because the block-level shared memory also grows with the
 integer size, resulting in an out-of-memory error for integers too big.
 
 Likewise, we can also have big integer sizes that are too small to efficiently
-compute in parallel. Suppose a each thread process a digit of the input, and the
-input big integer consists of 16 digits -- then we have 16 threads processing and
-16 threads idling. This is not a problem when we only compute arithmetics on a
+compute in parallel. Suppose that each thread process a digit of the input, and
+the input consists of 16 digits -- then we have 16 threads processing and 16
+threads idling. This is not a problem when we only compute arithmetics on a
 single big integer, but effectively halves throughput when batch processing
 enough integers to consume the whole device.
 
 Again, this is an artificial barrier, as we can combine (\textit{flatten}) big
 integers and handle them \textit{segmented} within a block. E.g.\ combining two
-integers per block in the above example is enough to fulfill a warp. This is not
+integers per block in the example above is enough to fulfill a warp. This is not
 necessarily double the performance, since flattening, unflattening, and
 segmented operations comes with a cost, but the cost is overshadowed by the
 benefits (no idling threads) when processing many instances over smaller
-integers.\newline
+integers. \bigskip
 
 To summarize, the arithmetics is implemented at CUDA block-level aimed at
 medium-sized integers. They must increase the sequentialization factor within
@@ -92,8 +92,8 @@ arithmetics per CUDA block.
 
 We take inspiration from the strategy behind the GMP library: They write
 multiple parameterized versions of each arithmetic function (including multiple
-algorithms), and dynamically (or by tuning) choose the best performing based on
-the input sizes \cite{GMP}. While we do not implement multiple algorithms, we
+algorithms), and dynamically (or by tuning) choose the one performing best based
+on the input size \cite{GMP}. While we do not implement multiple algorithms, we
 implement multiple versions of the same algorithm with a gradual degree of
 optimization -- e.g.\ with and without the ability to process multiple instances
 per block.
@@ -102,7 +102,7 @@ We expect the most optimized version to consistently perform best, but run
 experiments and benchmarks over the size of integers on all versions. It reveals
 the performance gain of each optimization and possibly find versions most suited
 for specific inputs. Since performance is the main concern, we assume that the
-size of integers and number per block divides the block dimensions exact for
+size and number of integers per block exactly divides the block dimensions for
 kernels exhibiting sequentialization and segmentation.\footnote{Assumption does
   not restrict the usefulness of the implementations since inputs can be padded
   to fit.}

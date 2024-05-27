@@ -1,14 +1,14 @@
 \section{Performance}
 \label{sec:per}
 
-To assess the efficiency of the our implementations, we measure their relative
+To assess the efficiency of our implementations, we measure their relative
 performance of running a benchmark suite. We expect that the CUDA
 implementations yields the best performance given the underlying algorithms and
 optimizations, in turn revealing the overhead and inefficiencies of the Futhark
 implementations. We also run the benchmarks using the state of the art CUDA
 library called ``Cooperative Groups Big Numbers'' (CGBN), published by NVlabs
 \cite{CGBN}. CGBN is aimed at integers in the range of $2^5$ bits to $2^{15}$
-bits (i.e.\ small to medium sized integers), where each integer is processed by
+bits (i.e.\ small- to medium-sized integers), where each integer is processed by
 a single warp (cooperative group). This approach minimizes latency by storing
 intermediate results in local memory and it enables the use of fast warp-level
 instructions, but runs slower for bigger integers that exhaust local memory.
@@ -109,8 +109,8 @@ squared number of 32-bit words times the number of instances:
 
 However, classical multiplication is not asymptotically optimal. Instead, we
 base our metric upon FFT multiplication, on the ground that it should reflect
-the optimal scenario. To better compare our results to Oancea and Watt's in
-{\red <TODO REF MISSING>}, we use their metric:
+the optimal scenario. We use the one proposed by Oancea and Watt in
+\cite{oancea2024gpu}:
 \begin{equation}
   \label{eq:u32ops}
   \mathit{Gu32ops} = \dfrac{300 \cdot n \cdot (m \cdot (\mathtt{bits} / 32)) \cdot \log (m \cdot (\mathtt{bits} / 32))}{1000000000} \cdot \dfrac{1000000}{\mathit{runtime}}
@@ -163,6 +163,9 @@ The benchmarks are run on a NVIDIA GTX 1650 SUPER -- a GPU with 1280 CUDA cores,
 \end{table}
 
 
+{\red [Missing]}
+
+\subsection{Discussion}
 {\red [Missing]}
 
 %%% Local Variables:

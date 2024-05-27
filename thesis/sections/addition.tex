@@ -11,9 +11,9 @@ stepping stone for the algorithm and implementation of our addition
 \texttt{map}-\texttt{scan} composition, making it run efficiently on a GPGPU
 \cite{blellochaddscan}.
 
-This section is structured as follows: In \ref{subsec:addalg} we present an
-algorithm to compute big integer addition in parallel. In \ref{subsec:addcud}
-and \ref{subsec:addfut} we discuss how to efficiently implement the algorithm in
+This section is structured as follows: In \ref{subsec:addalg} we present a
+parallel algorithm to compute big integer addition. In \ref{subsec:addcud} and
+\ref{subsec:addfut} we discuss how to efficiently implement the algorithm in
 CUDA and Futhark, respectively. Lastly, in \ref{subsec:sub} we show how to
 define subtraction from the addition algorithm.
 
@@ -34,7 +34,7 @@ I.e.\ we compute each digit of the result simply by adding the corresponding two
 input digits. However, these inner additions may overflow the base, resulting in
 a carry being added to the following digit. In turn, this digit may now
 overflow, and so we need to add yet another carry, and so forth. E.g.\ consider
-the addition $199 + 1$ in decimal base; first we add $1$ to $9$ giving $0$ and a
+the addition $199 + 1$ of decimal base; first we add $1$ to $9$ giving $0$ and a
 carry, then we add $0$ and the carry to $9$ giving $0$ and another carry, which
 we then add to $1$, resulting in the number $200$:
 {\scriptsize
@@ -47,7 +47,7 @@ we then add to $1$, resulting in the number $200$:
 \end{tabular}
 }
 
-A sequential algorithm and illustration thereof is given in Figure
+A sequential algorithm, and illustration thereof, is given in Figure
 \ref{fig:addseq}. It is immediate from the figure that the sum of digits can be
 independently computed, and thus, trivially parallelizable. However, the carries
 are truly dependent on all sums and carries before it, as illustrated in the
@@ -107,10 +107,10 @@ for i in (0..m-1)
   \label{fig:addseq}
 \end{figure}
 
-Each addition may overflow at most once, and so we need to figure out the
+Each addition may overflow once at most, and so we need to figure out the
 conditions for an overflow. In the former work by Olesen, Topalovic and
 Restelli-Nielsen, they found that this happens when I) the addition already
-overflowed, or II) it results in the maximum representable integer and the
+overflowed, or II) it results in the maximum representable integer, and the
 addition just before it overflowed \cite{DPPproject}. They found that these
 conditions can efficiently be checked in parallel as a prefix
 sum.\footnote{Specifically an exclusive prefix-sum, which is easy to see on the
@@ -261,10 +261,10 @@ $f~:~\tup{\mathtt{bool}}{\mathtt{bool}} \shortrightarrow \mathtt{uint}$ is the
 projection $\pi_1$ followed by a type conversion.
 
 The operator $\otimes$ then computes the prefix sum on the augmented carries s.t.\ if
-both the sum itself and the one just before it is the maximum integer, they
-remain the maximum integer combined.\footnote{E.g.\ in base $10$, $9$ is max in
-  one digit and $99$ remains max in two digits.} Overflows are determined by
-the aforementioned conditions. I.e.\ for some pairs of booleans
+both the sum itself and the one just before it, is the maximum integer, then
+they remain the maximum integer combined.\footnote{E.g.\ in decimal base, $9$ is
+  maximum of one digit and $99$ remains maximum of two digits.} Overflows are determined
+by the aforementioned conditions. I.e.\ for some pairs of booleans
 $x = \tup{\mathit{ov_x}}{\mathit{mx_{x}}}$ and
 $y = \tup{\mathit{ov_y}}{\mathit{mx_{y}}}$, we define:
 \begin{equation}
@@ -287,11 +287,11 @@ zero-and-nonzero integers. Thus, a low-level implementation will have to use
 integers, and so we might as well use bitwise operations over logical ones, as
 these are faster.
 
-In turn, instead of using pairs of integers with each using one indicator bit
-for boolean value, we combine them to one integer with two indicator bits. Not
-only does this halve the memory usage w.r.t.\ the prefix sum, it also increases
-memory utilization of threads, as each thread only have to fetch and write one
-once. The formal definition of the optimizations is:
+In turn, instead of using pairs of integers, with each pair using one indicator
+bit as boolean value, we combine them to one integer with two indicator
+bits. Not only does it halve the memory usage w.r.t.\ the prefix sum, it also
+increases memory utilization of threads, as each thread only have to fetch and
+write once. The formal definition of the optimizations is:
 
 \begin{definition}[\textit{b}itwise-optimized parallel \textit{add}ition algorithm (\textit{badd})]\label{def:bitwise}
   The bitwise-optimized operators of the algorithm in Figure \ref{fig:addpar},
@@ -323,27 +323,27 @@ naturally still holds. Likewise, the neutral element \texttt{e} of Equation
 (\ref{eq:otimesne}), and so \texttt{e} remains a left-associative neutral
 element of $\otimes$ after the optimizations.
 
-For good measure, new proofs of associativity and neutral element are in
-Appendix \hyperref[app:A]{A}.
+For good measure, proof of associativity and neutral element are in Appendix
+\hyperref[app:A]{A}.
 
 Thus, when using the \textit{badd} algorithm presented in Definition
 \ref{def:bitwise}, we get that both $\oplus$, $\otimes$ and \texttt{f} are
 $O(1)$. Therefore, the \fun{map}s exhibit work $O(m)$ and depth $O(1)$, and the
 \fun{scan} work $O(m)$ and depth $O(\log m)$. Hence, the total work is $O(m)$ and
 the depth $O(\log m)$.
+\bigskip
 
 As a final note, we can stay in the lane of bitwise optimizations when it comes
 to handling multiple instances per CUDA block. Extending the algorithm to work
-on a set of flattened instances is trivial using a \textit{segmented} scan. It
-is a scan with a flag array (indicating where the flattened segments begins)
-s.t.\ if we are at the beginning of a segment, the neutral element is used as the
-first operand rather than the left sum.  We can implement it as a normal scan,
-but with an extended operator that checks for segment beginnings, as done in
-section 8 of the book ``Parallel Programming in Futhark''
-\cite{ParallelProgrammingInFuthark}.
+on a set of flattened instances is trivial using a \textit{segmented} scan
+\cite{blellochaddscan}. It is a scan with a flag array (indicating where the
+flattened segments begins) s.t.\ if we are at the beginning of a segment, the
+neutral element is used as the first operand rather than the left sum.  We can
+implement it as a normal scan, but with an extended operator that checks for
+segment beginnings \cite{ParallelProgrammingInFuthark}.
 
-However, just like we combined the overflow- and maximum-indicator, we can also
-combine them with the flag-indicator. Thus, we use the third least-significant
+However, just like we combined the overflow and maximum indicator, we can also
+combine them with the flag indicator. Thus, we use the third least significant
 bit to indicate segment beginnings. Setting the flags as part of the augmented
 carries is a trivial extension to operator $\oplus$, and we get the segmented scan
 operator $\otimes$ (with neutral element remaining $2$):
@@ -366,7 +366,7 @@ the three steps being a constant depth), we expect the threads to have an excess
 amount of parallelism spent on communication (waiting for memory and
 synchronizations). Increasing the sequentialization factor decrease the amount
 of communication, and, in this case, increase the performance. This optimization
-comes with the added benefit of handling integers with size greater than a CUDA
+comes with the added benefit of handling integers of size greater than a CUDA
 block.
 
 The third version (\texttt{V3}) can handle multiple instances per block, giving
@@ -385,7 +385,7 @@ Futhark.
 Generic \textit{ipb} is trivial, because it only serves to determine segment
 beginnings of segmented algorithms. Normally, a generic sequentialization factor
 impedes performance, as we achieve this by introducing \texttt{loop}-constructs
-invariant of $q$. However, a benefit of high-level languages like C++ is
+invariant to $q$. However, a benefit of high-level languages like C++ is
 compiler directives, allowing us to unroll loops as if they were hand-written
 \cite{cudaguide}.
 
@@ -407,16 +407,16 @@ dim3 block(ipb*(m/q), 1, 1);
 dim3 grid (num_instances/ipb, 1, 1);
 \end{lstlisting}
 
-Steps 1.\ and 3.\ of \textit{badd} are implemented straightforward for all three
+Steps 1.\ and 3.\ of \textit{badd} are implemented straightforward in all three
 versions (because the \texttt{map}s are implicit in CUDA). Step 2.\ on the other
-hand is more interesting.
+hand, requires more thought:
 
 For the \fun{scan} function, we use a work-efficient warp-level inclusive scan
 \cite{warpscan}. The idea is to minimize communication by exploiting that warps
 execute in lockstep. Figure \ref{fig:warpscan} contains an illustration of this
 algorithm. It works in three steps with synchronization in-between:
 \begin{enumerate}[label=\Roman*]
-\item Each warp scans it's elements in $\log \mathit{warpsize}$ iterations.\label{scanI}
+\item Each warp scans its elements in $\log \mathit{warpsize}$ iterations.\label{scanI}
 \item The end-of-warp results are put in the first warp, synchronized, and then
   scanned.\label{scanII}
 \item The results of \ref{scanII} are fetched, synchronized, and distributed over the
@@ -445,23 +445,15 @@ from the warp-level scan algorithm on a register-level basis:
 
 Let each thread compute the inclusive prefix sum of its $q$ elements
 sequentially, and place only the last sum in shared memory. Then, run a
-wrap-level exclusive scan over the end-of-register-level sums in shared
+warp-level exclusive scan over the end-of-register-level sums in shared
 memory. Lastly, each thread sequentially distribute the results of the
-wrap-level scan over the result of the register-level scan.
+warp-level scan over the result of the register-level scan.
 
 Using this idea, we are now able to write all three versions. For brevity, we
-only show the function body of \texttt{V3}, but both \texttt{V1} and \texttt{V2}
-principally implemented in the same way. Listing \ref{addopcuda} contains this
-body, where the input/output elements of each thread are read coalesced
-beforehand and written coalesced afterwards to/from global memory.
-% \lstinputlisting[language=CPP,firstline=212,lastline=236,caption={\footnotesize
-%   CUDA \textit{badd} \texttt{V3} implementation body from file
-%   \texttt{ker-add.cu.h}, where registers \texttt{ass}, \texttt{bss}, and
-%   \texttt{rss} contains $q$ input/output digits, respectively, of type
-%   \texttt{uint\_t} with base class \texttt{Base}, segmented scan operator class
-%   \texttt{SegCarryProp} over carry type \texttt{carry\_t}, and shared memory
-%   buffer
-%   \texttt{shmem}.},label={addopcuda},firstnumber=212]{../cuda/ker-add.cu.h}
+only show the main kernel body of \texttt{V3}, but both \texttt{V1} and
+\texttt{V2} are principally implemented the same way. Listing \ref{addopcuda}
+contains this kernel, where the input/output elements of each thread are read
+coalesced beforehand and written coalesced afterwards to/from global memory.
 \begin{lstlisting}[language=CPP,caption={\footnotesize
   CUDA \textit{badd} \texttt{V3} implementation body from file
   \texttt{ker-add.cu.h} (slightly edited), where registers \texttt{ass}, \texttt{bss}, and
@@ -584,7 +576,7 @@ Thus, when we construct the read operation in a particular way, the compiler
 will pre-allocate the inputs in shared memory when fused with the surrounding
 functions, and in turn, generate the read operation with no-ops. We use the code
 of Listing \ref{addfutcpy} below, which utilizes short-circuiting to read the
-inputs to shared memory coalesced with minimum overhead. I.e.\ the
+inputs into shared memory coalesced and with minimum overhead. I.e.\ the
 \texttt{zip}s, \texttt{unzip}s and concatenations of the code becomes no-ops,
 and \texttt{ush} and \texttt{vsh} is in-place read from \texttt{us} and
 \texttt{vs} (occupying the same memory region).
@@ -618,7 +610,7 @@ def baddV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui
 \end{lstlisting}
 The functions are defined s.t.\ they first copy from global to shared memory (as
 described above), and then run the function body (corresponding to the
-\textit{badd} algorithm). For brevity, we focus on \texttt{V3}, as they are
+\textit{badd} algorithm). For brevity, we focus on \texttt{V3} since they are
 principally identical. The function body sequentializes the excess parallelism
 using tuples of four elements as a manually unrolled loop. It exhibit the same
 sequentialized register-level prefix sum approach as the CUDA \texttt{V3}

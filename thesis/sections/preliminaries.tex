@@ -40,14 +40,14 @@ called Single Instruction, Multiple Threads (SIMT). A program, called a
 a thread block) with a specified amount of threads per block. The number of
 threads in a block (block size) and the number of blocks in a grid (block count)
 must be statically known prior to kernel execution, with a maximum block size of
-1024 threads. Each wrap, block, and grid has its own memory called
+1024 threads. Each warp, block, and grid has its own memory called
 \textit{local}, \textit{shared}, and \textit{global} memory, respectively, with
 the former being the smallest and fastest, and the latter the largest and
 slowest.
 
 SIMT allows writing parallel programs of minimal overhead w.r.t.\
 synchronization and memory latency. It urges to keep procedures closest to
-wrap-level, utilizing faster memory, lockstep execution, and optimizing for
+warp-level, utilizing faster memory, lockstep execution, and optimizing for
 locality of reference within a warp. This introduce the idea of
 \textit{coalesced memory accesses}, where consecutive threads access consecutive
 memory locations, resulting in as few memory transactions as possible, and
@@ -145,8 +145,8 @@ driver API, as described in the CUDA C++ guide \cite{cudaguide}. The CPU running
 the initial program is called the \textit{host} and the target GPU is called the
 \textit{device}. The extension exports functions in the \textit{alloc}-family,
 that allows the host to preallocate, read, and write memory of the
-device. Device functions (i.e.\ kernels) are called from the host and take
-parameters in the form of pointers to memory already transferred to the device.
+device. Device functions (i.e.\ kernels) are called from the host, and take
+parameters in the form of pointers to memory pre-transferred to the device.
 
 The extension exports some function execution- and variable memory- space
 specifiers. These infer to the compiler how to treat functions and memory (e.g.\
@@ -170,7 +170,7 @@ Lastly, threads are implicit: Kernels launch with an \textit{execution
 respectively, and are of type \fun{dim3}, denoting the specifications in 3D. The
 spawned kernel has access to a set of special objects, notably \fun{threadIdx},
 \fun{blockIdx}, and \fun{blockDim} containing the index of the currently
-executing thread, the index of the block it belongs to, and block size,
+executing thread, the index of the block that it belongs to, and block size,
 respectively. Thus, the executable kernel code is run on each of the specified
 threads, and spatial awareness within a thread is achieved explicitly through
 the special objects -- as demonstrated in the following example:
@@ -231,7 +231,7 @@ and \textit{depth}. Work refers to the total amount of computations in the
 program -- known as the traditional basis of time complexity analysis. However,
 in the parallel domain, work is distributed amongst threads, and so it may not
 be an accurate representation of runtimes. The depth (also called span) is the
-amount of sequential work within a thread given infinitely many threads.
+amount of sequential work within a thread, given infinitely many threads.
 
 We now present the most fundamental SOACs, which we use throughout this Thesis
 to analyse parallelism.\footnote{Other combinators exists, but these are the
@@ -251,7 +251,7 @@ inherently be executed in parallel. The type signature and semantics is:
 Next we have the combinator \fun{reduce} of work $O(n\cdot F_w(n))$ and depth
 $O(\log n \cdot F_w(n))$.  The semantics is akin to a \fun{fold} from other
 functional languages, but with one big difference: The operator must be
-associative and have a left-associative neutral element, allowing the array can
+associative and have a left-associative neutral element, allowing the array to
 be accumulated in $O(\log n)$ steps. The type signature and semantics is:
 \begin{align}
   &\mathtt{reduce}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \tau\\

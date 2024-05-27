@@ -1,5 +1,5 @@
 \section{Software Structure}
-\label{sec:cont}
+\label{sec:software}
 
 Various big integer arithmetic implementations has been developed as part of
 this Thesis. The code is publicly available at the GitHub repository
@@ -21,12 +21,12 @@ serves to generate inputs, check for errors, test the arithmetics, and run
 benchmarks. The heading of the main file defines numerous parameters specifying
 integer base, kernel version, what to run, etc., which can manually be adjusted.
 
-The \texttt{Makefile} offers two ways to run the main file -- one with a normal
-and one with a small amount of work. They are invoked by \texttt{\$ make} and
+The \texttt{Makefile} offers two ways to run the main file -- with either a
+normal or small amount of total work. They are invoked by \texttt{\$ make} and
 \texttt{\$ make small}, respectively.
 
-Files to run CGBN is in the subdirectory \texttt{cgbn}, but has a similar setup
-to the primary files.
+Files to run CGBN is in subdirectory \texttt{cgbn}, but have a similar setup to
+the primary files.
 
 \paragraph{Futhark}
 The files \texttt{add.fut}, \texttt{sub.fut}, \texttt{mul.fut}, and
