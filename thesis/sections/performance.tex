@@ -4,14 +4,13 @@
 To assess the efficiency of our implementations, we measure their relative
 performance of running a benchmark suite. We expect that the CUDA
 implementations yields the best performance given the underlying algorithms and
-optimizations, in turn revealing the overhead and inefficiencies of the Futhark
-implementations. We also run the benchmarks using the state of the art CUDA
-library called ``Cooperative Groups Big Numbers'' (CGBN), published by NVlabs
-\cite{CGBN}. CGBN is aimed at integers in the range of $2^5$ bits to $2^{15}$
-bits (i.e.\ small- to medium-sized integers), where each integer is processed by
-a single warp (cooperative group). This approach minimizes latency by storing
-intermediate results in local memory and it enables the use of fast warp-level
-instructions, but runs slower for bigger integers that exhaust local memory.
+optimizations, and in turn, reveals the overhead and inefficiencies of the
+Futhark implementations. We also run the benchmarks using the CGBN library
+described in section \ref{sec:rel}. It enlights the relative performance of our
+implementations against state of the art, in addition to the strong and weak
+points of the underlying algorithms and overaching implementations strategy
+(e.g.\ pros and cons of block-level versus warp-level processing of big
+integers).
 
 The runtimes of benchmarks can be tedious to directly compare. Instead, we
 define some performance metrics based on the runtime, total number of bits, and

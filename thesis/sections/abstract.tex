@@ -17,18 +17,17 @@ languages \cpp\ and Futhark. The addition algorithm boils down to a prefix sum,
 which runs efficiently in both implementations. The multiplication algorithm is
 the classical quadratic method, parallelized by tiling the convolutions to
 reduce the sequential work per thread and optimize for locality of
-reference. The \cpp\ implementation is exhibits good performance, while the
-Futhark implementation leaves room for improvement. The division algorithm is
-based on finding multiplicative inverses without leaving the domain of big
-integers. To do so, a variety of big integer operators and routines are defined,
-including shifts, comparisons, and signed subtraction using the prefix sum
-approach of addition. The algorithm parameterizes over the involved methods for
-big integer arithmetics, and its efficiency directly mirrors the given
-multiplication method. In addition to conveying the algorithm, as well as
-adapting it to big integers, supplementary implementations have been
-produced. This includes a validating and inefficient sequential implementation
-in C, and a partially validating and semi-efficient parallel implementation in
-Futhark.
+reference. The \cpp\ implementation exhibits good performance, while the Futhark
+implementation leaves room for improvement. The division algorithm is based on
+finding multiplicative inverses without leaving the domain of big integers. To
+do so, a variety of big integer operators and routines are defined, including
+shifts, comparisons, and signed subtraction using the prefix sum approach of
+addition. The algorithm parameterizes over the involved methods for big integer
+arithmetics, and its efficiency directly mirrors the given multiplication
+method. In addition to conveying the algorithm, as well as adapting it to big
+integers, supplementary implementations have been produced. This includes a
+validating and inefficient sequential implementation in C, and a partially
+validating and semi-efficient parallel implementation in Futhark.
 
 \restoregeometry
 

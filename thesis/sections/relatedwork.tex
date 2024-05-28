@@ -1,11 +1,66 @@
 \section{Related Work}
 \label{sec:rel}
 
-{\red [Missing]}
+Two works are particularly related to this. The first is ``GPU Implementations
+for Midsize Integer Addition and Multiplication'' by Oancea and Watt
+\cite{oancea2024gpu}. It has been developed concurrently with this thesis, with
+some of their CUDA \cpp\ setup files as starting point of our code
+basis.\footnote{\url{https://github.com/coancea/midint-arithmetic}} It shares a
+similar approach to addition and classical multiplication as this
+thesis. However, where this thesis focus on division, their work focus on FTT
+multiplication. They found that FFT multiplication is faster than classical for
+big integers of size greater than $2^{15}$ bits. Their approach to FFT involves
+finding a finite prime-field that allows the Discrete Fourier Transform (DFT) to
+stay in the domain of integers, while simultaneously use base sizes that almost
+maps to machine word sizes one-to-one.
 
-%   However, these implementations impose different limitations such as being
-% hardware-dependent (written in CUDA), no scalability to integers above a fixed
-% size and having integer sizes only divisible by 32.
+The other particularly related work is the state of the art CUDA library called
+``Cooperative Groups Big Numbers'' (CGBN), published by NVlabs \cite{CGBN}. CGBN
+is aimed at integers in the range of $2^5$ bits to $2^{15}$ bits (i.e.\ small-
+to medium-sized integers), where each integer is processed in a cooperative
+group of either 4, 8, 16, or 32 threads. Cooperative groups are collections of
+threads assigned with special intra-communication properties
+\cite{cudaguide}. As evident by the group sizes, CGBN optimize the arithmetics
+for warp-level processing.
+
+In comparison to the approach of this thesis (i.e.\ block-level processing of
+arithmetics), their approach minimizes latency by storing intermediate results
+in local memory -- rather than shared memory -- and it advocates the usage of fast
+warp-level instructions. In turn, this allows consecutive arithmetics to fuse
+seamlessly, and to be very fast for smaller-sized integers. However, their
+approach impose constraints such as being hardware-dependent (i.e.\ the fast
+warp-level instructions are specific to the proprietary CUDA platform), offer no
+scalability to integers above $2^{15}$ bits (e.g.\ large-sized integers will
+exhaust local memory and registers), and requiring the size of integers to be
+evenly divisible by 32. \bigskip
+
+Other related works includes a classical and FFT multiplication by Dieguez et
+al. \cite{doi:10.1177/10943420221077964}, where the classical multiplication
+takes a divide-and-conquer approach s.t.\ convolutions are tiled over CUDA
+blocks. This has the benefit of increasing the amount of parallelism within a
+block, but at the cost of blocks having to integrate partial convolution results
+and carries using atomic operations. To propagate the carries, they use the
+hierarchical carry look-ahead scheme that Emmart and Weems use for big integer
+addition in \cite{Emmart2010HighPI}. This addition scheme is structured around
+propagating the carries at block-level in a bottom-top-bottom fashion: First the
+digits are added. Then carries are propagated in threads, then warps, then
+block, afterwards to be distributed back in warps, followed by threads. The
+blocks can then overflow to the following chunk of digits, which would then
+repeat the process.
+
+A more distant related work is Cuda Multiple Precision Arithmetic Library
+(CAMPARY) by Joldes et al. \cite{Joldes2016CAMPARYCM}. It aims at small-sized
+integers up to a few hundred bits of precision, and use unevaluated sums of
+floating-points numbers to represent the integers internally. Hence, it relies
+on floating-point arithmetics, rather than exact arithmetics. The idea behind
+the number representation is to use algorithms computing the exact error of a
+floating-point, and then store the rounded floating-point and the exact error in
+two different floating-points. This decomposes their big integer arithmetics to
+a series of hardware-supported floating-point arithmetic operations and error
+checks. They also support division, based on a similar Newton-Raphson approach
+as the division algorithm we use \cite{watt2023efficient}. The algorithms
+regarding errors are computationally demanding and the limiting factor for
+integer sizes.
 
 %%% Local Variables:
 %%% mode: LaTeX
