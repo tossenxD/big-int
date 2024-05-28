@@ -5,7 +5,6 @@ integers that exceeds the word size on a machine. A common system for reasoning
 about them, e.g.\ used by Knuth in \cite{knuth97}, is the positional number
 system:
 
-% denoted $\bigint{u_0, u_1,\ldots,u_{m-1}}_{B}$
 \begin{definition}[positional number system]\label{def:bigints}
   An integer $u \in \mathbb{N}$ can be expressed in base $B \in \mathbb{N}>1$ with
   $m$ digits $u_{i\in \{0,1,\ldots,m-1\}}\in\{0,1,\ldots,B-1\}$ by the sum:
@@ -78,7 +77,7 @@ hardware dependent, and nonextensible.
 As a mechanism to keep the arithmetics generic over the base type in
 implementation, we utilize templates, classes, and type declarations to create
 an abstract big integer interface.\footnote{Futhark has an extensive module
-  system that supports generic programming in the same manner as C++
+  system that supports generic programming in the same manner as \cpp\
   templates. However, it requires a lot of effort to wrap the whole
   implementation inside a module with generic base type. As a simple means to
   generality we use type declarations -- allowing us to focus on the performance

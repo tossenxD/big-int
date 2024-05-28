@@ -16,8 +16,8 @@ greater complexity.
 
 This section is structured as follows: In \ref{subsec:gpgpu} we introduce the
 GPGPU architecture and parallel execution model. In \ref{subsec:cuda} we give an
-overview of the CUDA C++ environment, which allows interfacing with low-level
-GPU primitives in the high-level language C++. In \ref{subsec:futhark} we give
+overview of the CUDA \cpp\ environment, which allows interfacing with low-level
+GPU primitives in the high-level language \cpp. In \ref{subsec:futhark} we give
 an overview of the high-level programming language Futhark that can compile to
 GPU executable code without the need to manually manage low-level primitives.
 
@@ -26,13 +26,13 @@ GPU executable code without the need to manually manage low-level primitives.
 
 There are two main interfaces for a GPU: OpenCL and CUDA, the former being an
 API for an open set of standards and instructions, and the latter a proprietary
-platform for NVIDIA GPUs consisting of specialized instructions. This Thesis
+platform for NVIDIA GPUs consisting of specialized instructions. This thesis
 focus on CUDA, yet the algorithmic aspects are kept general and allows for
 OpenCL operability, along with the software developed in Futhark compiling to
 both models.
 
 GPGPU is parallel by design and consists of up to thousands of multithreaded
-cores. The architecture, according to NVIDIA's own CUDA C++ programming guide
+cores. The architecture, according to NVIDIA's own CUDA \cpp\ programming guide
 \cite{cudaguide}, is as follows: Threads are grouped in 32, where groups are
 called \textit{warps}. A warp executes one instruction at a time in lockstep,
 called Single Instruction, Multiple Threads (SIMT). A program, called a
@@ -136,17 +136,18 @@ $~t_0$ & & $~t_1$ & & $~t_{2}$ & & $~t_3$ & \\
   amount of branching, use fast memory, run as close to warp-level as possible,
   and access global memory coalesced.
 
-\subsection{The CUDA C++ Programming Interface}
+\subsection{The CUDA \cpp\ Programming Interface}
 \label{subsec:cuda}
 
-In this Thesis, we interface with CUDA by means of a C++ language extension that
-compiles a program to both a CPU and GPU executable portion using C and the CUDA
-driver API, as described in the CUDA C++ guide \cite{cudaguide}. The CPU running
-the initial program is called the \textit{host} and the target GPU is called the
-\textit{device}. The extension exports functions in the \textit{alloc}-family,
-that allows the host to preallocate, read, and write memory of the
-device. Device functions (i.e.\ kernels) are called from the host, and take
-parameters in the form of pointers to memory pre-transferred to the device.
+In this thesis, we interface with CUDA by means of a \cpp\ language extension
+that compiles a program to both a CPU and GPU executable portion using C and the
+CUDA driver API, as described in the CUDA \cpp\ guide \cite{cudaguide}. The CPU
+running the initial program is called the \textit{host} and the target GPU is
+called the \textit{device}. The extension exports functions in the
+\textit{alloc}-family, that allows the host to preallocate, read, and write
+memory of the device. Device functions (i.e.\ kernels) are called from the host,
+and take parameters in the form of pointers to memory pre-transferred to the
+device.
 
 The extension exports some function execution- and variable memory- space
 specifiers. These infer to the compiler how to treat functions and memory (e.g.\
@@ -156,10 +157,10 @@ also exports some device functions, notably the function
 code execution until all threads within the block has reached that barrier.
 
 In order to write parametric kernels in e.g.\ the type or size of big integers,
-we can use C++ templates. They provide generic programming over type and value
+we can use \cpp\ templates. They provide generic programming over type and value
 parameters that are concretized at compile time, as written by Stroustrup in
 \cite{stroustrup}. Templates especially prove to be a strong tool when combined
-with other high-level C++ constructs, such as classes.  (On a side note, the
+with other high-level \cpp\ constructs, such as classes.  (On a side note, the
 CUDA design has no explicit error handling on the device. Instead, CUDA API
 calls returns error codes, which the host must then explicitly check and
 handle.)
@@ -175,9 +176,9 @@ respectively. Thus, the executable kernel code is run on each of the specified
 threads, and spatial awareness within a thread is achieved explicitly through
 the special objects -- as demonstrated in the following example:
 
-\begin{example}[a simple CUDA C++ program]\label{ex:cuda}
+\begin{example}[a simple CUDA \cpp\ program]\label{ex:cuda}
   The following program is a simple example of the general routines
-  involved with parallel programming through the CUDA C++ extension.
+  involved with parallel programming through the CUDA \cpp\ extension.
 \begin{lstlisting}[language=CPP,escapeinside={(*}{*)}]
 (*{\color{Crimson}$\bullet$ \texttt{Kernel function that increments $n$ integers of the input array by one.}*)
 template<int n> __global__ void incrKernel(int* input, int* output) {
@@ -203,7 +204,7 @@ template<int n> __global__ void incrKernel(int* input, int* output) {
 \end{lstlisting}
 \end{example}
 
-From now on, we denote a CUDA C++ program simply as a CUDA program and assume:
+From now on, we denote a CUDA \cpp\ program simply as a CUDA program and assume:
 \begin{itemize}
   \renewcommand\labelitemi{--}
 \item Kernel dimensions to be 1D (as they are in Example \ref{ex:cuda} above).
@@ -221,7 +222,7 @@ Futhark is a high-level pure functional language with emphasis on data parallel
 array programming
 \cite{ParallelProgrammingInFuthark,Henriksen:2017:FPF:3062341.3062354}. It is
 hardware-agnostic and can compile to both sequential or parallel C, OpenCL, and
-CUDA code \cite{futguide2}. The fundamental design of Futhark revolves around
+CUDA code \cite{futguide}. The fundamental design of Futhark revolves around
 \textit{Second-Order Array Combinators} (SOACs). They are array-functions that
 are easy to reason about and define in terms sequential semantics, while still
 being able to compile to (efficient) parallel code.
@@ -233,9 +234,9 @@ in the parallel domain, work is distributed amongst threads, and so it may not
 be an accurate representation of runtimes. The depth (also called span) is the
 amount of sequential work within a thread, given infinitely many threads.
 
-We now present the most fundamental SOACs, which we use throughout this Thesis
+We now present the most fundamental SOACs, which we use throughout this thesis
 to analyse parallelism.\footnote{Other combinators exists, but these are the
-  most crucial to this Thesis. An overview of the array combinators and
+  most crucial to this thesis. An overview of the array combinators and
   functions can be found in the Futhark standard library \cite{futprelude}.} We
 assume their function inputs are $O(F_{w}(n))$ and $O(F_d(n))$.
 
@@ -245,7 +246,7 @@ functional languages such as Haskell \cite{marlow2010haskell}) and can
 inherently be executed in parallel. The type signature and semantics is:
 \begin{align}
   &\mathtt{map}:(\tau \to \tau') \to \arr{\tau} \to \arr{\tau'}\\
-  &\mathtt{map}~f~[a_0,~a_1,...,~a_{n-1}] \coloneq [f~a_0,~f~a_1,...,~f~a_{n-1}]
+  &\mathtt{map}~f~[a_0,~a_1,\ldots,~a_{n-1}] \coloneq [f~a_0,~f~a_1,\ldots,~f~a_{n-1}]
 \end{align}
 
 Next we have the combinator \fun{reduce} of work $O(n\cdot F_w(n))$ and depth
@@ -255,7 +256,7 @@ associative and have a left-associative neutral element, allowing the array to
 be accumulated in $O(\log n)$ steps. The type signature and semantics is:
 \begin{align}
   &\mathtt{reduce}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \tau\\
-  & \mathtt{reduce} \oslash e~[a_0,~a_1,...,~a_{n-1}] \coloneq e \oslash a_0 \oslash a_1 \oslash ...\oslash a_{n-1}
+  & \mathtt{reduce} \oslash e~[a_0,~a_1,\ldots,~a_{n-1}] \coloneq e \oslash a_0 \oslash a_1 \oslash \ldots\oslash a_{n-1}
 \end{align}
 
 Similarly, we have the combinator \fun{scan} with work $O(n\cdot F_w(n))$ and depth
@@ -265,7 +266,7 @@ element restrictions of the operator applies as well. The type signature and
 semantics is:
 \begin{align}
   &\mathtt{scan}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \arr{\tau}\\
-  & \mathtt{scan} \oslash e~[a_0,~a_1,...,~a_{n-1}] \coloneq [e \oslash a_0,~e \oslash a_0 \oslash a_1,..., e \oslash a_0 \oslash a_1 \oslash ...\oslash a_{n-1}]
+  & \mathtt{scan} \oslash e~[a_0,~a_1,\ldots, ~a_{n-1}] \coloneq [e \oslash a_0,~e \oslash a_0 \oslash a_1,\ldots,~e \oslash a_0 \oslash a_1 \oslash \ldots\oslash a_{n-1}]
 \end{align}
 
 Lastly we have the combinator \fun{scatter} with work $O(n)$ and depth $O(1)$.

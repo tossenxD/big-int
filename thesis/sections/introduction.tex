@@ -40,13 +40,13 @@ exact division by finding such an inverse, without leaving the original domain
 method, which can be parameterized, and the number of iterations is logarithmic
 in the input size, yielding a more GPGPU suitable algorithm. \bigskip
 
-This Thesis focus on efficient parallel implementations of exact big integer
+This thesis focus on efficient parallel implementations of exact big integer
 arithmetics for GPGPU. It presents the algorithms for sub-linear addition,
 classical multiplication, and Watt's exact division by whole shifted
 inverse. Algorithmic and parallelization efforts are kept general, but the
 implementations are narrowed to the Compute Unified Device Architecture (CUDA)
-platform through the programming languages C++ and Futhark. Both are high-level
-languages, but operates vastly different. C++ allows low-level command of
+platform through the programming languages \cpp\ and Futhark. Both are high-level
+languages, but operates vastly different. \cpp\ allows low-level command of
 primitives and fine-grained memory control, while interfacing directly with the
 CUDA runtime API to produce GPGPU executable code \cite{cudaguide,
   stroustrup}. Futhark is a functional array programming language that is
@@ -60,23 +60,23 @@ medium-sized big integers ranging roughly from a few hundred to a hundred
 thousand bits. Each algorithm includes optimizations to further enhance the
 performance at block-level -- or performance in general. The results shows that
 both the produced addition and multiplication methods are competitive
-performance-wise, but the performance gap between C++ and Futhark implementations
+performance-wise, but the performance gap between \cpp\ and Futhark implementations
 grows with the complexity of the algorithms and applied optimizations.
 
 The produced implementations of division are not as highly optimized or
-efficient as for the other arithmetics. However, this Thesis is (to our
+efficient as for the other arithmetics. However, this thesis is (to our
 knowledge) the first to recognise and use Watt's division algorithm (outside of
 Watt's own work), and in turn, first to parallelize it.
 
-The contributions of this Thesis are:
+The contributions of this thesis are:
 \begin{itemize}
 \item An extendable representation of big integers as an array data structure
   over a generic base type that allows fast arithmetics on GPGPU, along with
-  implementations in C++ and Futhark using classes and type declarations.
+  implementations in \cpp\ and Futhark using classes and type declarations.
 \item A description of efficient parallel big integer addition and classical
   multiplication algorithms, on top of gradual degrees of optimizations over the
   shape of the inputs, accompanied by implementations thereof at CUDA
-  block-level in C++ and Futhark.
+  block-level in \cpp\ and Futhark.
 \item A presentation of the high-level intuition and a specialization for big
   integers of Watt's algorithm for exact division by whole shifted inverse,
   including a revision that extends the algorithm to an otherwise unconsidered
@@ -89,11 +89,11 @@ The contributions of this Thesis are:
 \end{itemize}
 \bigskip
 
-The structure of this Thesis is as follows: Section \ref{sec:rel} presents other
-works related to the subject of this Thesis. Section \ref{sec:software} details
+The structure of this thesis is as follows: Section \ref{sec:rel} presents other
+works related to the subject of this thesis. Section \ref{sec:software} details
 the practicalities of the software suite that has been developed as part of this
-Thesis. Section \ref{sec:pre} provides the background information on GPGPU, CUDA
-C++, and Futhark that is assumed throughout this Thesis. Section \ref{sec:big}
+thesis. Section \ref{sec:pre} provides the background information on GPGPU, CUDA
+\cpp, and Futhark that is assumed throughout this thesis. Section \ref{sec:big}
 addresses the representation of big integers. Section \ref{sec:strat} outlines
 the overarching strategy of the implementations. Sections \ref{sec:add},
 \ref{sec:mul}, and \ref{sec:div} presents the algorithms, optimizations and
@@ -102,7 +102,7 @@ implementations of addition, multiplication, and division, respectively. Section
 the arithmetics. Section \ref{sec:per} benchmarks and evaluates the performance
 of the developed addition and multiplication implementations, while giving a
 detailed description of the methodology and metrics behind the
-benchmarks. Section \ref{sec:conc} concludes the work of this Thesis and lists
+benchmarks. Section \ref{sec:conc} concludes the work of this thesis and lists
 directions for future works.
 
 %%% Local Variables:

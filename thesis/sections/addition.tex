@@ -374,18 +374,18 @@ better performance for many arithmetic instances with small integer sizes, as
 mentioned in section \ref{sec:strat}.
 
 We keep the sequentialization factor ($q$) and number of instances per block
-($\mathit{ipb}$) parametric using C++ templates. First of all, this allows us to
-handle all input sizes generically rather than relying on multiple hand-written
-versions, but more importantly, it allows us to experiment with optimal
-parameters. A purpose of the CUDA implementation is to determine how much
-performance is possible to achieve using our designated algorithms. Hence,
-experimentation in CUDA directly influence how we approach the implementations in
-Futhark.
+($\mathit{ipb}$) parametric using \cpp\ templates. First of all, this allows us
+to handle all input sizes generically rather than relying on multiple
+hand-written versions, but more importantly, it allows us to experiment with
+optimal parameters. A purpose of the CUDA implementation is to determine how
+much performance is possible to achieve using our designated algorithms. Hence,
+experimentation in CUDA directly influence how we approach the implementations
+in Futhark.
 
 Generic \textit{ipb} is trivial, because it only serves to determine segment
 beginnings of segmented algorithms. Normally, a generic sequentialization factor
 impedes performance, as we achieve this by introducing \texttt{loop}-constructs
-invariant to $q$. However, a benefit of high-level languages like C++ is
+invariant to $q$. However, a benefit of high-level languages like \cpp\ is
 compiler directives, allowing us to unroll loops as if they were hand-written
 \cite{cudaguide}.
 
@@ -491,15 +491,15 @@ coalesced beforehand and written coalesced afterwards to/from global memory.
     }
 \end{lstlisting}
 
-To reflect on the implementation; C++ is verbose by design (as a C-like
+To reflect on the implementation; \cpp\ is verbose by design (as a C-like
 language), and modelling the \textit{badd} algorithm requires care and
 thought. Due to the nature of the CUDA extension, we furthermore have to reason
 about the semantics in parallel, e.g.\ in the way we compute segment
-beginnings. However, structuring the implementation around the high-level C++
+beginnings. However, structuring the implementation around the high-level \cpp\
 features of classes and templates, not only makes it generic and readable, but
 also extensible in terms of optimizations. Once the fundamental version is
-designed with proper usage of C++ constructs, the optimizations comes as natural
-extensions, while still allowing fine-grained control over the important
+designed with proper usage of \cpp\ constructs, the optimizations comes as
+natural extensions, while still allowing fine-grained control over the important
 aspects, such as memory usage.
 
 \subsection{Futhark Implementation}
@@ -513,16 +513,16 @@ al. \cite{DPPproject}, included for completeness. The second version
 The third version (\texttt{V2}) introduces a fixed sequentialization factor of
 4, which we found to be the optimal factor from experimenting with the CUDA
 implementation (see section \ref{subsec:addcud}). In CUDA, it is arbitrary to
-make this factor generic using C++ templates and compiler directives, without
+make this factor generic using \cpp\ templates and compiler directives, without
 loss of performance. In Futhark however, while we have type parameters and loop
-unroll attributes, we do not have the fine-grained control of C++ that allows us
-to e.g. decide when and how to store intermediate results in shared memory. We
-found that parameterizing the sequentialization factor is significantly slower
-than fixing it. In turn, integers with size $m>4096$ does not fit in a CUDA
-block, and requires manually increasing the factor. Another approach could be to
-write a parameterized version for integers with $m>4096$, and search for tricks
-that optimizes the compilers generated output. For simplicity, we fix the factor
-at 4.
+unroll attributes, we do not have the fine-grained control of \cpp\ that allows
+us to e.g. decide when and how to store intermediate results in shared
+memory. We found that parameterizing the sequentialization factor is
+significantly slower than fixing it. In turn, integers with size $m>4096$ does
+not fit in a CUDA block, and requires manually increasing the factor. Another
+approach could be to write a parameterized version for integers with $m>4096$,
+and search for tricks that optimizes the compilers generated output. For
+simplicity, we fix the factor at 4.
 
 The fourth version (\texttt{V3}) introduces a parameterized number of instances
 per block (\textit{ipb}) and the segmented \textit{badd}. This factor is fine to
@@ -560,7 +560,7 @@ thread. It is therefore crucial that we pre-fetch the inputs to either shared or
 register memory, greatly reducing the amount of reads from global memory (if
 fetched coalesced). However, while easily done in our CUDA implementation, we
 are at the mercy of the Futhark compiler to perform this optimization, and as of
-writing this Thesis, it does not.
+writing this thesis, it does not.
 
 Instead, we may exploit that the compiler stores intermediate arrays in shared
 memory to e.g.\ read input $u$ into $w$ in a coalesced fashion. Normally, we
