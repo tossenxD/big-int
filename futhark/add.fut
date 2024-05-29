@@ -193,55 +193,55 @@ entry oneAddV3 [n][ipb] (m: i64) (usss: [n][ipb][4*m]ui) (vsss: [n][ipb][4*m]ui)
   let wss = imap2Intra uss vss baddV3
   in map unflatten wss
 
--- callers for ten additions, computing `10*a + b` for input `a` and `b`
+-- callers for ten additions, computing `10*(a + b)` for input `a` and `b`
 
 entry tenAddV0 [n][m] (uss: [n][m]ui) (vss: [n][m]ui) : [n][m]ui =
-  let wss = imap2Intra uss vss add
-  let wss = imap2Intra uss wss add
-  let wss = imap2Intra uss wss add
-  let wss = imap2Intra uss wss add
-  let wss = imap2Intra uss wss add
-  let wss = imap2Intra uss wss add
-  let wss = imap2Intra uss wss add
-  let wss = imap2Intra uss wss add
-  let wss = imap2Intra uss wss add
-  in imap2Intra uss wss add
+  let wss0 = imap2Intra uss  vss  add
+  let wss1 = imap2Intra wss0 wss0 add
+  let wss2 = imap2Intra wss1 wss0 add
+  let wss3 = imap2Intra wss2 wss0 add
+  let wss4 = imap2Intra wss3 wss0 add
+  let wss5 = imap2Intra wss4 wss0 add
+  let wss6 = imap2Intra wss5 wss0 add
+  let wss7 = imap2Intra wss6 wss0 add
+  let wss8 = imap2Intra wss7 wss0 add
+  in imap2Intra wss8 wss0 add
 
 entry tenAddV1 [n][m] (uss: [n][m]ui) (vss: [n][m]ui) : [n][m]ui =
-  let wss = imap2Intra uss vss baddV1
-  let wss = imap2Intra uss wss baddV1
-  let wss = imap2Intra uss wss baddV1
-  let wss = imap2Intra uss wss baddV1
-  let wss = imap2Intra uss wss baddV1
-  let wss = imap2Intra uss wss baddV1
-  let wss = imap2Intra uss wss baddV1
-  let wss = imap2Intra uss wss baddV1
-  let wss = imap2Intra uss wss baddV1
-  in imap2Intra uss wss baddV1
+  let wss0 = imap2Intra uss  vss  baddV1
+  let wss1 = imap2Intra wss0 wss0 baddV1
+  let wss2 = imap2Intra wss1 wss0 baddV1
+  let wss3 = imap2Intra wss2 wss0 baddV1
+  let wss4 = imap2Intra wss3 wss0 baddV1
+  let wss5 = imap2Intra wss4 wss0 baddV1
+  let wss6 = imap2Intra wss5 wss0 baddV1
+  let wss7 = imap2Intra wss6 wss0 baddV1
+  let wss8 = imap2Intra wss7 wss0 baddV1
+  in imap2Intra wss8 wss0 baddV1
 
 entry tenAddV2 [n] (m: i64) (uss: [n][4*m]ui) (vss: [n][4*m]ui) : [n][4*m]ui =
-  let wss = imap2Intra uss vss baddV2
-  let wss = imap2Intra uss wss baddV2
-  let wss = imap2Intra uss wss baddV2
-  let wss = imap2Intra uss wss baddV2
-  let wss = imap2Intra uss wss baddV2
-  let wss = imap2Intra uss wss baddV2
-  let wss = imap2Intra uss wss baddV2
-  let wss = imap2Intra uss wss baddV2
-  let wss = imap2Intra uss wss baddV2
-  in imap2Intra uss wss baddV2
+  let wss0 = imap2Intra uss  vss  baddV2
+  let wss1 = imap2Intra wss0 wss0 baddV2
+  let wss2 = imap2Intra wss1 wss0 baddV2
+  let wss3 = imap2Intra wss2 wss0 baddV2
+  let wss4 = imap2Intra wss3 wss0 baddV2
+  let wss5 = imap2Intra wss4 wss0 baddV2
+  let wss6 = imap2Intra wss5 wss0 baddV2
+  let wss7 = imap2Intra wss6 wss0 baddV2
+  let wss8 = imap2Intra wss7 wss0 baddV2
+  in imap2Intra wss8 wss0 baddV2
 
 entry tenAddV3 [n][ipb] (m: i64) (usss: [n][ipb][4*m]ui) (vsss: [n][ipb][4*m]ui) : [n][ipb][4*m]ui =
   let uss = map flatten usss :> [n][ipb*(4*m)]ui
   let vss = map flatten vsss :> [n][ipb*(4*m)]ui
-  let wss = imap2Intra uss vss baddV3
-  let wss = imap2Intra uss wss baddV3
-  let wss = imap2Intra uss wss baddV3
-  let wss = imap2Intra uss wss baddV3
-  let wss = imap2Intra uss wss baddV3
-  let wss = imap2Intra uss wss baddV3
-  let wss = imap2Intra uss wss baddV3
-  let wss = imap2Intra uss wss baddV3
-  let wss = imap2Intra uss wss baddV3
-  let wss = imap2Intra uss wss baddV3
-  in map unflatten wss
+  let wss0 = imap2Intra uss  vss  baddV3
+  let wss1 = imap2Intra wss0 wss0 baddV3
+  let wss2 = imap2Intra wss1 wss0 baddV3
+  let wss3 = imap2Intra wss2 wss0 baddV3
+  let wss4 = imap2Intra wss3 wss0 baddV3
+  let wss5 = imap2Intra wss4 wss0 baddV3
+  let wss6 = imap2Intra wss5 wss0 baddV3
+  let wss7 = imap2Intra wss6 wss0 baddV3
+  let wss8 = imap2Intra wss7 wss0 baddV3
+  let wss9 = imap2Intra wss8 wss0 baddV3
+  in map unflatten wss9

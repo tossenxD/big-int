@@ -34,9 +34,9 @@ def combine (l0: ui, h0: ui, c0: ui) (l1: ui, h1: ui, c1: ui): (ui, ui, ui, ui)=
 -- V1: Multiplication by convolution with two elements per thread
 --------------------------------------------------------------------------------
 
-def convMultV1 [m] (us: [2*m]ui) (vs: [2*m]ui) : [2*m]ui =
+def convMulV1 [m] (us: [2*m]ui) (vs: [2*m]ui) : [2*m]ui =
   -- MULTIPLICATION BODY
-  let convMultLhcs (us: []ui) (vs: []ui) (tid: i64)
+  let CONV (us: []ui) (vs: []ui) (tid: i64)
       : ( (ui, ui, ui), (ui, ui, ui) ) = #[unsafe]
     let k1 = tid
     let lhc1 : (ui, ui, ui) = loop lhc = (0, 0, 0) for i < k1 + 1 do
@@ -59,7 +59,7 @@ def convMultV1 [m] (us: [2*m]ui) (vs: [2*m]ui) : [2*m]ui =
   let vsh = v1s ++ v2s
 
   -- 2. find two low, high, and carry parts for each thread
-  let (lhcs1, lhcs2) = map (convMultLhcs ush vsh) (0..<m) |> unzip
+  let (lhcs1, lhcs2) = map (CONV ush vsh) (0..<m) |> unzip
   let (ls1, hs1, cs1) = unzip3 lhcs1
   let (ls2, hs2, cs2) = unzip3 <| reverse lhcs2
   let ls = ls1 ++ ls2 :> [2*m]ui
@@ -76,9 +76,9 @@ def convMultV1 [m] (us: [2*m]ui) (vs: [2*m]ui) : [2*m]ui =
 -- V2: Multiplication by convolution with four elements per thread
 --------------------------------------------------------------------------------
 
-def convMultV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui =
+def convMulV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui =
   -- MULTIPLICATION BODY
-  let convMultLhcs (us: []ui) (vs: []ui) (tid: i64)
+  let CONV (us: []ui) (vs: []ui) (tid: i64)
       : ( (ui, ui, ui, ui), (ui, ui, ui, ui) ) = #[unsafe]
     let k1 = tid * 2
     let (lhc1, lhc2) : ( (ui, ui, ui), (ui, ui, ui) ) =
@@ -115,8 +115,8 @@ def convMultV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui =
   let ush = u1s ++ u2s ++ u3s ++ u4s
   let vsh = v1s ++ v2s ++ v3s ++ v4s
 
-  -- 2. find two low, high, and carry parts for each thread
-  let (lhcs1, lhcs2) = map (convMultLhcs ush vsh) (0..<m) |> unzip
+  -- 2. find the upper and lower four parts for each thread
+  let (lhcs1, lhcs2) = map (CONV ush vsh) (0..<m) |> unzip
   let lhcs = lhcs1 ++ (reverse lhcs2)
 
   -- 3. map the convolution result to memory
@@ -149,9 +149,9 @@ def convMultV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui =
 -- V3: Run multiple instances of V2 multiplications per block
 --------------------------------------------------------------------------------
 
-def convMultV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui=
+def convMulV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui=
   -- MULTIPLICATION BODY
-  let convMultLhcs (us: []ui) (vs: []ui) (tid: i64)
+  let CONV (us: []ui) (vs: []ui) (tid: i64)
       : ( (ui, ui, ui, ui), (ui, ui, ui, ui) ) = #[unsafe]
     let k1 = tid * 2
     let k1_start = (k1 / (4*m)) * (4*m)
@@ -190,8 +190,8 @@ def convMultV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui=
   let ush = u1s ++ u2s ++ u3s ++ u4s
   let vsh = v1s ++ v2s ++ v3s ++ v4s
 
-  -- 2. find two low, high, and carry parts for each thread
-  let (lhcs1, lhcs2) = map (convMultLhcs ush vsh) (0..<ipb*m) |> unzip
+  -- 2. find the upper and lower four parts for each thread
+  let (lhcs1, lhcs2) = map (CONV ush vsh) (0..<ipb*m) |> unzip
   let lhcs = lhcs1 ++ (reverse lhcs2)
 
   -- 3. map the convolution result to memory
@@ -199,16 +199,16 @@ def convMultV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui=
   let lhcss = ls ++ hls ++ chs ++ ccs :> [8*ipb*m]ui
 
   -- 4. compute indices and retrieve convolution result from memory
-  let (inds1, inds2) =
-    unzip <| imap (0..<2*ipb*m) (\ i -> let off = i * 2
-                                        let isOdd = bool.i64 (i % 2)
-                                        let inds = if isOdd && ((off + 2) % (4*m) == 0)
-                                                   then (off, off+1, -1, -1)
-                                                   else (off, off+1, off+2, off+3)
-                                        let disc = (-1, -1, -1, -1)
-                                        in if isOdd
-                                           then ( inds, disc )
-                                           else ( disc, inds ))
+  let (inds1, inds2) = unzip <| imap (0..<2*ipb*m)
+                  (\ i -> let off = i * 2
+                          let isOdd = bool.i64 (i % 2)
+                          let inds = if isOdd && ((off + 2) % (4*m) == 0)
+                                     then (off, off+1, -1, -1)
+                                     else (off, off+1, off+2, off+3)
+                          let disc = (-1, -1, -1, -1)
+                          in if isOdd
+                             then ( inds, disc )
+                             else ( disc, inds ))
 
   let (inds11, inds12, inds13, inds14) = unzip4 inds1
   let indss1 = inds11 ++ inds12 ++ inds13 ++ inds14 :> [8*ipb*m]i64
@@ -230,42 +230,42 @@ def convMultV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui=
 -- callers for one multiplication
 
 entry oneMulV1 [n] (m: i64) (uss: [n][2*m]ui) (vss: [n][2*m]ui) : [n][2*m]ui =
-  imap2Intra uss vss convMultV1
+  imap2Intra uss vss convMulV1
 
 entry oneMulV2 [n] (m: i64) (uss: [n][4*m]ui) (vss: [n][4*m]ui) : [n][4*m]ui =
-  imap2Intra uss vss convMultV2
+  imap2Intra uss vss convMulV2
 
 entry oneMulV3 [n][ipb] (m: i64) (usss: [n][ipb][4*m]ui) (vsss: [n][ipb][4*m]ui) : [n][ipb][4*m]ui =
   let uss = map flatten usss :> [n][ipb*(4*m)]ui
   let vss = map flatten vsss :> [n][ipb*(4*m)]ui
-  let wss = imap2Intra uss vss convMultV3
+  let wss = imap2Intra uss vss convMulV3
   in map unflatten wss
 
--- callers for six multiplications, computing `a^6 * b` for input `a` and `b`
+-- callers for six multiplications, computing `(a * b)^6` for input `a` and `b`
 
 entry sixMulV1 [n] (m: i64) (uss: [n][2*m]ui) (vss: [n][2*m]ui) : [n][2*m]ui =
-  let wss = imap2Intra uss vss convMultV1
-  let wss = imap2Intra uss wss convMultV1
-  let wss = imap2Intra uss wss convMultV1
-  let wss = imap2Intra uss wss convMultV1
-  let wss = imap2Intra uss wss convMultV1
-  in imap2Intra uss wss convMultV1
+  let wss1 = imap2Intra uss  vss  convMulV1
+  let wss2 = imap2Intra wss1 wss1 convMulV1
+  let wss3 = imap2Intra wss2 wss1 convMulV1
+  let wss4 = imap2Intra wss3 wss1 convMulV1
+  let wss5 = imap2Intra wss4 wss1 convMulV1
+  in imap2Intra wss5 wss1 convMulV1
 
 entry sixMulV2 [n] (m: i64) (uss: [n][4*m]ui) (vss: [n][4*m]ui) : [n][4*m]ui =
-  let wss = imap2Intra uss vss convMultV2
-  let wss = imap2Intra uss wss convMultV2
-  let wss = imap2Intra uss wss convMultV2
-  let wss = imap2Intra uss wss convMultV2
-  let wss = imap2Intra uss wss convMultV2
-  in imap2Intra uss wss convMultV2
+  let wss1 = imap2Intra uss  vss  convMulV2
+  let wss2 = imap2Intra wss1 wss1 convMulV2
+  let wss3 = imap2Intra wss2 wss1 convMulV2
+  let wss4 = imap2Intra wss3 wss1 convMulV2
+  let wss5 = imap2Intra wss4 wss1 convMulV2
+  in imap2Intra wss5 wss1 convMulV2
 
 entry sixMulV3 [n][ipb] (m: i64) (usss: [n][ipb][4*m]ui) (vsss: [n][ipb][4*m]ui) : [n][ipb][4*m]ui =
   let uss = map flatten usss :> [n][ipb*(4*m)]ui
   let vss = map flatten vsss :> [n][ipb*(4*m)]ui
-  let wss = imap2Intra uss vss convMultV3
-  let wss = imap2Intra uss wss convMultV3
-  let wss = imap2Intra uss wss convMultV3
-  let wss = imap2Intra uss wss convMultV3
-  let wss = imap2Intra uss wss convMultV3
-  let wss = imap2Intra uss wss convMultV3
-  in map unflatten wss
+  let wss1 = imap2Intra uss  vss  convMulV3
+  let wss2 = imap2Intra wss1 wss1 convMulV3
+  let wss3 = imap2Intra wss2 wss1 convMulV3
+  let wss4 = imap2Intra wss3 wss1 convMulV3
+  let wss5 = imap2Intra wss4 wss1 convMulV3
+  let wss6 = imap2Intra wss5 wss1 convMulV3
+  in map unflatten wss6

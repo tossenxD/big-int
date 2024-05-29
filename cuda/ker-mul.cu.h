@@ -146,7 +146,7 @@ cpShm24Regs(typename Base::uint_t* shmem, typename Base::uint_t* lhc0, typename 
 
 template<class Base, uint32_t m>
 __device__ void // ASSUMPTION: Shared memory buffer size is at least `3*m`.
-convMult1Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
+convMul1Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
              typename Base::uint_t* shmem_buff, typename Base::uint_t* rss) {
     using uint_t  = typename Base::uint_t;
     using ubig_t  = typename Base::ubig_t;
@@ -201,7 +201,7 @@ convMult1Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
 
 template<class Base, uint32_t m>
 __global__ void
-convMult1(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul1(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -213,7 +213,7 @@ convMult1(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
     // 2. multiply as and bs
     uint_t rss[2];
-    convMult1Run<Base,m>(shmem, shmem+m, shmem, rss);
+    convMul1Run<Base,m>(shmem, shmem+m, shmem, rss);
     __syncthreads();
 
     // 3. write result to global memory
@@ -222,7 +222,7 @@ convMult1(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
 template<class Base, uint32_t m, uint32_t p> // runs p multiplications
 __global__ void
-convMult1Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul1Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -232,15 +232,16 @@ convMult1Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
     cpGlb2Shm<uint_t,m,2,1>(bs, shmem+m);
     __syncthreads();
 
-    // 2. multiply as and bs, then, multiply the result by a p times, i.e. a^p * b
+    // 2. multiply as and bs, then, multiply the result by itself p-1 times, i.e. (a * b)^p
     uint_t rss[2];
-    convMult1Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);
+    convMul1Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);     // rs = as + bs
     __syncthreads();
+    cpReg2Shm<uint_t,2>(rss, shmem);                         // as = rs
     #pragma unroll
     for(int i=1; i<p; i++) {
-        cpReg2Shm<uint_t,2>(rss, shmem+m);
+        cpReg2Shm<uint_t,2>(rss, shmem+m);                   // bs = rs
         __syncthreads();
-        convMult1Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);
+        convMul1Run<Base,m>(shmem, shmem+m, shmem+2*m, rss); // rs = as + bs
         __syncthreads();
     }
 
@@ -256,7 +257,7 @@ convMult1Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 
 template<class Base, uint32_t m>
 __device__ void // ASSUMPTION: Shared memory buffer size is at least `3*m`.
-convMult2Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
+convMul2Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
              typename Base::uint_t* shmem_buff, typename Base::uint_t* rss) {
     using uint_t  = typename Base::uint_t;
     using ubig_t  = typename Base::ubig_t;
@@ -308,7 +309,7 @@ convMult2Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
 
 template<class Base, uint32_t m>
 __global__ void
-convMult2(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul2(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -320,7 +321,7 @@ convMult2(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
     // 2. multiply as and bs
     uint_t rss[2];
-    convMult2Run<Base,m>(shmem, shmem+m, shmem, rss);
+    convMul2Run<Base,m>(shmem, shmem+m, shmem, rss);
     __syncthreads();
 
     // 3. write result to global memory
@@ -329,7 +330,7 @@ convMult2(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
 template<class Base, uint32_t m, uint32_t p> // runs p multiplications
 __global__ void
-convMult2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -339,15 +340,16 @@ convMult2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
     cpGlb2Shm<uint_t,m,2,1>(bs, shmem+m);
     __syncthreads();
 
-    // 2. multiply as and bs, then, multiply the result by a p times, i.e. a^p * b
+    // 2. multiply as and bs, then, multiply the result by itself p-1 times, i.e. (a * b)^p
     uint_t rss[2];
-    convMult2Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);
+    convMul2Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);     // rs = as + bs
     __syncthreads();
+    cpReg2Shm<uint_t,2>(rss, shmem);                         // as = rs
     #pragma unroll
     for(int i=1; i<p; i++) {
-        cpReg2Shm<uint_t,2>(rss, shmem+m);
+        cpReg2Shm<uint_t,2>(rss, shmem+m);                   // bs = rs
         __syncthreads();
-        convMult2Run<Base,m>(shmem, shmem+m, shmem+2*m, rss);
+        convMul2Run<Base,m>(shmem, shmem+m, shmem+2*m, rss); // rs = as + bs
         __syncthreads();
     }
 
@@ -363,7 +365,7 @@ convMult2Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 
 template<class Base, uint32_t m, uint32_t ipb>
 __device__ void // ASSUMPTION: Shared memory buffer size is at least `3*ipb*m`.
-convMult3Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
+convMul3Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
              typename Base::uint_t* shmem_buff, typename Base::uint_t* rss) {
     using uint_t  = typename Base::uint_t;
     using ubig_t  = typename Base::ubig_t;
@@ -417,7 +419,7 @@ convMult3Run(typename Base::uint_t* shmem_as, typename Base::uint_t* shmem_bs,
 
 template<class Base, uint32_t m, uint32_t ipb>
 __global__ void
-convMult3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -429,7 +431,7 @@ convMult3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
     // 2. multiply as and bs
     uint_t rss[2];
-    convMult3Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem, rss);
+    convMul3Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem, rss);
     __syncthreads();
 
     // 3. write result to global memory
@@ -438,7 +440,7 @@ convMult3(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
 template<class Base, uint32_t m, uint32_t ipb, uint32_t p> // runs p multiplications
 __global__ void
-convMult3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -448,15 +450,16 @@ convMult3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
     cpGlb2Shm<uint_t,m,2,ipb>(bs, shmem+ipb*m);
     __syncthreads();
 
-    // 2. multiply as and bs, then, multiply the result by a p times, i.e. a^p * b
+    // 2. multiply as and bs, then, multiply the result by itself p-1 times, i.e. (a * b)^p
     uint_t rss[2];
-    convMult3Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem+2*ipb*m, rss);
+    convMul3Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem+2*ipb*m, rss);     // rs = as + bs
     __syncthreads();
+    cpReg2Shm<uint_t,2>(rss, shmem);                                     // as = rs
     #pragma unroll
     for(int i=1; i<p; i++) {
-        cpReg2Shm<uint_t,2>(rss, shmem+ipb*m);
+        cpReg2Shm<uint_t,2>(rss, shmem+ipb*m);                           // bs = rs
         __syncthreads();
-        convMult3Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem+2*ipb*m, rss);
+        convMul3Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem+2*ipb*m, rss); // rs = as + bs
         __syncthreads();
     }
 
@@ -472,7 +475,7 @@ convMult3Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 
 template<class Base, uint32_t m>
 __device__ void // ASSUMPTION: Shared memory buffer size is at least `2*m`.
-convMult4Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
+convMul4Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
              typename Base::uint_t* shmem_buff, typename Base::uint_t* rss) {
     using uint_t  = typename Base::uint_t;
     using ubig_t  = typename Base::ubig_t;
@@ -528,7 +531,7 @@ convMult4Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
 
 template<class Base, uint32_t m>
 __global__ void
-convMult4(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul4(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -540,7 +543,7 @@ convMult4(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
     // 2. multiply as and bs
     uint_t rss[4];
-    convMult4Run<Base,m>(shmem, shmem+m, shmem, rss);
+    convMul4Run<Base,m>(shmem, shmem+m, shmem, rss);
     __syncthreads();
 
     // 3. write result to global memory
@@ -549,7 +552,7 @@ convMult4(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
 template<class Base, uint32_t m, uint32_t p> // runs p multiplications
 __global__ void
-convMult4Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul4Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -559,15 +562,16 @@ convMult4Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
     cpGlb2Shm<uint_t,m,4,1>(bs, shmem+m);
     __syncthreads();
 
-    // 2. multiply as and bs, then, multiply the result by a p times, i.e. a^p * b
+    // 2. multiply as and bs, then, multiply the result by itself p-1 times, i.e. (a * b)^p
     uint_t rss[4];
-    convMult4Run<Base,m>(shmem,shmem+m,shmem+2*m,rss);
+    convMul4Run<Base,m>(shmem,shmem+m,shmem+2*m,rss);     // rs = as + bs
     __syncthreads();
+    cpReg2Shm<uint_t,4>(rss, shmem);                      // as = rs
     #pragma unroll
     for(int i=1; i<p; i++) {
-        cpReg2Shm<uint_t,4>(rss, shmem+m);
+        cpReg2Shm<uint_t,4>(rss, shmem+m);                // bs = rs
         __syncthreads();
-        convMult4Run<Base,m>(shmem,shmem+m,shmem+2*m,rss);
+        convMul4Run<Base,m>(shmem,shmem+m,shmem+2*m,rss); // rs = as + bs
         __syncthreads();
     }
 
@@ -583,7 +587,7 @@ convMult4Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
 
 template<class Base, uint32_t m, uint32_t ipb>
 __device__ void // ASSUMPTION: Shared memory buffer size is at least `2*ipb*m`.
-convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
+convMul5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
              typename Base::uint_t* shmem_buff, typename Base::uint_t* rss) {
     using uint_t  = typename Base::uint_t;
     using ubig_t  = typename Base::ubig_t;
@@ -642,7 +646,7 @@ convMult5Run(typename Base::uint_t* shmem_as,   typename Base::uint_t* shmem_bs,
 
 template<class Base, uint32_t m, uint32_t ipb>
 __global__ void
-convMult5(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul5(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -654,7 +658,7 @@ convMult5(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
     // 2. multiply as and bs
     uint_t rss[4];
-    convMult5Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem, rss);
+    convMul5Run<Base,m,ipb>(shmem, shmem+ipb*m, shmem, rss);
     __syncthreads();
 
     // 3. write result to global memory
@@ -663,7 +667,7 @@ convMult5(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::u
 
 template<class Base, uint32_t m, uint32_t ipb, uint32_t p> // runs p multiplications
 __global__ void
-convMult5Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
+convMul5Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Base::uint_t* rs) {
     using uint_t  = typename Base::uint_t;
     using carry_t = typename Base::carry_t;
 
@@ -673,15 +677,16 @@ convMult5Bench(typename Base::uint_t* as, typename Base::uint_t* bs, typename Ba
     cpGlb2Shm<uint_t,m,4,ipb>(bs, shmem+ipb*m);
     __syncthreads();
 
-    // 2. multiply as and bs, then, multiply the result by a p times, i.e. a^p * b
+    // 2. multiply as and bs, then, multiply the result by itself p-1 times, i.e. (a * b)^p
     uint_t rss[4];
-    convMult5Run<Base,m,ipb>(shmem,shmem+ipb*m,shmem+2*ipb*m,rss);
+    convMul5Run<Base,m,ipb>(shmem,shmem+ipb*m,shmem+2*ipb*m,rss);     // rs = as + bs
     __syncthreads();
+    cpReg2Shm<uint_t,4>(rss, shmem);                                  // as = rs
     #pragma unroll
     for(int i=1; i<p; i++) {
-        cpReg2Shm<uint_t,4>(rss, shmem+ipb*m);
+        cpReg2Shm<uint_t,4>(rss, shmem+ipb*m);                        // bs = rs
         __syncthreads();
-        convMult5Run<Base,m,ipb>(shmem,shmem+ipb*m,shmem+2*ipb*m,rss);
+        convMul5Run<Base,m,ipb>(shmem,shmem+ipb*m,shmem+2*ipb*m,rss); // rs = as + bs
         __syncthreads();
     }
 
