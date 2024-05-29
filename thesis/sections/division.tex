@@ -42,7 +42,7 @@ overhead of converting between representations.
 Instead, we use Watt's efficient and exact arithmetic algorithm for computing
 quotients, presented in \cite{watt2023efficient}. The prerequisite of the
 algorithm is the existence of a shift operation for the chosen data type -- which
-is na efficient operation for integers -- and a multiplication method given as an
+is an efficient operation for integers -- and a multiplication method given as an
 argument. The intuition is to utilize the shift operation in order to avoid the
 domain change associated with computing the inverse, by instead computing what
 is referred to as the \textit{whole shifted inverse}.
@@ -304,8 +304,8 @@ $\mathit{step}(h,v,w,n) = w\cdot B^n + \lfloor w \cdot (B^{h-n} - v \cdot w) \cd
 given by Watt in \cite{watt2023efficient}. From the calling procedure of
 \texttt{STEP} in \texttt{REFINE}, we get that the function corresponds to
 $w\cdot B^l + \lfloor w \cdot (B^{l} - B^{-k+s-g} \cdot \lfloor v\cdot B^{-s} \rfloor \cdot w)\rfloor$, which satisfies the
-properties of divisor prefixes and shorter iterates, as proofed by Watt. We have made
-no alterations to the original function formulation, except for explicitly
+properties of divisor prefixes and shorter iterates, as prooven by Watt. We have
+made no alterations to the original function formulation, except for explicitly
 handling sign and magnitude of the function \texttt{POWDIFF}.
 
 \begin{lstlisting}[language=pseudo,escapeinside={!}{!},caption={\footnotesize Pseudocode for computing a Newton step of the refinement method in Listing \ref{refine} for big ints $v$ and $w$ defined as $\mathit{step}(h,v,w,n) = w\cdot B^n + \lfloor w \cdot (B^{h-n} - v \cdot w) \cdot B^{2n - h}\rfloor$. $h$ is the parameter and $n$ the number of digits to correctly refine in this step. $l$ is the number of leading digits currently correct and $g$ is the amount of guard digits added by the refinement method -- which are both passed down to and enables optimizations in the function \texttt{POWDIFF} given in Listing \ref{powdiff} that computes $B^{h-n}-v\cdot w$. \texttt{MUL} is a big integer multiplication method, \texttt{SUB}$_{\mathtt{abs}}$ is absolute subtraction of big integers, and \texttt{ADD} is addition of big integers.},label={step}]
@@ -425,7 +425,7 @@ an error in the prototype.
 \subsection{Parallelization and Futhark Implementation}
 \label{subsec:divfut}
 
-While Section \ref{subsec:divproto} focused on general reflections, this section
+While section \ref{subsec:divproto} focused on general reflections, this section
 focuses on concerns and solutions regarding parallelization and Futhark
 implementation. The implementation we developed is not efficient and only
 partially validates, but it illustrates some of the complexities involved in a
@@ -504,10 +504,10 @@ sequential and unsuitable for parallel computation.
 
 We recognise three approaches:
 \begin{enumerate}
-\item The long division algorithm may be parallelized over a scan (similarly to
+\item Parallelize the long division algorithm (possibly over a scan similarly to
   addition).\label{divbysing1}
 \item Computing an inverse (e.g.\ a whole shifted inverse by a method similar to
-  \texttt{SHINV}) may be efficient in parallel, but requires a multiplication
+  \texttt{SHINV}), but this approach requires a multiplication
   afterwards.\label{divbysing2}
 \item Shifting both $u$ and $v$ by two when $k = 0$ (similarly to the shift by
   one when $k=1$).\label{divbysing3}
@@ -520,7 +520,7 @@ to us and beyond the scope of this thesis. Hence, we use approach
 \paragraph{Assumptions, Comparisons, and Signed Subtraction}
 The algorithm features multiple comparisons of big integers, all of which
 parallelizes to map-reduce compositions. First, consider the special cases of
-\texttt{SHINV}. As mentioned in Section \ref{subsec:divproto}, they can be
+\texttt{SHINV}. As mentioned in section \ref{subsec:divproto}, they can be
 optimized to a unary comparison over the big integer. Following the example of
 that section, the second special case $v > B^h$ parallelizes to Listing
 \ref{gtbpow}:
@@ -543,7 +543,7 @@ def findk [m] (u: [m]ui) : i64 =
   |> reduce (\ acc i -> if i != 0 then i else acc ) 0
 \end{lstlisting}
 
-Penultimately, the subtraction presented in Section \ref{subsec:sub} is
+Penultimately, the subtraction presented in section \ref{subsec:sub} is
 unsigned, yet \texttt{POWDIFF} requires signed subtraction. Extending the
 subtraction to signs is trivial, achieved by determining the relation between
 the operands. For this purpose, we use the general big integer `$<$` comparison

@@ -1,14 +1,13 @@
 \section{Software Structure}
 \label{sec:software}
 
-Various big integer arithmetic implementations has been developed as part of
-this thesis. The code is publicly available at the GitHub repository
-\url{https://github.com/tossenxD/big-int}, where the latest commit of writing
-has ID {\red <INSERT LATEST COMMIT>}.
+Various big integer arithmetic implementations have been developed as part of
+this thesis, publicly available at the GitHub repository
+\url{https://github.com/tossenxD/big-int}.
 
 The repository is structured as follows: The directories \texttt{cuda},
-\texttt{futhark}, and \texttt{prototypes} contains CUDA, Futhark, and C code,
-respectively. Each directory includes a \texttt{README} with detailed
+\texttt{futhark}, and \texttt{prototypes} contains CUDA \cpp, Futhark, and C
+code, respectively. Each directory includes a \texttt{README} with detailed
 explanations of the setup and a \texttt{Makefile} to replicate the results of
 this thesis.
 
@@ -19,39 +18,46 @@ three and five versions, respectively, kept in the files for the sake of
 comparison. The kernels are called from the main file \texttt{main.cu}, which
 serves to generate inputs, check for errors, test the arithmetics, and run
 benchmarks. The heading of the main file defines numerous parameters specifying
-integer base, kernel version, what to run, etc., which can manually be adjusted.
+integer base, kernel version, what to run, etc., which can manually be adjusted
+-- along with a detailed explanation of each parameter and kernel version.
 
 The \texttt{Makefile} offers two ways to run the main file -- with either a
 normal or small amount of total work. They are invoked by \texttt{\$ make} and
-\texttt{\$ make small}, respectively.
+\texttt{\$ make small}, respectively. The main file prints benchmark results in
+the form of metrics defined in section \ref{subsec:perfmet} (, and possibly
+prints the resutls of validation tests too, if validation is enabled).
 
-Files to run CGBN is in subdirectory \texttt{cgbn}, but have a similar setup to
+Files to run CGBN is in subdirectory \texttt{cgbn}, and have a similar setup to
 the primary files.
 
 \paragraph{Futhark}
 The files \texttt{add.fut}, \texttt{sub.fut}, \texttt{mul.fut}, and
 \texttt{div.fut} contains Futhark programs with big integer addition,
-subtraction, multiplication, and division. The addition and multiplication has four
-and three versions, respectively, similarly to the CUDA kernels. The big integer
-base type can be configured in the file \texttt{helper.fut}. While the programs
-will compile for all base types, the division program is nonsensical for bases
-other than \texttt{u16}.
+subtraction, multiplication, and division. The addition and multiplication has
+four and three versions, respectively, similarly to the CUDA kernels. The big
+integer base type can be configured in the file \texttt{helper.fut}. While the
+implementations compile for all base types, the division program is nonsensical
+for bases other than \texttt{u16} due to the base restrictions explained in
+section \ref{subsec:divproto}.
 
 The subdirectories \texttt{test} and \texttt{bench} contains the Futhark test
 and benchmark programs. Benchmarks are straightforward, and can be run by
 \texttt{\$ make add-uX} or \texttt{\$ make mul-uX}, where \texttt{X} is the bits
-of the specified base type (64 is default and 16 is not supported).
+of the specified base type (64 is default and 16 is not supported).  The tests
+includes a C file that is tricky to call -- using the \texttt{Makefile} is
+recommended. They can be run with \texttt{\$ make test-uX}, where \texttt{X} is
+the bits of the base type (64 is default). The benchmarks prints runtimes and
+input size, and the tests prints the count of valid testcases.
 
-The tests includes a C file that is tricky to call -- using the \texttt{Makefile}
-is recommended. They can be run with \texttt{\$ make test-uX}, where \texttt{X}
-is the bits of the base type (64 is default).
-
-\paragraph{Prototype}
+\paragraph{Sequential C Prototype}
 The file \texttt{div.c} contains a sequential prototype for big integer
-division, that may be of interest to run experiments. It can be called either
-with random or fixed inputs as \texttt{\$ make random} or \texttt{\$ make
-  fixed}. Both the number of random inputs and the form of the fixed inputs can
-be adjusted in the \texttt{Makefile}. A 1000 random inputs is default.
+division, that may be of interest to run experiments on. It can be called either
+with random inputs (\texttt{\$ make random}) or a fixed input (\texttt{\$ make
+  fixed}), which tests against GMP. Both the number of random inputs and the
+given fixed input can be adjusted in the \texttt{Makefile}. The default number
+of random inputs to test with is 1000, and the \texttt{README} contains
+information on how they are generated. The random tests will print the inputs,
+output, and correct ouput of failed tests, and report the number of valid tests.
 
 %%% Local Variables:
 %%% mode: LaTeX

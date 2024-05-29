@@ -66,7 +66,7 @@ inner workings, and benchmark setup of the operators. Runtimes are measured in
 microseconds.
 
 \paragraph{Addition}
-In Section \ref{subsec:addalg} we analyze the complexity of addition to work
+In section \ref{subsec:addalg} we analyze the complexity of addition to work
 $O(m)$ and depth $O(\log m)$. It is computationally efficient, and only require
 communication w.r.t.\ the prefix sum. Hence, we expect addition to be
 \textit{bandwidth} bound rather than \textit{operation} bound.
@@ -88,7 +88,7 @@ memory. Thus, we use the same formula for both benchmark setups.
 
 
 \paragraph{Multiplication}
-In Section \ref{subsec:mulalg} we analyze the complexity of classical
+In section \ref{subsec:mulalg} we analyze the complexity of classical
 multiplication to work $O(m^2)$ and depth $O(m)$. It is a computationally
 demanding operation, and hence, we expect multiplication to be
 \textit{operation} bound.
@@ -138,16 +138,16 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ & 62  & --   & 146 & 161 & --   & --   & --   & --   \\\hline
-    $2^{17}$ & $2^{15}$ & 67  & --   & 162 & 163 & --   & --   & --   & --   \\\hline
-    $2^{16}$ & $2^{16}$ & 19  & 168 & 166 & 166 & 116 & 154 & 158 & 156 \\\hline
-    $2^{15}$ & $2^{17}$ & 19  & 168 & 168 & 166 & 145 & 168 & 168 & 146 \\\hline
+    $2^{18}$ & $2^{14}$ & 62  & --   & 147 & 161 & --   & --   & --   & --   \\\hline
+    $2^{17}$ & $2^{15}$ & 67  & --   & 161 & 163 & --   & --   & --   & --   \\\hline
+    $2^{16}$ & $2^{16}$ & 19  & 168 & 166 & 166 & 116 & 155 & 158 & 146 \\\hline
+    $2^{15}$ & $2^{17}$ & 19  & 168 & 167 & 166 & 146 & 168 & 168 & 168 \\\hline
     $2^{14}$ & $2^{18}$ & 84  & 168 & 168 & 166 & 150 & 168 & 168 & 168 \\\hline
-    $2^{13}$ & $2^{19}$ & 164 & 168 & 168 & 165 & 156 & 168 & 168 & 168 \\\hline
-    $2^{12}$ & $2^{20}$ & 165 & 168 & 168 & 166 & 156 & 168 & 142 & 168 \\\hline
-    $2^{11}$ & $2^{21}$ & 164 & 169 & 160 & 166 & 134 & 165 & 75  & 168 \\\hline
-    $2^{10}$ & $2^{22}$ & 156 & 106 & 92  & 166 & 71  & 91  & 38  & 168 \\\hline
-    $2^{9}$  & $2^{23}$ & 118 & 54  & 47  & 167 & 36  & 47  & 20  & 168 \\\hline
+    $2^{13}$ & $2^{19}$ & 164 & 168 & 168 & 165 & 158 & 168 & 168 & 168 \\\hline
+    $2^{12}$ & $2^{20}$ & 165 & 168 & 168 & 166 & 157 & 168 & 142 & 168 \\\hline
+    $2^{11}$ & $2^{21}$ & 164 & 169 & 162 & 166 & 134 & 165 & 75  & 168 \\\hline
+    $2^{10}$ & $2^{22}$ & 156 & 107 & 92  & 166 & 72  & 91  & 38  & 168 \\\hline
+    $2^{9}$  & $2^{23}$ & 118 & 55  & 47  & 167 & 36  & 47  & 20  & 168 \\\hline
   \end{tabular}
   \caption{\footnotesize Performance of one addition in base \texttt{u64} measured in GB/s (higher is better, 192 is peak).}
   \label{add1u64}
@@ -157,16 +157,16 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ & 24  & --  & 90  & 82  & --  & --  & --  & --  \\\hline
-    $2^{17}$ & $2^{15}$ & 57  & --  & 108 & 93  & --  & --  & --  & --  \\\hline
-    $2^{16}$ & $2^{16}$ & 72  & 40 & 119 & 106 & --  & --  & --  & --  \\\hline
-    $2^{15}$ & $2^{17}$ & 46  & 47 & 124 & 106 & 15 & 24 & 15 & 13 \\\hline
-    $2^{14}$ & $2^{18}$ & 97  & 50 & 109 & 106 & 18 & 27 & 16 & 13 \\\hline
-    $2^{13}$ & $2^{19}$ & 162 & 45 & 81  & 107 & 18 & 30 & 14 & 13 \\\hline
-    $2^{12}$ & $2^{20}$ & 164 & 35 & 43  & 106 & 16 & 29 & 14 & 13 \\\hline
-    $2^{11}$ & $2^{21}$ & 161 & 24 & 22  & 106 & 15 & 25 & 10 & 13 \\\hline
-    $2^{10}$ & $2^{22}$ & 152 & 12 & 12  & 105 & 7  & 13 & 5  & 13 \\\hline
-    $2^{9}$  & $2^{23}$ & 113 & 6  & 6   & 105 & 4  & 7  & 3  & 13 \\\hline
+    $2^{18}$ & $2^{14}$ & 25  & --  & 108 & 92  & --  & --  & --  & --  \\\hline
+    $2^{17}$ & $2^{15}$ & 60  & --  & 120 & 109 & --  & --  & --  & --  \\\hline
+    $2^{16}$ & $2^{16}$ & 73  & 40 & 142 & 124 & --  & --  & 27 & 24 \\\hline
+    $2^{15}$ & $2^{17}$ & 45  & 47 & 137 & 124 & 15 & 24 & 34 & 29 \\\hline
+    $2^{14}$ & $2^{18}$ & 97  & 50 & 113 & 124 & 19 & 27 & 32 & 29 \\\hline
+    $2^{13}$ & $2^{19}$ & 162 & 45 & 82  & 123 & 19 & 31 & 30 & 29 \\\hline
+    $2^{12}$ & $2^{20}$ & 164 & 35 & 44  & 123 & 17 & 29 & 20 & 29 \\\hline
+    $2^{11}$ & $2^{21}$ & 161 & 24 & 23  & 124 & 15 & 25 & 11 & 29 \\\hline
+    $2^{10}$ & $2^{22}$ & 152 & 12 & 12  & 124 & 8  & 13 & 5  & 29 \\\hline
+    $2^{9}$  & $2^{23}$ & 113 & 6  & 6   & 124 & 4  & 7  & 3  & 29 \\\hline
   \end{tabular}
   \caption{\footnotesize Performance of ten additions in base \texttt{u64} measured in GB/s (higher is better, 192 is peak).}
   \label{add10u64}
@@ -176,16 +176,16 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ &  & --    & --    & --     & --    & --     & --   & --   & --   \\\hline
-    $2^{17}$ & $2^{15}$ &  & 836  & 1131 & 829   & 1167 & 1150  & --   & --   & --   \\\hline
-    $2^{16}$ & $2^{16}$ & 35 & 1491 & 1997 & 1542  & 2055 & 2039  &  &  &  \\\hline
-    $2^{15}$ & $2^{17}$ & 111 & 2578 & 3367 & 2719  & 3512 & 3471  &  &  &  \\\hline
-    $2^{14}$ & $2^{18}$ & 213 & 4239 & 5326 & 4476  & 5640 & 5515  &  &  &  \\\hline
-    $2^{13}$ & $2^{19}$ & 337 & 6425 & 7530 & 6722  & 7968 & 8082  &  &  &  \\\hline
-    $2^{12}$ & $2^{20}$ & 521 & 8159 & 8343 & 9180  & 6981 & 10475 &  &  &  \\\hline
-    $2^{11}$ & $2^{21}$ & 782 & 6059 & 5575 & 10749 & 5572 & 15745 &  &  &  \\\hline
-    $2^{10}$ & $2^{22}$ & 823 & 3700 & 3238 & 12990 & 3909 & 16554 &  &  &  \\\hline
-    $2^{9}$  & $2^{23}$ & 493 & 1787 & 1722 & 13740 & 2225 & 16888 &  &  &  \\\hline
+    $2^{18}$ & $2^{14}$ & --   & --    & --    & --     & --    & --     & --    & --    & --    \\\hline
+    $2^{17}$ & $2^{15}$ & 1   & 836  & 1131 & 829   & 1167 & 1150  & --    & --    & --    \\\hline
+    $2^{16}$ & $2^{16}$ & 35  & 1491 & 1997 & 1542  & 2055 & 2039  & 974  & --    & --    \\\hline
+    $2^{15}$ & $2^{17}$ & 116 & 2578 & 3367 & 2719  & 3512 & 3471  & 1674 & 469  & 482  \\\hline
+    $2^{14}$ & $2^{18}$ & 217 & 4239 & 5326 & 4476  & 5640 & 5515  & 2671 & 652  & 693  \\\hline
+    $2^{13}$ & $2^{19}$ & 340 & 6425 & 7530 & 6722  & 7968 & 8082  & 3880 & 1035 & 984  \\\hline
+    $2^{12}$ & $2^{20}$ & 526 & 8159 & 8343 & 9180  & 6981 & 10475 & 4931 & 1448 & 1281 \\\hline
+    $2^{11}$ & $2^{21}$ & 793 & 6059 & 5575 & 10749 & 5572 & 15745 & 3836 & 1551 & 1899 \\\hline
+    $2^{10}$ & $2^{22}$ & 822 & 3700 & 3238 & 12990 & 3909 & 16554 & 2352 & 1130 & 2492 \\\hline
+    $2^{9}$  & $2^{23}$ & 496 & 1787 & 1722 & 13740 & 2225 & 16888 & 1122 & 704  & 2798 \\\hline
   \end{tabular}
   \caption{\footnotesize Performance of one multiplication in base \texttt{u64} measured in Gu32ops (higher is better).}
   \label{mul1u64}
@@ -195,16 +195,16 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ &  &  &  &  & & &  &  &  \\\hline
-    $2^{17}$ & $2^{15}$ &  &  &  &  & & &  &  &  \\\hline
-    $2^{16}$ & $2^{16}$ & 847   &  &  &  & & &  &  &  \\\hline
-    $2^{15}$ & $2^{17}$ & 2646  &  &  &  & & &  &  &  \\\hline
-    $2^{14}$ & $2^{18}$ & 4774  &  &  &  & & &  &  &  \\\hline
-    $2^{13}$ & $2^{19}$ & 8642  &  &  &  & & &  &  &  \\\hline
-    $2^{12}$ & $2^{20}$ & 13899 &  &  &  & & &  &  &  \\\hline
-    $2^{11}$ & $2^{21}$ & 23348 &  &  &  & & &  &  &  \\\hline
-    $2^{10}$ & $2^{22}$ & 37388 &  &  &  & & &  &  &  \\\hline
-    $2^{9}$  & $2^{23}$ & 60805 &  &  &  & & &  &  &  \\\hline
+    $2^{18}$ & $2^{14}$ & --     & --    & --    & --     & --    & --     & --    & --    & --    \\\hline
+    $2^{17}$ & $2^{15}$ & 11    & --    & --    & --     & --    & --     & --    & --    & --    \\\hline
+    $2^{16}$ & $2^{16}$ & 888   & 1337 & 1775 & 1259  & 1718 & 1747  & 921  & --    & --    \\\hline
+    $2^{15}$ & $2^{17}$ & 2832  & 2414 & 2081 & 2569  & 2229 & 2602  & 1595 & 357  & 350  \\\hline
+    $2^{14}$ & $2^{18}$ & 4960  & 3730 & 1746 & 4162  & 2682 & 2696  & 1656 & 528  & 513  \\\hline
+    $2^{13}$ & $2^{19}$ & 8625  & 4205 & 4630 & 6293  & 5094 & 4961  & 1872 & 806  & 778  \\\hline
+    $2^{12}$ & $2^{20}$ & 13924 & 7557 & 6537 & 8609  & 4374 & 8981  & 3307 & 1217 & 1029 \\\hline
+    $2^{11}$ & $2^{21}$ & 23424 & 4889 & 4482 & 10084 & 3721 & 13717 & 3028 & 979  & 1505 \\\hline
+    $2^{10}$ & $2^{22}$ & 37500 & 3140 & 2741 & 12848 & 3026 & 17513 & 2180 & 899  & 1946 \\\hline
+    $2^{9}$  & $2^{23}$ & 70093 & 1641 & 1522 & 14243 & 2024 & 17079 & 1225 & 728  & 2156 \\\hline
   \end{tabular}
   \caption{\footnotesize Performance of six multiplications in base \texttt{u64} measured in Gu32ops (higher is better).}
   \label{mul10u64}
@@ -214,16 +214,16 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ & 62  & --  &  &  & --  & --   & --   & --   \\\hline
-    $2^{17}$ & $2^{15}$ & 67  & --  &  &  & --  & --   & --   & --   \\\hline
-    $2^{16}$ & $2^{16}$ & 19  &  &  &  &  & &  &  \\\hline
-    $2^{15}$ & $2^{17}$ & 19  &  &  &  &  & &  &  \\\hline
-    $2^{14}$ & $2^{18}$ & 84  &  &  &  &  & &  &  \\\hline
-    $2^{13}$ & $2^{19}$ & 164 &  &  &  &  & &  &  \\\hline
-    $2^{12}$ & $2^{20}$ & 165 &  &  &  &  & &  &  \\\hline
-    $2^{11}$ & $2^{21}$ & 164 &  &  &  &  & &  &  \\\hline
-    $2^{10}$ & $2^{22}$ & 156 &  &  &  &  & &  &  \\\hline
-    $2^{9}$  & $2^{23}$ & 118 &  &  &  &  & &  &  \\\hline
+    $2^{18}$ & $2^{14}$ & 62  & --   & 104 & 100 & --  & --   & --   & --   \\\hline
+    $2^{17}$ & $2^{15}$ & 67  & --   & 168 & 168 & --  & --   & --   & --   \\\hline
+    $2^{16}$ & $2^{16}$ & 19  & --   & 168 & 168 & --  & --   & 124 & 115 \\\hline
+    $2^{15}$ & $2^{17}$ & 19  & 136 & 168 & 168 & 61 & 83  & 165 & 153 \\\hline
+    $2^{14}$ & $2^{18}$ & 84  & 163 & 168 & 168 & 76 & 112 & 169 & 157 \\\hline
+    $2^{13}$ & $2^{19}$ & 164 & 169 & 168 & 168 & 79 & 115 & 169 & 158 \\\hline
+    $2^{12}$ & $2^{20}$ & 165 & 169 & 168 & 168 & 84 & 122 & 145 & 157 \\\hline
+    $2^{11}$ & $2^{21}$ & 164 & 155 & 159 & 168 & 83 & 121 & 77  & 157 \\\hline
+    $2^{10}$ & $2^{22}$ & 156 & 105 & 92  & 168 & 72 & 91  & 39  & 158 \\\hline
+    $2^{9}$  & $2^{23}$ & 118 & 54  & 47  & 168 & 37 & 47  & 20  & 158 \\\hline
   \end{tabular}
   \caption{\footnotesize Performance of one addition in base \texttt{u32} measured in GB/s (higher is better, 192 is peak).}
   \label{add1u32}
@@ -233,16 +233,16 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ & 24  &  &  &  &  & --  & --  & --  \\\hline
-    $2^{17}$ & $2^{15}$ & 57  &  &  &  &  & --  & --  & --  \\\hline
-    $2^{16}$ & $2^{16}$ & 72  &  &  &  &  & --  & --  & --  \\\hline
-    $2^{15}$ & $2^{17}$ & 46  &  &  &  &  &  &  &  \\\hline
-    $2^{14}$ & $2^{18}$ & 97  &  &  &  &  &  &  &  \\\hline
-    $2^{13}$ & $2^{19}$ & 162 &  &  &  &  &  &  &  \\\hline
-    $2^{12}$ & $2^{20}$ & 164 &  &  &  &  &  &  &  \\\hline
-    $2^{11}$ & $2^{21}$ & 161 &  &  &  &  &  &  &  \\\hline
-    $2^{10}$ & $2^{22}$ & 152 &  &  &  &  &  &  &  \\\hline
-    $2^{9}$  & $2^{23}$ & 113 &  &  &  &  &  &  &  \\\hline
+    $2^{18}$ & $2^{14}$ & 25  & --  & 75 & 76 & --  & --  & --  & --  \\\hline
+    $2^{17}$ & $2^{15}$ & 60  & --  & 66 & 55 & --  & --  & --  & --  \\\hline
+    $2^{16}$ & $2^{16}$ & 73  & --  & 81 & 68 & --  & --  & 23 & 21 \\\hline
+    $2^{15}$ & $2^{17}$ & 45  & 21 & 88 & 77 & 9  & 14 & 25 & 23 \\\hline
+    $2^{14}$ & $2^{18}$ & 97  & 24 & 79 & 77 & 9  & 17 & 26 & 24 \\\hline
+    $2^{13}$ & $2^{19}$ & 162 & 25 & 62 & 77 & 10 & 18 & 23 & 24 \\\hline
+    $2^{12}$ & $2^{20}$ & 164 & 23 & 44 & 77 & 10 & 17 & 20 & 24 \\\hline
+    $2^{11}$ & $2^{21}$ & 161 & 17 & 23 & 77 & 9  & 16 & 11 & 24 \\\hline
+    $2^{10}$ & $2^{22}$ & 152 & 12 & 11 & 77 & 8  & 13 & 6  & 24 \\\hline
+    $2^{9}$  & $2^{23}$ & 113 & 6  & 6  & 77 & 4  & 7  & 3  & 24 \\\hline
   \end{tabular}
   \caption{\footnotesize Performance of ten additions in base \texttt{u32} measured in GB/s (higher is better, 192 is peak).}
   \label{add10u32}
@@ -252,16 +252,16 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ &  &  &  &  & & &  &  &  \\\hline
-    $2^{17}$ & $2^{15}$ &  &  &  &  & & &  &  &  \\\hline
-    $2^{16}$ & $2^{16}$ & 35  &  &  &  & & &  &  &  \\\hline
-    $2^{15}$ & $2^{17}$ & 111 &  &  &  & & &  &  &  \\\hline
-    $2^{14}$ & $2^{18}$ & 213 &  &  &  & & &  &  &  \\\hline
-    $2^{13}$ & $2^{19}$ & 337 &  &  &  & & &  &  &  \\\hline
-    $2^{12}$ & $2^{20}$ & 521 &  &  &  & & &  &  &  \\\hline
-    $2^{11}$ & $2^{21}$ & 782 &  &  &  & & &  &  &  \\\hline
-    $2^{10}$ & $2^{22}$ & 823 &  &  &  & & &  &  &  \\\hline
-    $2^{9}$  & $2^{23}$ & 493 &  &  &  & & &  &  &  \\\hline
+    $2^{18}$ & $2^{14}$ & --   & --    & --    & --    & --    & --     & --    & --   & --    \\\hline
+    $2^{17}$ & $2^{15}$ & 1   & --    & --    & --    & 699  & 699   & --    & --   & --    \\\hline
+    $2^{16}$ & $2^{16}$ & 35  & 893  & 1195 & 797  & 1258 & 1258  & --    & --   & --    \\\hline
+    $2^{15}$ & $2^{17}$ & 116 & 1564 & 2074 & 1408 & 2229 & 2226  & 647  & --   & --    \\\hline
+    $2^{14}$ & $2^{18}$ & 217 & 2619 & 3342 & 2378 & 3774 & 3773  & 1090 & 242 & 247  \\\hline
+    $2^{13}$ & $2^{19}$ & 340 & 4203 & 4889 & 3767 & 5961 & 6061  & 1683 & 352 & 395  \\\hline
+    $2^{12}$ & $2^{20}$ & 526 & 5975 & 6117 & 5412 & 8350 & 8815  & 2300 & 513 & 553  \\\hline
+    $2^{11}$ & $2^{21}$ & 793 & 6270 & 6041 & 6728 & 7305 & 11363 & 2781 & 738 & 675  \\\hline
+    $2^{10}$ & $2^{22}$ & 822 & 3704 & 3355 & 7238 & 4342 & 11448 & 2069 & 803 & 930  \\\hline
+    $2^{9}$  & $2^{23}$ & 496 & 1731 & 1585 & 8112 & 2138 & 12979 & 1117 & 580 & 1107 \\\hline
   \end{tabular}
   \caption{\footnotesize Performance of one multiplication in base \texttt{u32} measured in Gu32ops (higher is better).}
   \label{mul1u32}
@@ -271,16 +271,16 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ &  &  &  &  & & &  &  &  \\\hline
-    $2^{17}$ & $2^{15}$ &  &  &  &  & & &  &  &  \\\hline
-    $2^{16}$ & $2^{16}$ & 847   &  &  &  & & &  &  &  \\\hline
-    $2^{15}$ & $2^{17}$ & 2646  &  &  &  & & &  &  &  \\\hline
-    $2^{14}$ & $2^{18}$ & 4774  &  &  &  & & &  &  &  \\\hline
-    $2^{13}$ & $2^{19}$ & 8642  &  &  &  & & &  &  &  \\\hline
-    $2^{12}$ & $2^{20}$ & 13899 &  &  &  & & &  &  &  \\\hline
-    $2^{11}$ & $2^{21}$ & 23348 &  &  &  & & &  &  &  \\\hline
-    $2^{10}$ & $2^{22}$ & 37388 &  &  &  & & &  &  &  \\\hline
-    $2^{9}$  & $2^{23}$ & 60805 &  &  &  & & &  &  &  \\\hline
+    $2^{18}$ & $2^{14}$ & --     & --    & --    & --    & --    & --     & --    & --   & --    \\\hline
+    $2^{17}$ & $2^{15}$ & 11    & --    & --    & --    & --    & --     & --    & --   & --    \\\hline
+    $2^{16}$ & $2^{16}$ & 888   & 878  & 1192 & 771  & 1275 & 1268  & --    & --   & --    \\\hline
+    $2^{15}$ & $2^{17}$ & 2832  & 1539 & 2086 & 1376 & 2236 & 2235  & 626  & --   & --    \\\hline
+    $2^{14}$ & $2^{18}$ & 4960  & 2622 & 3379 & 2348 & 3337 & 3082  & 1056 & 192 & 190  \\\hline
+    $2^{13}$ & $2^{19}$ & 8625  & 4024 & 4023 & 3342 & 4948 & 3841  & 1217 & 288 & 307  \\\hline
+    $2^{12}$ & $2^{20}$ & 13924 & 4789 & 5417 & 4719 & 7723 & 6522  & 1068 & 422 & 441  \\\hline
+    $2^{11}$ & $2^{21}$ & 23424 & 5407 & 6220 & 5575 & 6737 & 10481 & 1874 & 544 & 555  \\\hline
+    $2^{10}$ & $2^{22}$ & 37500 & 3517 & 3393 & 6524 & 4467 & 12414 & 2123 & 496 & 816  \\\hline
+    $2^{9}$  & $2^{23}$ & 70093 & 1771 & 1640 & 7528 & 2396 & 15135 & 1224 & 477 & 1062 \\\hline
   \end{tabular}
   \caption{\footnotesize Performance of six multiplications in base \texttt{u32} measured in Gu32ops (higher is better).}
   \label{mul10u32}

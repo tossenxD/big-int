@@ -20,8 +20,8 @@ massively parallel hardware such as General Purpose Graphics Processing Units
 (GPGPUs).
 
 In order to efficiently use GPGPUs, the underlying algorithms have to be adapted
-and parallelized. Addition has shown to be very efficient, running in sub-linear
-time \cite{DPPproject,blellochaddscan}. Multiplication classically runs in
+and parallelized. Addition has shown to be very efficiently computable by a scan
+operator \cite{DPPproject,blellochaddscan}. Multiplication classically runs in
 quadratic time \cite{knuth97}. The classical approach adapted to GPGPU is found
 to be efficient for small- and medium-sized big integers
 \cite{doi:10.1177/10943420221077964, oancea2024gpu}. Fast Fourier Transform
@@ -37,8 +37,9 @@ algorithm is a poor fit for GPGPU. Another common division approach is by
 multiplicative inverses. Watt has shown an algorithm to efficiently compute
 exact division by finding such an inverse, without leaving the original domain
 \cite{watt2023efficient}. Its complexity mirrors that of its multiplication
-method, which can be parameterized, and the number of iterations is logarithmic
-in the input size, yielding a more suitable algorithm for GPGPU. \bigskip
+method, over which can be parameterized, and the number of iterations is
+logarithmic in the input size, yielding a more suitable algorithm for
+GPGPU.\bigskip
 
 This thesis focuses on efficient parallel implementations of exact big integer
 arithmetic for GPGPU. It presents the algorithms for sub-linear addition,
@@ -71,9 +72,6 @@ Watt's own work), and in turn, first to parallelize it.
 
 The contributions of this thesis are:
 \begin{itemize}
-\item An extendable representation of big integers as an array data structure
-  over a generic base type that allows fast arithmetic on GPGPU, along with
-  implementations in \cpp\ and Futhark using classes and type declarations.
 \item A description of efficient parallel big integer addition and classical
   multiplication algorithms, on top of gradual degrees of optimizations over the
   shape of the inputs, accompanied by implementations at CUDA block-level in
