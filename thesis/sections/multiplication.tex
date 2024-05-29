@@ -101,11 +101,11 @@ observations:
 \end{figure}
 
 The former tells us that we cannot compute the outer sum using register
-arithmetics. However, from the latter, we can redefine the terms of the outer
-sum by exploiting the tiling of digits that is apparent in the illustration. We
+arithmetic. However, from the latter, we can redefine the terms of the outer sum
+by exploiting the tiling of digits that is apparent in the illustration. We
 refer to the columns as \textit{convolutions}, e.g.\ the convolution of $w_1$ is
-the sum $c_0+u_0v_1+u_1v_0$, and the arithmetics in a convolution fits in
-registers. Hence, we arrive at the following definition:
+the sum $c_0+u_0v_1+u_1v_0$, and each arithmetic of a convolution fits in
+register. Hence, we arrive at the following definition:
 
 \begin{definition}[tiling of classical multiplication by convolutions preserving
   input shape]\label{def:clasmultil}
@@ -606,17 +606,143 @@ includes this segment-beginning check.
 
 \subsection{Futhark Implementation}
 \label{subsec:mulfut}
-{\red [TODO; mostly missing]}
 
 The implementation of \textit{convmul} in Futhark has one significant change
-from CUDA: There may not be a double-size type for the base type, and so we
-cannot always apply the optimization of postponing the carry propagation. In
-Futharks high-level design, we do not get all the low-level C primitives, and
-that means no efficient 128-bit words.
+from CUDA: Futhark does not support 128-bit integers, thus, there may not be a
+double-size type for the base type, and hence, we cannot apply the optimization
+of postponing the carry propagation. In turn, we have three degrees of
+optimization in Futhark: The first version (\texttt{V1}) implements the
+algorithm with sequentialization factor of 2, the second (\texttt{V2}) with a
+factor of 4, and the third (\texttt{V3}) allows segmented multiplication.  The
+type signature of the three versions guarantee that the input memory layout
+matches the algorithm:
+\begin{lstlisting}[language=futhark,frame=none,numbers=none]
+def convMulV1 [m] (us: [2*m]ui) (vs: [2*m]ui) : [2*m]ui
+def convMulV2 [m] (us: [4*m]ui) (vs: [4*m]ui) : [4*m]ui
+def convMulV3 [ipb][m] (us:[ipb*(4*m)]ui) (vs:[ipb*(4*m)]ui): [ipb*(4*m)]ui
+\end{lstlisting}
 
-The first version (\texttt{V1}) implements the algorithm with sequentialization
-factor of 2, the second (\texttt{V2}) with a factor of 4, and the third
-(\texttt{V3}) allows segmented multiplication.
+First we present how to compute a convolution iteration. Since there may not be
+a double type, we instead use the function \texttt{mul\_hi} to compute the high
+part of a multiplication. Listing \ref{futiterate} defines this, where the low,
+high, and carry parts are represented as a triple:
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark function to compute a convolution iteration from file \texttt{mul.fut}.},label={futiterate},firstnumber=16]
+def iterate (l: ui, h: ui, c: ui) (u: ui) (v: ui) : (ui, ui, ui) =
+  -- compute the low and high part of result
+  let lr = u * v
+  let hr = mulHigh u v
+  -- update l, h and c
+  let ln = l + lr
+  let hn = h + hr + (fromBool (ln < l))
+  let cn = c + (fromBool (hn < h))
+  in (ln, hn, cn)
+\end{lstlisting}
+
+It is now straightforward to define \texttt{V1} with \texttt{iterate} and the
+\texttt{loop}-construct of Futhark. It look almost identical to the pseudocode
+of \textit{convmul} (Figure \ref{fig:mulparalg}), except that it copies to
+shared memory beforehand using the technique explained in Listing
+\ref{addfutcpy} of section \ref{subsec:addfut}. Hence, \texttt{V1} is not
+listed. Note; our Futhark implementations of \textit{badd} does not include a
+version with sequentialization factor of 2. The general version is applied
+(i.e.\ \texttt{V1}), and thus, in the hand of the Futhark compiler how
+efficiently map it to a CUDA block.
+
+To define the two remaining versions, we introduce the helper \texttt{combine}
+of Listing \ref{combine}. It combines six consecutive parts into four (as
+illustrated in Figure \ref{fig:muloptmem} of section \ref{subsec:mulalg}):
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark function to combine the parts of two consecutive convolutions from file \texttt{mul.fut}.},label={combine},firstnumber=26]
+def combine (l0:ui, h0:ui, c0:ui) (l1:ui, h1:ui, c1:ui) : (ui,ui,ui,ui) =
+  let h0l1 = h0 + l1
+  let h1c0c = h1 + c0 + (fromBool (h0l1 < h0))
+  let c1c = c1 + (fromBool (h1c0c < h1))
+  in (l0, h0l1, h1c0c, c1c)
+\end{lstlisting}
+
+For brevity, we only show \texttt{V3} since \texttt{V2} is practically
+identical. The convolution body -- shown in Listing \ref{futconvmul3} -- is a
+straightforward adaptation of the CUDA convolution body:
+
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark \textit{convmul} \texttt{V3} convolution function on thread-basis in from file \texttt{mul.fut} (slightly edited).},label={futconvmul3},gobble=2,firstnumber=154]
+  let CONV (us: []ui) (vs: []ui) (tid: i64)
+      : ( (ui, ui, ui, ui), (ui, ui, ui, ui) ) = #[unsafe]
+    -- iterate over the lower two convolutions
+    let k1 = tid * 2
+    let k1_start = (k1 / (4*m)) * (4*m)
+    let (lhc1, lhc2) : ( (ui, ui, ui), (ui, ui, ui) ) =
+      loop (lhc1,lhc2) = ((0, 0, 0), (0, 0, 0)) for i<(k1 + 1 - k1_start) do
+      let j = k1 - i
+      let u = us[i + k1_start]
+      let lhc1 = iterate lhc1 u vs[j]
+      let lhc2 = iterate lhc2 u vs[j+1]
+      in (lhc1, lhc2)
+    let lhc2 = iterate lhc2 us[k1+1] vs[k1_start]
+    -- iterate over the upper two convolutions
+    let k2 = ipb*4*m - 1 - k1
+    let k2_start = (k2 / (4*m)) * (4*m)
+    let (lhc3, lhc4) : ( (ui, ui, ui), (ui, ui, ui) ) = ... -- as above
+    -- combine to eight parts (four lower, four upper)
+    in (combine lhc1 lhc2, combine lhc3 lhc4)
+\end{lstlisting}
+
+Now, preparing the convolution parts in shared memory for addition is not a
+trivial task. Our solution shown in Listing \ref{futconvmul3main} is
+sub-optimal, but illustrates the process. It consists of five steps, where step
+4.\ is the nontrivial portion. Step 3.\ writes the four types of parts to four
+partitions of shared memory, alike to the CUDA implementation. Unlike the CUDA
+implementation, the additive arrays must now be constructed with a
+\texttt{scatter}, requiring to compute indices corresponding to the pattern at
+the end of section \ref{subsec:mulalg}. The indices are computes in lines
+166-174, and the reason why our implementation is sub-optimal. Firstly, we
+implement with $\mathit{ipb} \cdot m$ threads in mind, but map over the double
+amount of threads. Secondly, the function that gets mapped branches on odd and
+even thread-IDs. (Thirdly, the \texttt{reverse} of lines 158 is unnecessary since
+the purpose of the array is to be scattered.) The best solution is to fuse the
+computation of indices into the \texttt{CONV} function, s.t.\ each convolution
+part gets tagged with a corresponding index to its place in the additive arrays.
+
+\begin{lstlisting}[language=futhark,caption={\footnotesize Futhark
+\textit{convmul} \texttt{V3} adding the convolution parts from file \texttt{mul.fut} (slightly edited).},label={futconvmul3main},gobble=2,firstnumber=186]
+  -- 1. copy to shared memory coalesced
+  ...
+  -- 2. find the upper and lower four parts for each thread
+  let (lhcs1, lhcs2) = map (CONV ush vsh) (0..<ipb*m) |> unzip
+  let lhcs = lhcs1 ++ (reverse lhcs2)
+
+  -- 3. map the convolution result to memory
+  let (ls, hls, chs, ccs) = unzip4 lhcs
+  let lhcss = ls ++ hls ++ chs ++ ccs :> [8*ipb*m]ui
+
+  -- 4. compute indices and retrieve convolution result from memory
+  let (inds1, inds2) = unzip <| imap (0..<2*ipb*m)
+                  (\ i -> let off = i * 2
+                          let isOdd = bool.i64 (i % 2)
+                          let inds = if isOdd && ((off + 2) % (4*m) == 0)
+                                     then (off, off+1, -1, -1)
+                                     else (off, off+1, off+2, off+3)
+                          let disc = (-1, -1, -1, -1)
+                          in if isOdd
+                             then ( inds, disc )
+                             else ( disc, inds ))
+
+  let (inds11, inds12, inds13, inds14) = unzip4 inds1
+  let indss1 = inds11 ++ inds12 ++ inds13 ++ inds14 :> [8*ipb*m]i64
+
+  let (inds21, inds22, inds23, inds24) = unzip4 inds2
+  let indss2 = inds21 ++ inds22 ++ inds23 ++ inds24 :> [8*ipb*m]i64
+
+  let lhcss1 = scatter (replicate (ipb*(4*m)) 0) indss1 lhcss
+  let lhcss2 = scatter (replicate (ipb*(4*m)) 0) indss2 lhcss
+
+  -- 5. add the convolution parts
+  in baddV3 lhcss1 lhcss2
+\end{lstlisting}
+
+The Futhark implementation manages to stay close to the pseudocode of
+\textit{convmul}. It is less optimized than the CUDA implementation, due to
+insufficient 128-bit integer support. Constructing the memory layout for the
+final addition requires contemplating the indexing of the scheme while computing
+convolutions -- neglected in the presented implementation.
 
 \subsection{Single Precision Factor}
 \label{subsec:mulsin}

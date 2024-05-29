@@ -373,7 +373,7 @@ the three leading digits of $v$ in $V$ and then finds $B^4-V$, giving a result
 of four digits. It then divides those four digits by $V$, giving a result of
 either one or two digits. Hence, the quadruple base type \texttt{qint\_t} is
 necessary to efficiently compute the initial approximation with register
-arithmetics. This restricts a CUDA implementation to base \texttt{uint32\_t} and
+arithmetic. This restricts a CUDA implementation to base \texttt{uint32\_t} and
 Futhark to \texttt{u16}. In C, this process corresponds to Listing \ref{initC}:
 \begin{lstlisting}[language=CPP,caption={\footnotesize C code to efficiently form the initial approximation of \texttt{SHINV} in base \texttt{uint\_t} of \texttt{bits} bits and quad type \texttt{quint\_t} of $4\cdot$\texttt{bits} bits.},label={initC},escapeinside={!}{!}]
 quint_t V = (quint_t) v[k-2];                        // V  = v[k-2]
@@ -404,10 +404,10 @@ case $2v > B^h$ should be treated as $v > B^h/2$ and integrated in the
 comparison as well.)
 
 \paragraph{Preallocating Memory}
-Throughout this thesis, we have considered arithmetics of big integers to
-preserve the input shape on output. The efficiency of this algorithm require
-fine control over the size of operands at each iteration, and hence, we need to
-adjust the size parameter of inputs and outputs, according to the iteration
+Throughout this thesis, the big integer arithmetic has been considered to preserve
+the input shape on output. The efficiency of this algorithm require fine control
+over the size of operands at each iteration, and hence, we need to adjust the
+size parameter of inputs and outputs, according to the iteration
 number. Furthermore, it is ideal to preallocate a memory region large enough to
 hold the biggest intermediate value of the refinement, rather than periodically
 doubling the memory regions of the operands. From the analysis in Watt's paper
@@ -462,7 +462,7 @@ the efficiency. Likewise, if the kernel spawns with an inadequate number of
 threads, the sequentialization factor of the arithmetic of the greatest length
 input may exhaust registers and local memory, overall decreasing efficiency.
 
-An efficient solution requires running the big integer arithmetics in the kernel
+An efficient solution requires running the big integer arithmetic in the kernel
 with varying degrees of intra-thread sequentialization, as well as finding the
 optimal kernel configurations.
 

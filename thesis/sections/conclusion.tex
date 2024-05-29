@@ -3,7 +3,15 @@
 {\red [Missing]}
 
 \paragraph{Future work}
-{\red [Missing]}
+This thesis leaves future work regarding the division implementation. First and
+foremost, the parallel implementation should be validated. In relation to that,
+it should be considered whether the increased number of guard digits is a true
+revision to the algorithm, or due to an error in the sequential prototype. After
+it validates, the remaining inefficient subroutines should be reworked, mainly
+ensuring proper growth of the multiplication input lengths over refinement
+iterations. The last step is to evaluate its performance by benchmarking over
+big integer sizes, divisor precision, and the underlying multiplication methods,
+such as FFT and classical.
 
 %%% Local Variables:
 %%% mode: LaTeX

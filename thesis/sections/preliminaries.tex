@@ -180,26 +180,26 @@ the special objects -- as demonstrated in the following example:
   The following program is a simple example of the general routines
   involved with parallel programming through the CUDA \cpp\ extension.
 \begin{lstlisting}[language=CPP,escapeinside={(*}{*)}]
-(*{\color{Crimson}$\bullet$ \texttt{Kernel function that increments $n$ integers of the input array by one.}*)
-template<int n> __global__ void incrKernel(int* input, int* output) {
+(*{\color{Crimson}$\bullet$ \texttt{Kernel function that increments $m$ integers of the input array by one.}*)
+template<int m> __global__ void incrKernel(int* input, int* output) {
   // find the global thread ID of the currently executing thread
   const unsigned int global_id = blockDim.x*blockIdx.x + threadIdx.x;
   // if its ID does not exceed the input size, it executes the operation
-  if (global_id < n)
+  if (global_id < m)
     output[global_id] = input[global_id] + 1;
 }
-(*{\color{Crimson}$\bullet$ \texttt{Host function to execute the above kernel assuming array $\mathit{h\_mem}$ contains $n$ integers.}*)
+(*{\color{Crimson}$\bullet$ \texttt{Host function to execute the above kernel assuming array $\mathit{h\_mem}$ contains $m$ integers.}*)
 ...
   // allocate and transfer memory to device
   int *d_mem_in, *d_mem_out;
-  cudaMalloc((void**) &d_mem, n * sizeof(int));
-  cudaMemcpy(d_mem_in, h_mem, n * sizeof(int), cudaMemcpyHostToDevice);
-  // execute the kernel below with (*\green $\lceil n/512 \rceil$*) blocks of 512 threads each
+  cudaMalloc((void**) &d_mem, m * sizeof(int));
+  cudaMemcpy(d_mem_in, h_mem, m * sizeof(int), cudaMemcpyHostToDevice);
+  // execute the kernel below with (*\green $\lceil m/512 \rceil$*) blocks of 512 threads each
   dim3 block (512, 1, 1);
-  dim3 grid (1 + ((n - 1)/512), 1, 1);
-  incrKernel<n><<< block, grid >>>(d_mem_in, d_mem_out);
+  dim3 grid (1 + ((m - 1)/512), 1, 1);
+  incrKernel<m><<< block, grid >>>(d_mem_in, d_mem_out);
   // fetch results
-  cudaMemcpy(h_mem, d_mem_out, n * sizeof(int), cudaMemcpyDeviceToHost);
+  cudaMemcpy(h_mem, d_mem_out, m * sizeof(int), cudaMemcpyDeviceToHost);
 ...
 \end{lstlisting}
 \end{example}
@@ -298,7 +298,7 @@ clearly:
   The following program is a Futhark translation of the CUDA program of Example
   \ref{ex:cuda} that increments the integers in a given array by one:
 \begin{lstlisting}[language=futhark]
-def incrFut [n] (input: [n]i32) : [n]i32 = map (+ 1) input
+def incrFut [m] (input: [m]i32) : [m]i32 = map (+ 1) input
 \end{lstlisting}
 \end{example}
 

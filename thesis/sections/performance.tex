@@ -20,7 +20,8 @@ instances across runs.
 
 The structure is as follows: Section \ref{subsec:benchset} describes the setup
 of our benchmarks, section \ref{subsec:perfmet} introduces the performance
-metrics, and section \ref{subsec:benchres} reports our benchmark results.
+metrics, section \ref{subsec:benchres} reports our benchmark results, and
+section \ref{subsec:benchdis} discuss the benchmark results.
 
 \subsection{Benchmark Setup}
 \label{subsec:benchset}
@@ -47,7 +48,7 @@ $\{2^9,2^{10},\ldots,2^{18}\}$-bits big integers, and adjust the number of insta
 accordingly.
 
 Runtimes are averaged over multiple runs to improve stability and accuracy. In
-CUDA we average across 200 runs for addition and 100 runs for multiplication,
+CUDA we average across 300 runs for addition and 100 runs for multiplication,
 with one dry-run before starting the timer. We transfer memory to the device
 beforehand and stop the timer as soon as the kernel has completed its runs. In
 Futhark we use the \texttt{futhark-bench} utility, that allows us to write
@@ -112,7 +113,7 @@ the optimal scenario. We use the one proposed by Oancea and Watt in
 \cite{oancea2024gpu}:
 \begin{equation}
   \label{eq:u32ops}
-  \mathit{Gu32ops} = \dfrac{300 \cdot n \cdot (m \cdot (\mathtt{bits} / 32)) \cdot \log (m \cdot (\mathtt{bits} / 32))}{1000000000} \cdot \dfrac{1000000}{\mathit{runtime}}
+  \mathit{Gu32ops} = \dfrac{n \cdot 300 \cdot (m \cdot (\mathtt{bits} / 32)) \cdot \log (m \cdot (\mathtt{bits} / 32))}{1000000000} \cdot \dfrac{1000000}{\mathit{runtime}}
 \end{equation}
 
 When we compute six consecutive multiplications, we execute six times the number
@@ -125,46 +126,170 @@ The benchmarks are run on a NVIDIA GTX 1650 SUPER -- a GPU with 1280 CUDA cores,
 4GB memory, 192.0 GB/s memory bandwidth, and 4.416 TFLOPS compute power
 \cite{gpuspecs}.
 
+We report the benchmark results in two sets: Tables \ref{add1u64},
+\ref{add10u64}, \ref{mul1u64}, and \ref{mul10u64} contains the benchmark results
+for 64-bit base, while Tables \ref{add1u32}, \ref{add10u32}, \ref{mul1u32}, and
+\ref{mul10u32} for 32-bit base. Each set has a table for one addition, ten
+additions, one multiplication, and six multiplications, respectively. The
+legends starting with \textit{C-} refers to CUDA implementations, and
+\textit{F-} refers to Futhark implementations.
+
 \begin{table}
   \centering
   \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
     $2^{18}$ & $2^{14}$ & 62  & --   & 146 & 161 & --   & --   & --   & --   \\\hline
-    $2^{17}$ & $2^{15}$ & 67  & --   & 161 & 163 & --   & --   & --   & --   \\\hline
+    $2^{17}$ & $2^{15}$ & 67  & --   & 162 & 163 & --   & --   & --   & --   \\\hline
     $2^{16}$ & $2^{16}$ & 19  & 168 & 166 & 166 & 116 & 154 & 158 & 156 \\\hline
-    $2^{15}$ & $2^{17}$ & 19  & 168 & 167 & 166 & 145 & 168 & 168 & 146 \\\hline
+    $2^{15}$ & $2^{17}$ & 19  & 168 & 168 & 166 & 145 & 168 & 168 & 146 \\\hline
     $2^{14}$ & $2^{18}$ & 84  & 168 & 168 & 166 & 150 & 168 & 168 & 168 \\\hline
-    $2^{13}$ & $2^{19}$ & 164 & 168 & 168 & 164 & 156 & 168 & 168 & 168 \\\hline
+    $2^{13}$ & $2^{19}$ & 164 & 168 & 168 & 165 & 156 & 168 & 168 & 168 \\\hline
     $2^{12}$ & $2^{20}$ & 165 & 168 & 168 & 166 & 156 & 168 & 142 & 168 \\\hline
-    $2^{11}$ & $2^{21}$ & 164 & 169 & 163 & 166 & 134 & 165 & 75  & 168 \\\hline
-    $2^{10}$ & $2^{22}$ & 157 & 108 & 93  & 166 & 71  & 91  & 38  & 168 \\\hline
-    $2^{9}$  & $2^{23}$ & 119 & 55  & 47  & 167 & 36  & 47  & 20  & 168 \\\hline
+    $2^{11}$ & $2^{21}$ & 164 & 169 & 160 & 166 & 134 & 165 & 75  & 168 \\\hline
+    $2^{10}$ & $2^{22}$ & 156 & 106 & 92  & 166 & 71  & 91  & 38  & 168 \\\hline
+    $2^{9}$  & $2^{23}$ & 118 & 54  & 47  & 167 & 36  & 47  & 20  & 168 \\\hline
   \end{tabular}
-  \caption{\footnotesize Performance of one addition in base \texttt{u64} measured in GB/s (higher is better, 192 is peak)}
+  \caption{\footnotesize Performance of one addition in base \texttt{u64} measured in GB/s (higher is better, 192 is peak).}
+  \label{add1u64}
 \end{table}
 
 \begin{table}
   \centering
   \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ & 24  & --  & 92  & 83  & --  & --  & --  & --  \\\hline
-    $2^{17}$ & $2^{15}$ & 57  & --  & 111 & 94  & --  & --  & --  & --  \\\hline
-    $2^{16}$ & $2^{16}$ & 73  & 41 & 123 & 107 & --  & --  & --  & --  \\\hline
-    $2^{15}$ & $2^{17}$ & 45  & 48 & 128 & 107 & 15 & 24 & 15 & 13 \\\hline
-    $2^{14}$ & $2^{18}$ & 98  & 51 & 112 & 107 & 18 & 27 & 16 & 13 \\\hline
-    $2^{13}$ & $2^{19}$ & 162 & 46 & 83  & 108 & 18 & 30 & 14 & 13 \\\hline
-    $2^{12}$ & $2^{20}$ & 164 & 35 & 44  & 108 & 16 & 29 & 14 & 13 \\\hline
-    $2^{11}$ & $2^{21}$ & 162 & 24 & 23  & 108 & 15 & 25 & 10 & 13 \\\hline
-    $2^{10}$ & $2^{22}$ & 153 & 12 & 12  & 108 & 7  & 13 & 5  & 13 \\\hline
-    $2^{9}$  & $2^{23}$ & 110 & 6  & 6   & 108 & 4  & 7  & 3  & 13 \\\hline
+    $2^{18}$ & $2^{14}$ & 24  & --  & 90  & 82  & --  & --  & --  & --  \\\hline
+    $2^{17}$ & $2^{15}$ & 57  & --  & 108 & 93  & --  & --  & --  & --  \\\hline
+    $2^{16}$ & $2^{16}$ & 72  & 40 & 119 & 106 & --  & --  & --  & --  \\\hline
+    $2^{15}$ & $2^{17}$ & 46  & 47 & 124 & 106 & 15 & 24 & 15 & 13 \\\hline
+    $2^{14}$ & $2^{18}$ & 97  & 50 & 109 & 106 & 18 & 27 & 16 & 13 \\\hline
+    $2^{13}$ & $2^{19}$ & 162 & 45 & 81  & 107 & 18 & 30 & 14 & 13 \\\hline
+    $2^{12}$ & $2^{20}$ & 164 & 35 & 43  & 106 & 16 & 29 & 14 & 13 \\\hline
+    $2^{11}$ & $2^{21}$ & 161 & 24 & 22  & 106 & 15 & 25 & 10 & 13 \\\hline
+    $2^{10}$ & $2^{22}$ & 152 & 12 & 12  & 105 & 7  & 13 & 5  & 13 \\\hline
+    $2^{9}$  & $2^{23}$ & 113 & 6  & 6   & 105 & 4  & 7  & 3  & 13 \\\hline
   \end{tabular}
-  \caption{\footnotesize Performance of ten additions in base \texttt{u64} measured in GB/s (higher is better, 192 is peak)}
+  \caption{\footnotesize Performance of ten additions in base \texttt{u64} measured in GB/s (higher is better, 192 is peak).}
+  \label{add10u64}
 \end{table}
 
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ &  & --    & --    & --     & --    & --     & --   & --   & --   \\\hline
+    $2^{17}$ & $2^{15}$ &  & 836  & 1131 & 829   & 1167 & 1150  & --   & --   & --   \\\hline
+    $2^{16}$ & $2^{16}$ & 35 & 1491 & 1997 & 1542  & 2055 & 2039  &  &  &  \\\hline
+    $2^{15}$ & $2^{17}$ & 111 & 2578 & 3367 & 2719  & 3512 & 3471  &  &  &  \\\hline
+    $2^{14}$ & $2^{18}$ & 213 & 4239 & 5326 & 4476  & 5640 & 5515  &  &  &  \\\hline
+    $2^{13}$ & $2^{19}$ & 337 & 6425 & 7530 & 6722  & 7968 & 8082  &  &  &  \\\hline
+    $2^{12}$ & $2^{20}$ & 521 & 8159 & 8343 & 9180  & 6981 & 10475 &  &  &  \\\hline
+    $2^{11}$ & $2^{21}$ & 782 & 6059 & 5575 & 10749 & 5572 & 15745 &  &  &  \\\hline
+    $2^{10}$ & $2^{22}$ & 823 & 3700 & 3238 & 12990 & 3909 & 16554 &  &  &  \\\hline
+    $2^{9}$  & $2^{23}$ & 493 & 1787 & 1722 & 13740 & 2225 & 16888 &  &  &  \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of one multiplication in base \texttt{u64} measured in Gu32ops (higher is better).}
+  \label{mul1u64}
+\end{table}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ &  &  &  &  & & &  &  &  \\\hline
+    $2^{17}$ & $2^{15}$ &  &  &  &  & & &  &  &  \\\hline
+    $2^{16}$ & $2^{16}$ & 847   &  &  &  & & &  &  &  \\\hline
+    $2^{15}$ & $2^{17}$ & 2646  &  &  &  & & &  &  &  \\\hline
+    $2^{14}$ & $2^{18}$ & 4774  &  &  &  & & &  &  &  \\\hline
+    $2^{13}$ & $2^{19}$ & 8642  &  &  &  & & &  &  &  \\\hline
+    $2^{12}$ & $2^{20}$ & 13899 &  &  &  & & &  &  &  \\\hline
+    $2^{11}$ & $2^{21}$ & 23348 &  &  &  & & &  &  &  \\\hline
+    $2^{10}$ & $2^{22}$ & 37388 &  &  &  & & &  &  &  \\\hline
+    $2^{9}$  & $2^{23}$ & 60805 &  &  &  & & &  &  &  \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of six multiplications in base \texttt{u64} measured in Gu32ops (higher is better).}
+  \label{mul10u64}
+\end{table}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ & 62  & --  &  &  & --  & --   & --   & --   \\\hline
+    $2^{17}$ & $2^{15}$ & 67  & --  &  &  & --  & --   & --   & --   \\\hline
+    $2^{16}$ & $2^{16}$ & 19  &  &  &  &  & &  &  \\\hline
+    $2^{15}$ & $2^{17}$ & 19  &  &  &  &  & &  &  \\\hline
+    $2^{14}$ & $2^{18}$ & 84  &  &  &  &  & &  &  \\\hline
+    $2^{13}$ & $2^{19}$ & 164 &  &  &  &  & &  &  \\\hline
+    $2^{12}$ & $2^{20}$ & 165 &  &  &  &  & &  &  \\\hline
+    $2^{11}$ & $2^{21}$ & 164 &  &  &  &  & &  &  \\\hline
+    $2^{10}$ & $2^{22}$ & 156 &  &  &  &  & &  &  \\\hline
+    $2^{9}$  & $2^{23}$ & 118 &  &  &  &  & &  &  \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of one addition in base \texttt{u32} measured in GB/s (higher is better, 192 is peak).}
+  \label{add1u32}
+\end{table}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ & 24  &  &  &  &  & --  & --  & --  \\\hline
+    $2^{17}$ & $2^{15}$ & 57  &  &  &  &  & --  & --  & --  \\\hline
+    $2^{16}$ & $2^{16}$ & 72  &  &  &  &  & --  & --  & --  \\\hline
+    $2^{15}$ & $2^{17}$ & 46  &  &  &  &  &  &  &  \\\hline
+    $2^{14}$ & $2^{18}$ & 97  &  &  &  &  &  &  &  \\\hline
+    $2^{13}$ & $2^{19}$ & 162 &  &  &  &  &  &  &  \\\hline
+    $2^{12}$ & $2^{20}$ & 164 &  &  &  &  &  &  &  \\\hline
+    $2^{11}$ & $2^{21}$ & 161 &  &  &  &  &  &  &  \\\hline
+    $2^{10}$ & $2^{22}$ & 152 &  &  &  &  &  &  &  \\\hline
+    $2^{9}$  & $2^{23}$ & 113 &  &  &  &  &  &  &  \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of ten additions in base \texttt{u32} measured in GB/s (higher is better, 192 is peak).}
+  \label{add10u32}
+\end{table}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ &  &  &  &  & & &  &  &  \\\hline
+    $2^{17}$ & $2^{15}$ &  &  &  &  & & &  &  &  \\\hline
+    $2^{16}$ & $2^{16}$ & 35  &  &  &  & & &  &  &  \\\hline
+    $2^{15}$ & $2^{17}$ & 111 &  &  &  & & &  &  &  \\\hline
+    $2^{14}$ & $2^{18}$ & 213 &  &  &  & & &  &  &  \\\hline
+    $2^{13}$ & $2^{19}$ & 337 &  &  &  & & &  &  &  \\\hline
+    $2^{12}$ & $2^{20}$ & 521 &  &  &  & & &  &  &  \\\hline
+    $2^{11}$ & $2^{21}$ & 782 &  &  &  & & &  &  &  \\\hline
+    $2^{10}$ & $2^{22}$ & 823 &  &  &  & & &  &  &  \\\hline
+    $2^{9}$  & $2^{23}$ & 493 &  &  &  & & &  &  &  \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of one multiplication in base \texttt{u32} measured in Gu32ops (higher is better).}
+  \label{mul1u32}
+\end{table}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ &  &  &  &  & & &  &  &  \\\hline
+    $2^{17}$ & $2^{15}$ &  &  &  &  & & &  &  &  \\\hline
+    $2^{16}$ & $2^{16}$ & 847   &  &  &  & & &  &  &  \\\hline
+    $2^{15}$ & $2^{17}$ & 2646  &  &  &  & & &  &  &  \\\hline
+    $2^{14}$ & $2^{18}$ & 4774  &  &  &  & & &  &  &  \\\hline
+    $2^{13}$ & $2^{19}$ & 8642  &  &  &  & & &  &  &  \\\hline
+    $2^{12}$ & $2^{20}$ & 13899 &  &  &  & & &  &  &  \\\hline
+    $2^{11}$ & $2^{21}$ & 23348 &  &  &  & & &  &  &  \\\hline
+    $2^{10}$ & $2^{22}$ & 37388 &  &  &  & & &  &  &  \\\hline
+    $2^{9}$  & $2^{23}$ & 60805 &  &  &  & & &  &  &  \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of six multiplications in base \texttt{u32} measured in Gu32ops (higher is better).}
+  \label{mul10u32}
+\end{table}
 
 {\red [Missing]}
 
 \subsection{Discussion}
+\label{subsec:benchdis}
 {\red [Missing]}
 
 %%% Local Variables:

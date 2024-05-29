@@ -3,18 +3,18 @@
 
 Integers are commonly represented as either 32- or 64-bit in both hardware and
 software. They are an essential part of computing and we expect most programs to
-utilize integer arithmetics in accomplishing of a diverse range of
-tasks. However, some applications require numbers that are too big to fit a
-64-bit integer. One solution is resorting to floating-point arithmetics, but
-those are both imprecise and inefficient compared to integer arithmetics.
+utilize integer arithmetic in accomplishing a diverse range of tasks. However,
+some applications require numbers that are too big to fit a 64-bit integer. One
+solution is resorting to floating-point arithmetic, but that is both imprecise
+and inefficient compared to integer arithmetic.
 
-Exact arithmetics with big integers (also called multiple precision integers or
+Exact arithmetic with big integers (also called multiple precision integers or
 big numbers) is the very foundation of numerous fields in computer science,
 other formal sciences, natural sciences, and industry. Evident examples includes
 cryptography and algebra. Big integers can span hundreds, thousands, or even
-millions of bits, necessitating the exact arithmetics to be efficient in the
-size of the integers. A widespread implementation for such arithmetics is the
-GNU Multiple Precision Arithmetic Library (GMP) written in C and assembly
+millions of bits, necessitating the exact arithmetic to be efficient in the size
+of the integers. A widespread implementation for such arithmetic is the GNU
+Multiple Precision Arithmetic Library (GMP) written in C and assembly
 \cite{GMP}. One approach to further accelerate the performance is utilizing
 massively parallel hardware such as General Purpose Graphics Processing Units
 (GPGPUs).
@@ -38,30 +38,31 @@ multiplicative inverses. Watt has shown an algorithm to efficiently compute
 exact division by finding such an inverse, without leaving the original domain
 \cite{watt2023efficient}. Its complexity mirrors that of its multiplication
 method, which can be parameterized, and the number of iterations is logarithmic
-in the input size, yielding a more GPGPU suitable algorithm. \bigskip
+in the input size, yielding a more suitable algorithm for GPGPU. \bigskip
 
-This thesis focus on efficient parallel implementations of exact big integer
-arithmetics for GPGPU. It presents the algorithms for sub-linear addition,
+This thesis focuses on efficient parallel implementations of exact big integer
+arithmetic for GPGPU. It presents the algorithms for sub-linear addition,
 classical multiplication, and Watt's exact division by whole shifted
 inverse. Algorithmic, parallelization, and optimization efforts are kept
 general, but the implementations are narrowed to the Compute Unified Device
 Architecture (CUDA) platform through the programming languages \cpp\ and
 Futhark. Both are high-level languages, but operates vastly different. \cpp\
-allows low-level command of primitives and fine-grained memory control, while
+allows low-level command over primitives and fine-grained memory control, while
 interfacing directly with the CUDA runtime API to produce GPGPU executable code
 \cite{cudaguide, stroustrup}. Futhark is a functional array programming language
 that is designed around parallel basic blocks, making programs more elegant and
-less dependant on hardware specifications in exchange for loosing some of the
+less dependant on hardware specifications, in exchange for loosing some of the
 fine-grained and low-level control \cite{ParallelProgrammingInFuthark,
   Henriksen:2017:FPF:3062341.3062354}.
 
 The arithmetics are implemented at CUDA block-level, and hence, aimed at
-medium-sized big integers roughly from a few hundred to a few hundred thousand
-bits. Each algorithm includes optimizations to further enhance the performance
-at block-level -- or performance in general. The results shows that both the
-produced addition and multiplication methods are competitive performance-wise,
-but the performance gap between \cpp\ and Futhark implementations grows with the
-complexity of the algorithms and applied optimizations.
+medium-sized big integers, ranging roughly from a few hundred to a few hundred
+thousand bits. Each algorithm includes optimizations to further enhance the
+performance at block-level -- or performance in general. The results show that
+both the produced addition and multiplication methods are competitive
+performance-wise, but the performance gap between \cpp\ and Futhark
+implementations grows with the complexity of the algorithms and applied
+optimizations.
 
 The produced implementations of division are not as highly optimized or
 efficient as for the other arithmetics. However, this thesis is (to our
@@ -71,16 +72,16 @@ Watt's own work), and in turn, first to parallelize it.
 The contributions of this thesis are:
 \begin{itemize}
 \item An extendable representation of big integers as an array data structure
-  over a generic base type that allows fast arithmetics on GPGPU, along with
+  over a generic base type that allows fast arithmetic on GPGPU, along with
   implementations in \cpp\ and Futhark using classes and type declarations.
 \item A description of efficient parallel big integer addition and classical
   multiplication algorithms, on top of gradual degrees of optimizations over the
-  shape of the inputs, accompanied by implementations thereof at CUDA
-  block-level in \cpp\ and Futhark.
-\item A benchmark driven evaluation of the performance of the produced addition
-  and classical multiplication implementations against a state of the art CUDA
+  shape of the inputs, accompanied by implementations at CUDA block-level in
+  \cpp\ and Futhark.
+\item A benchmark driven performance evaluation of the produced addition and
+  classical multiplication implementations against a state of the art CUDA
   library.
-\item A presentation of the high-level intuition and a specialization for big
+\item A presentation of the high-level intuition and specialization for big
   integers of Watt's algorithm for exact division by whole shifted inverse,
   including a revision that extends the algorithm to an otherwise unconsidered
   corner case.
@@ -88,12 +89,12 @@ The contributions of this thesis are:
   language (C).
 \item A parallelization effort of Watt's algorithm that culminates in a
   partially valid and semi-efficient Futhark implementation, entailing efficient
-  parallel operators for shifting, comparing, and subtracting big integers.
+  parallel operators to shift, compare, and subtract big integers.
 \end{itemize}
 \bigskip
 
 The structure of this thesis is as follows: Section \ref{sec:rel} presents other
-works related to the subject of this thesis. Section \ref{sec:software} details
+work related to the subject of this thesis. Section \ref{sec:software} details
 the practicalities of the developed software suite. Section \ref{sec:pre}
 provides the background information on GPGPU, CUDA \cpp, and Futhark, assumed
 throughout this thesis. Section \ref{sec:big} regards the representation of big
@@ -105,7 +106,7 @@ methodology and results of validation testing. Section \ref{sec:per} benchmarks
 and evaluates the performance of the addition and multiplication
 implementations, while giving a detailed description of the methodology and
 performance metrics. Section \ref{sec:conc} concludes the work of this thesis
-and lists directions for future works.
+and lists directions for future work.
 
 %%% Local Variables:
 %%% mode: LaTeX
