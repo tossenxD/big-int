@@ -3,12 +3,11 @@ import "../helper"
 import "../add"
 import "../mul"
 
--- This file contains "polymorphic" validation tests. Well, they are actually
--- not polymorphic, but rather use the chosen base type. However, a test file
--- `fut-validation-FOO.fut` can safely run its tests without any manual effort,
--- except changing the `ui` type to FOO in `helper.fut`, which would have to be
--- done anyway for trying different bases. Pseudo-polymorphic?.. It relies on
--- `gmp-validation-lib.fut` to export arithmetics validated by GMP.
+-- This file contains validation tests over the base type `ui`. It allows a test
+-- file `fut-validation-FOO.fut` to run its tests without any manual effort of
+-- changing test batches and tpyes, except changing the `ui` type to FOO in
+-- `helper.fut`. It relies on `gmp-validation-lib.fut` to export arithmetics
+-- validated by GMP.
 
 def add1D [m] (u: [m]ui) (v: [m]ui) : bool =
   let M = m/4

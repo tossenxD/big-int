@@ -3,7 +3,7 @@ FLGS=-O3 -Wall -Wextra -g
 .PHONY:
 random:
 	@gcc $(FLGS) div.c -o div -lgmp
-	@./div 1 8
+	@./div 1 1001
 
 fixed:
 	@gcc $(FLGS) div.c -o div -lgmp

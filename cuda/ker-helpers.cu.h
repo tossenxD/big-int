@@ -1,6 +1,16 @@
 #ifndef KERNEL_HELPERS
 #define KERNEL_HELPERS
 
+/* These helpers are based on the material:
+
+   ``Programming Massively Parallel Hardware'', 2021, course taught at DIKU by Cosmin E. Oancea. [1]
+
+   ``GPU Implementations for Midsize Integer Addition and Multiplication'',
+   by Cosmin E. Oancea and Stephen M. Watt, 2024. [2]
+   paper published:       https://arxiv.org/abs/2405.14642
+   source code published: https://github.com/coancea/midint-arithmetic
+*/
+
 #define WARP   (32)
 #define lgWARP  (5)
 
@@ -12,6 +22,8 @@
 /***********************/
 
 typedef unsigned __int128 uint128_t;
+
+/* Classes are based on [2]. */
 
 struct U64bits {
     using uint_t = uint64_t;
@@ -35,6 +47,8 @@ struct U32bits {
 /********************************/
 /*** Parallel Building Blocks ***/
 /********************************/
+
+/* Code is based on my own solutions to assignments in [1]. */
 
 template<class OP>
 __device__ inline typename OP::RedElTp
@@ -97,6 +111,8 @@ scanExcBlock(volatile typename OP::RedElTp* ptr, const unsigned int idx) {
 /***********************************************************/
 /*** Remapping to/from Gobal, Shared and Register Memory ***/
 /***********************************************************/
+
+/* Code is based on my own solutions to assignments in [1]. */
 
 template<class S, uint32_t q>
 __device__ inline

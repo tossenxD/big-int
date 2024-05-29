@@ -8,8 +8,8 @@
 
    It implements quotient (division) of big integers of exact precision.
 
-   The implementation is based on the paper "Efficient Generic Quotients
-   Using Exact Arithmetic" by Stephen M. Watt:
+   The implementation is based on the paper ``Efficient Generic Quotients
+   Using Exact Arithmetic'' by Stephen M. Watt:
    https://arxiv.org/pdf/2304.01753.pdf
 
    The implementation does not aim to be highly efficient, but moreso as a

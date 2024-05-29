@@ -7,3 +7,4 @@
 !test/gmp-validation.c
 !*.fut
 !*.awk
+!*.hs

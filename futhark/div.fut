@@ -6,7 +6,7 @@ import "mul"
 --------------------------------------------------------------------------------
 --- Big Integer Division
 --------------------------------------------------------------------------------
---- The implementation is based on Algorithm 1 and 3 of the paper ``Efficient
+--- The implementation is based on Algorithm 1 of the paper: ``Efficient
 --- Generic Quotients Using Exact Arithmetic'' by Stephen M. Watt, 2023,
 --- published: https://arxiv.org/abs/2304.01753, [1].
 --- The main comments and reflection lies in the prototype `div.c`.

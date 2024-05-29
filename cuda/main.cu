@@ -2,10 +2,18 @@
 #include "ker-add.cu.h"
 #include "ker-mul.cu.h"
 
+/* This main file took inspiration from:
+
+   ``GPU Implementations for Midsize Integer Addition and Multiplication'',
+   by Cosmin E. Oancea and Stephen M. Watt, 2024. [2]
+   paper published:       https://arxiv.org/abs/2405.14642
+   source code published: https://github.com/coancea/midint-arithmetic
+*/
+
 using namespace std;
 
-#define GPU_RUNS_ADD      100
-#define GPU_RUNS_MUL      50
+#define GPU_RUNS_ADD      300
+#define GPU_RUNS_MUL      100
 #define VERSION           0
 
 #define ADD               1
@@ -14,19 +22,19 @@ using namespace std;
 #define BASE64            1
 #define ADD_TEN           0
 #define MUL_SIX           0
-#define WITH_VALIDATION   0
+#define WITH_VALIDATION   1
 #define PRINT_DEBUG_INFO  0
-#define FULL_TEST_SUITE   0
-#define FULLER_TEST_SUITE 0
+#define FULL_TEST_SUITE   1
+#define FULLER_TEST_SUITE 1
 
 /* This file contains different methods for running the big integer arithmetic CUDA kernels.
 
    The runtime input specifies the total work to be computed, i.e., how many bits total we run the
    kernels on. E.g. say we input `1024` as the total work and we run with 512-bit big integers
-   in base 64-bits; then, the precision of the big integers are `512/64 = 8` and the number of
+   in base 64-bits; then, the size of the big integers are `512/64 = 8` and the number of
    big integers to be computed are `1024/512 = 2`, making the kernels run on a total of 1024-bits.
 
-   The precision of the big integers are denoted by `m`, the base by `Base` (see data structures in
+   The size of the big integers are denoted by `m`, the base by `Base` (see data structures in
    file `ker-helpers.cu.h`), the number of big integer instances `num_instances` and the number of
    instances to be handled at block-level `ipb` (instances per block).
 
@@ -250,7 +258,7 @@ void testAddition(int num_instances, uint64_t* h_as_64, uint64_t* h_bs_64,
     const uint32_t mb = m/(Base::bits/32);
 
     if (v == 1 && mb > 1024) {
-        printf("SKIPS V1 Addition - big int size (%d precision of u%d) exceeds CUDA block \
+        printf("SKIPS V1 Addition - big int size (%d digits of u%d) exceeds CUDA block \
 limit (1024)\n", mb, Base::bits);
     }
     else {
@@ -306,27 +314,27 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
         // 4.1 dry run
         #if !MUL_SIX
         if      (v == 1)
-            convMult1<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul1<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 2)
-            convMult2<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul2<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 3)
-            convMult3<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul3<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 4)
-            convMult4<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul4<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else // (v == 5)
-            convMult5<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul5<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
         #endif
         #if MUL_SIX
         if      (v == 1)
-            convMult1Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul1Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 2)
-            convMult2Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul2Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 3)
-            convMult3Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul3Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 4)
-            convMult4Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul4Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else // (v == 5)
-            convMult5Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
+            convMul5Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
         #endif
         
         cudaDeviceSynchronize();
@@ -340,36 +348,36 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
         #if !MUL_SIX
         if      (v == 1)
             for(int i=0; i<GPU_RUNS_MUL; i++)
-                convMult1<Base,m>     <<< grid, block >>>(d_as, d_bs, d_rs);
+                convMul1<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 2)
             for(int i=0; i<GPU_RUNS_MUL; i++)
-                convMult2<Base,m>     <<< grid, block >>>(d_as, d_bs, d_rs);
+                convMul2<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 3)
-             for(int i=0; i<GPU_RUNS_MUL; i++)
-                 convMult3<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
+            for(int i=0; i<GPU_RUNS_MUL; i++)
+                convMul3<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 4)
             for(int i=0; i<GPU_RUNS_MUL; i++)
-                convMult4<Base,m>     <<< grid, block >>>(d_as, d_bs, d_rs);
+                convMul4<Base,m>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else // (v == 5)
-             for(int i=0; i<GPU_RUNS_MUL; i++)
-                 convMult5<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
+            for(int i=0; i<GPU_RUNS_MUL; i++)
+                convMul5<Base,m,ipb><<< grid, block >>>(d_as, d_bs, d_rs);
         #endif
         #if MUL_SIX
         if      (v == 1)
             for(int i=0; i<GPU_RUNS_MUL; i++)
-                convMult1Bench<Base,m,6>     <<< grid, block >>>(d_as, d_bs, d_rs);
+                convMul1Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 2)
             for(int i=0; i<GPU_RUNS_MUL; i++)
-                convMult2Bench<Base,m,6>     <<< grid, block >>>(d_as, d_bs, d_rs);
+                convMul2Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 3)
-             for(int i=0; i<GPU_RUNS_MUL; i++)
-                 convMult3Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
+            for(int i=0; i<GPU_RUNS_MUL; i++)
+                convMul3Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
         else if (v == 4)
             for(int i=0; i<GPU_RUNS_MUL; i++)
-                convMult4Bench<Base,m,6>     <<< grid, block >>>(d_as, d_bs, d_rs);
+                convMul4Bench<Base,m,6>    <<< grid, block >>>(d_as, d_bs, d_rs);
         else // (v == 5)
-             for(int i=0; i<GPU_RUNS_MUL; i++)
-                 convMult5Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
+            for(int i=0; i<GPU_RUNS_MUL; i++)
+                convMul5Bench<Base,m,ipb,6><<< grid, block >>>(d_as, d_bs, d_rs);
         #endif
 
         cudaDeviceSynchronize();
@@ -382,7 +390,10 @@ void gpuMultiply(uint32_t num_instances, typename Base::uint_t* h_as,
         gpuAssert( cudaPeekAtLastError() );
 
         double runtime_microsecs = elapsed;
-        double num_u32_ops = 4.0 * num_instances * (m * Base::bits / 32) * (m * Base::bits / 32);
+        uint64_t M = m * (Base::bits / 32);
+        uint64_t logM = 0, shiftM = M;
+        while (shiftM >>= 1) logM++;
+        double num_u32_ops = num_instances * 300 * M * logM;
         #if MUL_SIX
         num_u32_ops *= 6;
         #endif
@@ -407,7 +418,7 @@ Gu32ops/sec: %.2f\n", m*Base::bits, Base::bits, num_instances, elapsed, gigaopsu
     cudaFree(d_rs);
 }
 
-/* performs the big integer multiplication(s) using gmp, obtaining a reference point for validation*/
+/* performs big integer multiplication(s) using gmp, obtaining a reference point for validation */
 template<int m>
 void gmpMultiply(int num_instances, uint32_t* as, uint32_t* bs, uint32_t* rs) {
     uint32_t* it_as = as;
@@ -443,8 +454,8 @@ void testMul(int num_instances, uint64_t* h_as_64, uint64_t* h_bs_64,
     uint_t *h_rs_our = (uint_t*)h_rs_our_64;
     const uint32_t mb = m/(Base::bits/32);
 
-    if ((v == 1 && mb/2 > 1024) || ((v == 2 || v == 3 || v == 4 || v == 5) && mb/4 > 1024)) {
-        printf("SKIPS V%d Multiplication - big int size (%d precision of base u%d) exceeds CUDA \
+    if (((v == 1 || v == 2 || v == 3) && mb/2 > 1024) || ((v == 4 || v == 5) && mb/4 > 1024)) {
+        printf("SKIPS V%d Multiplication - big int size (%d digits of base u%d) exceeds CUDA \
 block limit (1024)\n", v, mb, Base::bits);
     }
     else {

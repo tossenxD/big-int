@@ -3,7 +3,8 @@ import "../helper"
 import "../add"
 import "../mul"
 
--- Like `fut-validation-main.fut', but property testing. (See file for details).
+-- Like `fut-validation-main.fut', but testing of properties. (See the
+-- validation file for details).
 
 def addIdentity [m] (u: [m]ui) : bool =
   let M = m/4

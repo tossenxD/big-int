@@ -1,6 +1,14 @@
 #ifndef HELPERS
 #define HELPERS
 
+/* These helpers are heavily based on:
+
+   ``GPU Implementations for Midsize Integer Addition and Multiplication'',
+   by Cosmin E. Oancea and Stephen M. Watt, 2024. [2]
+   paper published:       https://arxiv.org/abs/2405.14642
+   source code published: https://github.com/coancea/midint-arithmetic
+*/
+
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -20,7 +28,7 @@ int gpuAssert(cudaError_t code) {
 
 int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval *t1) {
     unsigned int resolution=1000000;
-    long int diff = (t2->tv_usec + resolution * t2->tv_sec) - (t1->tv_usec + resolution * t1->tv_sec);
+    long int diff=(t2->tv_usec + resolution * t2->tv_sec) - (t1->tv_usec + resolution * t1->tv_sec);
     result->tv_sec = diff / resolution;
     result->tv_usec = diff % resolution;
     return (diff<0);
@@ -181,7 +189,7 @@ void gmpAddMulOnce(bool is_add, uint32_t* inst_as, uint32_t* inst_bs, uint32_t* 
 /****************************/
 /***  support routines    ***/
 /****************************/
-void cuda_check(cudaError_t status, const char *action=NULL, const char *file=NULL, int32_t line=0) {
+void cuda_check(cudaError_t status, const char *action=NULL, const char *file=NULL, int32_t line=0){
   // check for cuda errors
 
   if(status!=cudaSuccess) {

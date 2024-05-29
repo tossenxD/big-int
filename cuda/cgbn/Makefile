@@ -3,9 +3,17 @@ CXX = nvcc -O3 -arch=sm_70
 SRC_CGBN = cgbn-perf.cu
 EXE_CGBN = big-int-cgbn
 
+# This file is heavily based on:
+
+#   ``GPU Implementations for Midsize Integer Addition and Multiplication'',
+#   by Cosmin E. Oancea and Stephen M. Watt, 2024. [2]
+#   paper published:       https://arxiv.org/abs/2405.14642
+#   source code published: https://github.com/coancea/midint-arithmetic
+
 default: run-1024
 
-all: run-8192 run-4096 run-2048 run-1024 run-512 run-256 run-128 run-64 run-32 run-16
+all: run-1024 run-512 run-256 run-128 run-64 run-32 run-16
+#all: run-8192 run-4096 run-2048 run-1024 run-512 run-256 run-128 run-64 run-32 run-16
 
 run-8192:
 	$(CXX) -ICGBN -DNUM_BITS=262144 -DTHD_PER_INST=32 $(SRC_CGBN) -o $(EXE_CGBN) -lgmp
