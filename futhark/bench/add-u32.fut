@@ -3,6 +3,8 @@ import "../add"
 -- Benchmarks with one instance per block and sequentialization factor of 1
 -- ==
 -- entry: oneAddV0Bench32 tenAddV0Bench32 oneAddV1Bench32 tenAddV1Bench32
+-- compiled random input { [16384][8192]u32  [16384][8192]u32  }
+-- compiled random input { [32768][4096]u32  [32768][4096]u32  }
 -- compiled random input { [65536][2048]u32  [65536][2048]u32  }
 -- compiled random input { [131072][1024]u32 [131072][1024]u32 }
 -- compiled random input { [262144][512]u32  [262144][512]u32  }
@@ -15,6 +17,8 @@ import "../add"
 -- Benchmarks with one instance per block and sequentialization factor of 4
 -- ==
 -- entry: oneAddV2Bench32 tenAddV2Bench32
+-- compiled random input { [16384][4][2048]u32 [16384][4][2048]u32 }
+-- compiled random input { [32768][4][1024]u32 [32768][4][1024]u32 }
 -- compiled random input { [65536][4][512]u32  [65536][4][512]u32  }
 -- compiled random input { [131072][4][256]u32 [131072][4][256]u32 }
 -- compiled random input { [262144][4][128]u32 [262144][4][128]u32 }
@@ -27,6 +31,8 @@ import "../add"
 -- Benchmarks with multiple instances per block and sequentialization factor 4
 -- ==
 -- entry: oneAddV3Bench32 tenAddV3Bench32
+-- compiled random input { [16384][1][8192]u32  [16384][1][8192]u32  }
+-- compiled random input { [32768][1][4096]u32  [32768][1][4096]u32  }
 -- compiled random input { [65536][1][2048]u32  [65536][1][2048]u32  }
 -- compiled random input { [131072][1][1024]u32 [131072][1][1024]u32 }
 -- compiled random input { [262144][1][512]u32  [262144][1][512]u32  }
