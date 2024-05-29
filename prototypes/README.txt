@@ -3,11 +3,16 @@ language, as C gives control over all the algorithmic details and intricacies,
 while also yielding a good starting point for parallelization and optimization
 to CUDA and Futhark.
 
-`div.c` contains a full-fledged prototype of a division algorithm, which, to
-the extent of my knowledge, produces the correct output. It can be run either
-on random inputs or fixed inputs. See `Makefile` for more detail on running the
-program, and see `div.c` for more details about the algorithm and
-implementation.
+`div.c` contains a full-fledged prototype of a division algorithm, which, to the
+extent of my knowledge, produces the correct output. It can be run either on
+random inputs or fixed inputs. The random inputs are generated with the same
+length as the given number of random inputs, and the divisor with a precision in
+the range of the given number. E.g.\ for the default 1000 random inputs, the
+first test will be a 1000-precision big integer divided by a 1-precision big
+integer. The next test will be 1000-precision divided by 2-precision. Then,
+1000-precision divided by 3-precision, and so forth. See `Makefile` for more
+detail on running the program, and see `div.c` for more details about the
+algorithm and implementation.
 
 `mult.c` contains a starting point for a multiplication by convolution
 implementation. It is not full-fledged, since there is no carry propagation and
