@@ -1,6 +1,51 @@
 \section{Conclusion}
 \label{sec:conc}
-{\red [Missing]}
+This thesis has shown how to implement exact and efficient big integer
+arithmetic on a GPU. The focus has been on addition, multiplication, and
+division, using the high-level programing languages Futhark and \cpp. The
+arithmetic operators have been implemented at CUDA block-level, albeit
+algorithmic efforts have been kept general and can be fitted for other
+architectures. The arithmetic operators are aimed at medium-sized big integers.
+We have shown how to represent such integers in a GPGPU friendly way and more,
+what optimization strategies give consistent performance over the shape of the
+integers.
+
+Regarding the addition operator, we found that carry propagation in parallel can
+be expressed using a scan, making it efficiently run on GPGPU. Our
+multiplication operator is based on the classical multiplication algortihm. The
+algorithm displays a quadratic amount of sequential work, yet we have shown a
+scheme that balances the work amongst threads and maximize performance at CUDA
+block-level. The scheme contains a nontrival memory layout as a byproduct of the
+way multiplication convolutions are arranged. We have shown how to efficiently
+construct the layout, both on paper and in implementation.
+
+The approach for division is based on multiplication by the inverse divisor. We
+leverage the existence of a shift operator to stay in the domain of big
+integers, such that it becomes multiplication by a shifted inverse. The approach
+is grounded in another work detailing an algorithm to find such a shifted
+inverse. We have adapted the algorithm to big integers, while also expanding on
+it in the form of handling an otherwise unconsidered cornercase. We have shown
+how to use this algorithm in order to efficiently find the exact remainder and
+quotient of two big integers. The division is parameterized over a big integer
+multiplication, addition, and subtraction method, and its complexity mirrors
+that of its multiplication method. While we were not able to produce a correct
+and efficient implementation of the algorithm for GPGPU, the necessary steps to
+do so have been sketched. Some of the steps have been implemented, including a
+sign-extended parallel subtraction operator based on our addition
+operator. Moreover, a correct but inefficient sequential C implementation has
+been produced, serving as proof of concept for the division algorithm.
+
+Our addition and multiplication operator have been tested against a state of the
+art CUDA library for big integers. We found that the block-level approach
+overall performes well at the target size. Both operators performes better than
+the state of the art library when run once, but consecutively applying the
+operators scales worse and comes with a performance cost. For addition, our
+\cpp\ implementation is still competitive given this performance cost, while our
+Futhark implementation becomes slow. For multiplication, our Futhark
+implementation suffers from an inefficient sub-routine, along with not
+supporting all of the low-level data types that \cpp\ supports. Our \cpp\
+implementation is still competitive at the target integer size, given the
+performance cost of scaling the number of operaters applied.
 
 \paragraph{Future work}
 This thesis leaves future work regarding the division implementation. First and
@@ -9,9 +54,9 @@ it should be considered whether the increased number of guard digits is a true
 revision to the algorithm, or due to an error in the sequential prototype. After
 it validates, the remaining inefficient subroutines should be reworked, mainly
 ensuring proper growth of the multiplication input lengths over refinement
-iterations. The last step is to evaluate its performance by benchmarking over
-big integer sizes, divisor precision, and the underlying multiplication methods,
-such as FFT and classical.
+iterations. The last step is to evaluate its performance over big integer sizes,
+divisor precision, and the underlying multiplication methods, such as FFT and
+classical.
 
 %%% Local Variables:
 %%% mode: LaTeX

@@ -20,8 +20,7 @@ instances across runs.
 
 The structure is as follows: Section \ref{subsec:benchset} describes the setup
 of our benchmarks, section \ref{subsec:perfmet} introduces the performance
-metrics, section \ref{subsec:benchres} reports our benchmark results, and
-section \ref{subsec:benchdis} discuss the benchmark results.
+metrics, and section \ref{subsec:benchres} presents benchmark results.
 
 \subsection{Benchmark Setup}
 \label{subsec:benchset}
@@ -122,17 +121,62 @@ of operations, and thus, we multiple the metric by 6 in these benchmarks.
 \subsection{Benchmark Results}
 \label{subsec:benchres}
 
-The benchmarks are run on a NVIDIA GTX 1650 SUPER -- a GPU with 1280 CUDA cores,
-4GB memory, 192.0 GB/s memory bandwidth, and 4.416 TFLOPS compute power
-\cite{gpuspecs}.
+We report and discuss the benchmark results for addition and multiplication in
+sections \ref{subsubsec:addres} and \ref{subsubsec:mulres}. Section
+\ref{subsubsec:sumres} summarize the discussions. Regarding the structure of the
+benchmark results tables: Legends starting with \textit{C-} refers to CUDA
+implementations, and \textit{F-} refers to Futhark implementations. The legend
+\textit{CGBN} shows the result of running the benchmark with CGBN, and
+\textit{Bits} and \textit{Instances} contains the batch and integer size for the
+benchmarks. Entries denoted as ` -- ` refuse to run (e.g.\ exceeds
+block-level). The benchmarks are run on a NVIDIA GTX 1650 SUPER -- a GPU with
+1280 CUDA cores, 4GB memory, 192.0 GB/s memory bandwidth, and 4.416 TFLOPS
+compute power \cite{gpuspecs}.
 
-We report the benchmark results in two sets: Tables \ref{add1u64},
-\ref{add10u64}, \ref{mul1u64}, and \ref{mul10u64} contains the benchmark results
-for 64-bit base, while Tables \ref{add1u32}, \ref{add10u32}, \ref{mul1u32}, and
-\ref{mul10u32} for 32-bit base. Each set has a table for one addition, ten
-additions, one multiplication, and six multiplications, respectively. The
-legends starting with \textit{C-} refers to CUDA implementations, and
-\textit{F-} refers to Futhark implementations.
+\subsubsection{Addition Results}
+\label{subsubsec:addres}
+
+Tables \ref{add1u64} and \ref{add1u32} shows benchmarks for one addition in
+64-bit and 32-bit base, respectively, while Tables \ref{add10u64} and
+\ref{add10u32} shows for ten additions. Here is what we can gather from the
+tables:
+\begin{itemize}
+  \renewcommand\labelitemi{--}
+\item \textbf{Implementation versions} agrees that \texttt{V3} is performing
+  best (i.e.\ the most optimized version). The only outliers are that for 10
+  additions, the segmented scan has a slight cost at around $2^{15}$-bits, with
+  biggest difference in bandwidth being 73\% and 65\% peak bandwidth in Table
+  \ref{add10u64} for $2^{16}$-bit integers of base \texttt{u64}. We only
+  consider \texttt{V3} in the following observations.
+\item \textbf{Choice of base for one addition} in CUDA is inconsequential until
+  the inputs are of $2^{18}$-bits. This is where base \texttt{u32} results in
+  sequentialization factor $q=8$, while \texttt{u64} remains at $q = 4$. In
+  Futhark, the difference is more noticeable, where \texttt{u64} is around 88\%
+  of the peak bandwidth, and \texttt{u32} around 82\%. As in the CUDA case,
+  \texttt{u64} is more suitable for higher bit count.
+\item \textbf{Choice of base for ten addition} in CUDA is impactful, where
+  \texttt{u32} runs at roughly 40\% peak bandwidth, and \texttt{u64} at roughly
+  64\%. For Futhark, the difference is still there, but more subtle at 13\% and
+  15\%.
+\item \textbf{Choice of language (Futhark or CUDA)} is inconsequential for one
+  addition of base \texttt{u64}, but CUDA has a slight advantage in base
+  \texttt{u32} and are able to maintain 88\% peak bandwidth, whereas Futhark
+  drops to 82\% peak bandwidth. However, the difference in the two languages are
+  much more noticeable for ten additions. The biggest difference is that of
+  Table \ref{add10u64}, where CUDA runs at 65\% peak bandwidth and Futhark at
+  15\%.
+\item \textbf{Compared to CGBN} we see that our implementations run faster for
+  all benchmark sizes when computing one addition, except for $2^{11}$ to
+  $2^{13}$ bits. In this interval, CGBN peaks and all implementations utilize
+  roughly the same amount of bandwidth. However, when moving to ten additions,
+  CGBN is able to maintain its bandwidth utilization, whereas our
+  implementations (especially Futhark) shows a big performance drop. As
+  discussed in section \ref{sec:rel}, this is due to CGBN working at warp-level
+  rather than block-level, reducing the latency overhead of running consecutive
+  arithmetics. However, our CUDA addition is still faster than CGBN for sizes
+  $2^{14}$-bits and up. Another noticeable different is the consistency of
+  bandwidth utilization in our best implementations compared to CGBN.
+\end{itemize}
 
 \begin{table}
   \centering
@@ -151,63 +195,6 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \end{tabular}
   \caption{\footnotesize Performance of one addition in base \texttt{u64} measured in GB/s (higher is better, 192 is peak).}
   \label{add1u64}
-\end{table}
-
-\begin{table}
-  \centering
-  \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
-    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ & 25  & --  & 108 & 92  & --  & --  & --  & --  \\\hline
-    $2^{17}$ & $2^{15}$ & 60  & --  & 120 & 109 & --  & --  & --  & --  \\\hline
-    $2^{16}$ & $2^{16}$ & 73  & 40 & 142 & 124 & --  & --  & 27 & 24 \\\hline
-    $2^{15}$ & $2^{17}$ & 45  & 47 & 137 & 124 & 15 & 24 & 34 & 29 \\\hline
-    $2^{14}$ & $2^{18}$ & 97  & 50 & 113 & 124 & 19 & 27 & 32 & 29 \\\hline
-    $2^{13}$ & $2^{19}$ & 162 & 45 & 82  & 123 & 19 & 31 & 30 & 29 \\\hline
-    $2^{12}$ & $2^{20}$ & 164 & 35 & 44  & 123 & 17 & 29 & 20 & 29 \\\hline
-    $2^{11}$ & $2^{21}$ & 161 & 24 & 23  & 124 & 15 & 25 & 11 & 29 \\\hline
-    $2^{10}$ & $2^{22}$ & 152 & 12 & 12  & 124 & 8  & 13 & 5  & 29 \\\hline
-    $2^{9}$  & $2^{23}$ & 113 & 6  & 6   & 124 & 4  & 7  & 3  & 29 \\\hline
-  \end{tabular}
-  \caption{\footnotesize Performance of ten additions in base \texttt{u64} measured in GB/s (higher is better, 192 is peak).}
-  \label{add10u64}
-\end{table}
-
-\begin{table}
-  \centering
-  \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
-    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ & --   & --    & --    & --     & --    & --     & --    & --    & --    \\\hline
-    $2^{17}$ & $2^{15}$ & 1   & 836  & 1131 & 829   & 1167 & 1150  & --    & --    & --    \\\hline
-    $2^{16}$ & $2^{16}$ & 35  & 1491 & 1997 & 1542  & 2055 & 2039  & 974  & --    & --    \\\hline
-    $2^{15}$ & $2^{17}$ & 116 & 2578 & 3367 & 2719  & 3512 & 3471  & 1674 & 469  & 482  \\\hline
-    $2^{14}$ & $2^{18}$ & 217 & 4239 & 5326 & 4476  & 5640 & 5515  & 2671 & 652  & 693  \\\hline
-    $2^{13}$ & $2^{19}$ & 340 & 6425 & 7530 & 6722  & 7968 & 8082  & 3880 & 1035 & 984  \\\hline
-    $2^{12}$ & $2^{20}$ & 526 & 8159 & 8343 & 9180  & 6981 & 10475 & 4931 & 1448 & 1281 \\\hline
-    $2^{11}$ & $2^{21}$ & 793 & 6059 & 5575 & 10749 & 5572 & 15745 & 3836 & 1551 & 1899 \\\hline
-    $2^{10}$ & $2^{22}$ & 822 & 3700 & 3238 & 12990 & 3909 & 16554 & 2352 & 1130 & 2492 \\\hline
-    $2^{9}$  & $2^{23}$ & 496 & 1787 & 1722 & 13740 & 2225 & 16888 & 1122 & 704  & 2798 \\\hline
-  \end{tabular}
-  \caption{\footnotesize Performance of one multiplication in base \texttt{u64} measured in Gu32ops (higher is better).}
-  \label{mul1u64}
-\end{table}
-
-\begin{table}
-  \centering
-  \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
-    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
-    $2^{18}$ & $2^{14}$ & --     & --    & --    & --     & --    & --     & --    & --    & --    \\\hline
-    $2^{17}$ & $2^{15}$ & 11    & --    & --    & --     & --    & --     & --    & --    & --    \\\hline
-    $2^{16}$ & $2^{16}$ & 888   & 1337 & 1775 & 1259  & 1718 & 1747  & 921  & --    & --    \\\hline
-    $2^{15}$ & $2^{17}$ & 2832  & 2414 & 2081 & 2569  & 2229 & 2602  & 1595 & 357  & 350  \\\hline
-    $2^{14}$ & $2^{18}$ & 4960  & 3730 & 1746 & 4162  & 2682 & 2696  & 1656 & 528  & 513  \\\hline
-    $2^{13}$ & $2^{19}$ & 8625  & 4205 & 4630 & 6293  & 5094 & 4961  & 1872 & 806  & 778  \\\hline
-    $2^{12}$ & $2^{20}$ & 13924 & 7557 & 6537 & 8609  & 4374 & 8981  & 3307 & 1217 & 1029 \\\hline
-    $2^{11}$ & $2^{21}$ & 23424 & 4889 & 4482 & 10084 & 3721 & 13717 & 3028 & 979  & 1505 \\\hline
-    $2^{10}$ & $2^{22}$ & 37500 & 3140 & 2741 & 12848 & 3026 & 17513 & 2180 & 899  & 1946 \\\hline
-    $2^{9}$  & $2^{23}$ & 70093 & 1641 & 1522 & 14243 & 2024 & 17079 & 1225 & 728  & 2156 \\\hline
-  \end{tabular}
-  \caption{\footnotesize Performance of six multiplications in base \texttt{u64} measured in Gu32ops (higher is better).}
-  \label{mul10u64}
 \end{table}
 
 \begin{table}
@@ -233,6 +220,25 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ & 25  & --  & 108 & 92  & --  & --  & --  & --  \\\hline
+    $2^{17}$ & $2^{15}$ & 60  & --  & 120 & 109 & --  & --  & --  & --  \\\hline
+    $2^{16}$ & $2^{16}$ & 73  & 40 & 142 & 124 & --  & --  & 27 & 24 \\\hline
+    $2^{15}$ & $2^{17}$ & 45  & 47 & 137 & 124 & 15 & 24 & 34 & 29 \\\hline
+    $2^{14}$ & $2^{18}$ & 97  & 50 & 113 & 124 & 19 & 27 & 32 & 29 \\\hline
+    $2^{13}$ & $2^{19}$ & 162 & 45 & 82  & 123 & 19 & 31 & 30 & 29 \\\hline
+    $2^{12}$ & $2^{20}$ & 164 & 35 & 44  & 123 & 17 & 29 & 20 & 29 \\\hline
+    $2^{11}$ & $2^{21}$ & 161 & 24 & 23  & 124 & 15 & 25 & 11 & 29 \\\hline
+    $2^{10}$ & $2^{22}$ & 152 & 12 & 12  & 124 & 8  & 13 & 5  & 29 \\\hline
+    $2^{9}$  & $2^{23}$ & 113 & 6  & 6   & 124 & 4  & 7  & 3  & 29 \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of ten additions in base \texttt{u64} measured in GB/s (higher is better, 192 is peak).}
+  \label{add10u64}
+\end{table}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3}  & F-\texttt{V0} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
     $2^{18}$ & $2^{14}$ & 25  & --  & 75 & 76 & --  & --  & --  & --  \\\hline
     $2^{17}$ & $2^{15}$ & 60  & --  & 66 & 55 & --  & --  & --  & --  \\\hline
     $2^{16}$ & $2^{16}$ & 73  & --  & 81 & 68 & --  & --  & 23 & 21 \\\hline
@@ -246,6 +252,75 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \end{tabular}
   \caption{\footnotesize Performance of ten additions in base \texttt{u32} measured in GB/s (higher is better, 192 is peak).}
   \label{add10u32}
+\end{table}
+
+\pagebreak
+
+\subsubsection{Multiplication Results}
+\label{subsubsec:mulres}
+
+Tables \ref{mul1u64} and \ref{mul1u32} shows benchmarks for one multiplication
+in 64-bit and 32-bit base, respectively, while Tables \ref{mul6u64} and
+\ref{mul6u32} shows for six multiplications. We can gather from the tables:
+\begin{itemize}
+  \renewcommand\labelitemi{--}
+\item \textbf{Implementation versions} in CUDA agree that \texttt{V5} is best,
+  both for one and six multiplications, as expected. The importance of
+  processing multiple instances per block for sizes $2^9$ to $2^{11}$ bits is
+  very noticable on the two versions supporting this (\texttt{V3} and
+  \texttt{V5}). W.r.t.\ Futhark, the inefficiencies of \texttt{V2} and
+  \texttt{V3} described in section \ref{subsec:mulfut} has a huge impact on the
+  performance. E.g.\ in Table \ref{mul1u32} with $2^{12}$-bit integers,
+  \texttt{V1} gives roughly 4$\times$ more Gu32ops than \texttt{V3}. However, we
+  still se the pattern that handling multiple instances per block is important
+  for efficiency at sizes $2^9$ to $2^{11}$ bits.
+\item \textbf{Choice of base for one multiplication} strongly favors running in
+  64-bit base. The average increase in Gu32ops of using \texttt{u64} compared to
+  \texttt{u32} is in CUDA \texttt{V5} 1.4$\times$ and in Futhark \texttt{V1}
+  1.9$\times$. This is expected, since halving the base size will double the number
+  of digits, and the classical multiplication is quadratic in the number of
+  digits.
+\item \textbf{Choice of base for six multiplications} also favors \texttt{u64},
+  but with a smaller factor of Gu32ops than for one multiplication, e.g.\
+  comparing base \texttt{u64} to \texttt{u32} for CUDA \texttt{V5} is
+  1.2$\times$ and for Futhark \texttt{V1} it is 1.7$\times$ on average.
+\item \textbf{Choice of language (Futhark or CUDA)} has a big performance
+  impact. Futhark does not have 128-bit integer support, which is a suspect for
+  the gap between the two languages. Even if we compare \texttt{V1} in CUDA and
+  Futhark (i.e.\ with no extra optimizations added to \textit{convmul}), we
+  still see and average increase of Gu32ops for CUDA compared to Futhark of:
+  1.6$\times$ in Table \ref{mul1u64}, 2.2$\times$ in Table \ref{mul1u32},
+  1.7$\times$ in Table \ref{mul6u64}, and 2.7$\times$ in Table \ref{mul6u32}. However, the
+  implementations of both languages seems to roughly follow the same pattern
+  w.r.t.\ the number of bits and instances, which could indicate that if the gap
+  can be closed (e.g.\ if Futhark gets 128-bit integers), the Futhark
+  implementation will become competitive as well.
+\item \textbf{Compared to CGBN}, both our best CUDA and Futhark implementation
+  is much faster for one multiplication. However, for six multiplications, CGBN
+  is more efficient than ours up to $2^{16}$ bit integers. For smaller integers
+  (i.e.\ of $2^9$ to $2^{11}$ bits), CGBN is \textit{much} faster than our
+  implementations when running six multiplications -- while for $2^{14}$ and
+  $2^{15}$ bits integers, the performance gap between our implementations and
+  CGBN is less significant.
+\end{itemize}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ & --   & --    & --    & --     & --    & --     & --    & --    & --    \\\hline
+    $2^{17}$ & $2^{15}$ & 1   & 836  & 1131 & 829   & 1167 & 1150  & --    & --    & --    \\\hline
+    $2^{16}$ & $2^{16}$ & 35  & 1491 & 1997 & 1542  & 2055 & 2039  & 974  & --    & --    \\\hline
+    $2^{15}$ & $2^{17}$ & 116 & 2578 & 3367 & 2719  & 3512 & 3471  & 1674 & 469  & 482  \\\hline
+    $2^{14}$ & $2^{18}$ & 217 & 4239 & 5326 & 4476  & 5640 & 5515  & 2671 & 652  & 693  \\\hline
+    $2^{13}$ & $2^{19}$ & 340 & 6425 & 7530 & 6722  & 7968 & 8082  & 3880 & 1035 & 984  \\\hline
+    $2^{12}$ & $2^{20}$ & 526 & 8159 & 8343 & 9180  & 6981 & 10475 & 4931 & 1448 & 1281 \\\hline
+    $2^{11}$ & $2^{21}$ & 793 & 6059 & 5575 & 10749 & 5572 & 15745 & 3836 & 1551 & 1899 \\\hline
+    $2^{10}$ & $2^{22}$ & 822 & 3700 & 3238 & 12990 & 3909 & 16554 & 2352 & 1130 & 2492 \\\hline
+    $2^{9}$  & $2^{23}$ & 496 & 1787 & 1722 & 13740 & 2225 & 16888 & 1122 & 704  & 2798 \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of one multiplication in base \texttt{u64} measured in Gu32ops (higher is better).}
+  \label{mul1u64}
 \end{table}
 
 \begin{table}
@@ -271,6 +346,25 @@ legends starting with \textit{C-} refers to CUDA implementations, and
   \centering
   \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
     Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
+    $2^{18}$ & $2^{14}$ & --     & --    & --    & --     & --    & --     & --    & --    & --    \\\hline
+    $2^{17}$ & $2^{15}$ & 11    & --    & --    & --     & --    & --     & --    & --    & --    \\\hline
+    $2^{16}$ & $2^{16}$ & 888   & 1337 & 1775 & 1259  & 1718 & 1747  & 921  & --    & --    \\\hline
+    $2^{15}$ & $2^{17}$ & 2832  & 2414 & 2081 & 2569  & 2229 & 2602  & 1595 & 357  & 350  \\\hline
+    $2^{14}$ & $2^{18}$ & 4960  & 3730 & 1746 & 4162  & 2682 & 2696  & 1656 & 528  & 513  \\\hline
+    $2^{13}$ & $2^{19}$ & 8625  & 4205 & 4630 & 6293  & 5094 & 4961  & 1872 & 806  & 778  \\\hline
+    $2^{12}$ & $2^{20}$ & 13924 & 7557 & 6537 & 8609  & 4374 & 8981  & 3307 & 1217 & 1029 \\\hline
+    $2^{11}$ & $2^{21}$ & 23424 & 4889 & 4482 & 10084 & 3721 & 13717 & 3028 & 979  & 1505 \\\hline
+    $2^{10}$ & $2^{22}$ & 37500 & 3140 & 2741 & 12848 & 3026 & 17513 & 2180 & 899  & 1946 \\\hline
+    $2^{9}$  & $2^{23}$ & 70093 & 1641 & 1522 & 14243 & 2024 & 17079 & 1225 & 728  & 2156 \\\hline
+  \end{tabular}
+  \caption{\footnotesize Performance of six multiplications in base \texttt{u64} measured in Gu32ops (higher is better).}
+  \label{mul6u64}
+\end{table}
+
+\begin{table}
+  \centering
+  \begin{tabular}{|c|c||c?c|c|c|c|c?c|c|c|c|}\hline
+    Bits & I{\footnotesize nstances} & CGBN & C-\texttt{V1} & C-\texttt{V2} & C-\texttt{V3} & C-\texttt{V4} & C-\texttt{V5} & F-\texttt{V1} & F-\texttt{V2} & F-\texttt{V3}\\\hline\hline
     $2^{18}$ & $2^{14}$ & --     & --    & --    & --    & --    & --     & --    & --   & --    \\\hline
     $2^{17}$ & $2^{15}$ & 11    & --    & --    & --    & --    & --     & --    & --   & --    \\\hline
     $2^{16}$ & $2^{16}$ & 888   & 878  & 1192 & 771  & 1275 & 1268  & --    & --   & --    \\\hline
@@ -283,14 +377,32 @@ legends starting with \textit{C-} refers to CUDA implementations, and
     $2^{9}$  & $2^{23}$ & 70093 & 1771 & 1640 & 7528 & 2396 & 15135 & 1224 & 477 & 1062 \\\hline
   \end{tabular}
   \caption{\footnotesize Performance of six multiplications in base \texttt{u32} measured in Gu32ops (higher is better).}
-  \label{mul10u32}
+  \label{mul6u32}
 \end{table}
 
-{\red [Missing]}
+\subsubsection{Summary of Results}
+\label{subsubsec:sumres}
+Overall, the implementations we have produced are generally competitive in the
+integer size range of $2^{14}$ to $2^{16}$ bits. When only calling one
+arithmetic at a time, our implementations are consistently faster than
+CGBN. However, CGBN scales much better over the number of consecutive calls, and
+consistently performs better than ours, for sizes in the range $2^9$ to $2^{13}$
+w.r.t.\ ten additions and six multiplications. Comparing Futhark and CUDA, we
+see that CUDA scales better in the number of arithmetic calls -- especially
+noticeable when going from one to ten additions.
 
-\subsection{Discussion}
-\label{subsec:benchdis}
-{\red [Missing]}
+In regard to multiplication: The Futhark implementation suffers from the
+sub-optimal implementation described in \ref{subsec:mulfut}, but also from not
+supporting 128-bit integer arithmetics. The CUDA implementation generally seems
+to be performing good, and in line with the expected outcome of the
+optimizations (i.e.\ versions).
+
+In regard to the addition: Both CUDA and Futhark performs roughly the same for
+one addition -- and they perform well, reaching 85\% of peak device
+bandwidth. However, Futhark suffers a significant performance loss when scaling
+to ten additions, while the CUDA versions sees a less significant performance
+loss. The optimal versions in both languages performs very consistently across
+integer sizes and number of instances.
 
 %%% Local Variables:
 %%% mode: LaTeX
