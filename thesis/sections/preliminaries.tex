@@ -174,8 +174,9 @@ spawned kernel has access to a set of special objects, notably \fun{threadIdx},
 executing thread, the index of the block that it belongs to, and block size,
 respectively. Thus, the executable kernel code is run on each of the specified
 threads, and spatial awareness within a thread is achieved explicitly through
-the special objects -- as demonstrated in the following example:
+the special objects -- as demonstrated in Example \ref{ex:cuda}.
 
+\begin{floatenv}
 \begin{example}[a simple CUDA \cpp\ program]\label{ex:cuda}
   The following program is a simple example of the general routines
   involved with parallel programming through the CUDA \cpp\ extension.
@@ -203,6 +204,7 @@ template<int m> __global__ void incrKernel(int* input, int* output) {
 ...
 \end{lstlisting}
 \end{example}
+\end{floatenv}
 
 From now on, we denote a CUDA \cpp\ program simply as a CUDA program and assume:
 \begin{itemize}
@@ -292,8 +294,9 @@ the nested arrays must be regular in order for the compiler to know how to
 flatten them for execution. The shape of arrays must be statically inferred to
 the compiler too -- primarily part of the type signature of functions, but can be
 manually inferred. Example \ref{ex:fut} shows the difference in CUDA and Futhark
-clearly:
+clearly.
 
+\begin{floatenv}
 \begin{example}[a simply Futhark program]\label{ex:fut}
   The following program is a Futhark translation of the CUDA program of Example
   \ref{ex:cuda} that increments the integers in a given array by one:
@@ -301,6 +304,7 @@ clearly:
 def incrFut [m] (input: [m]i32) : [m]i32 = map (+ 1) input
 \end{lstlisting}
 \end{example}
+\end{floatenv}
 
 Overall, Futhark is meant to balance usability, power of abstractions, and
 parallel efficiency.

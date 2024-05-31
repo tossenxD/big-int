@@ -2,14 +2,14 @@
 \label{sec:add}
 
 Addition is the simplest of the basic arithmetic operators. It is a cornerstone
-that can be used to define all other operations - an essential part of every
-arithmetic.
+that can be used to define all other operations - an essential part of big
+integer arithmetic.
 
-Former work has been carried out for addition in Futhark, which will serve as a
-stepping stone for the algorithm and implementation of our addition
-\cite{DPPproject}. In essence, big integer addition formalizes to a 
-\texttt{map}-\texttt{scan} composition, making it run efficiently on a GPGPU
-\cite{blellochaddscan}.
+Former work has been carried out for a paralllel addition oeprator in Futhark,
+which will serve as a stepping stone for the algorithm and implementation of our
+addition \cite{DPPproject}. In essence, big integer addition formalizes to a
+\texttt{map}-\texttt{scan} composition, where the \texttt{scan} handles carry
+propagation, making it run efficiently on a GPGPU \cite{blellochaddscan}.
 
 This section is structured as follows: In \ref{subsec:addalg} we present a
 parallel algorithm to compute big integer addition. In \ref{subsec:addcud} and
@@ -272,14 +272,12 @@ $y = \tup{\mathit{ov_y}}{\mathit{mx_{y}}}$, we define:
   x \otimes y \coloneq \tup{\mathit{ov_x} \land \mathit{mx_y} \lor \mathit{ov_y}}{\mathit{mx_x} \land \mathit{mx_y}}
 \end{equation}
 
-They found that the neutral element, \texttt{e}, of $\otimes$ is:
+Olesen et al.\ has proven in \cite{DPPproject} that $\otimes$ is associative with
+neutral element $\mathtt{e}$:
 \begin{equation}
   \label{eq:otimesne}
   \mathtt{e} \coloneq \tup{\mathtt{False}}{\mathtt{True}}
 \end{equation}
-
-Olesen et al. proofs that $\otimes$ is associative with neutral element
-$\mathtt{e}$ in \cite{DPPproject}.
 
 While this approach is intuitive and straightforward to implement in Futhark,
 hardware does not support boolean values natively - they are syntactic sugar for
@@ -654,15 +652,13 @@ other side, most of the Futhark code is still modelled closely to the algorithm,
 and thus, making it easy to follow, reason about the semantics, and spot
 potential errors.
 
-
 \subsection{Subtraction}
 \label{subsec:sub}
 
-Subtraction is also a basic of arithmetic. Normally, we define subtracting by
-adding the signed term. While we do not use signs in our underlying
-representation, we can still define subtraction using the addition. In fact, it
-is easy to see that the complement of each subroutine of the addition gives us
-subtraction:
+Subtraction is also a basic of arithmetic. While we do not use signs in our
+underlying representation, we can define subtraction using the addition. In
+fact, it is easy to see that the complement of each sub-routine of the addition
+gives us subtraction:
 
 \begin{definition}[big integer subtraction]
   Subtraction of two big integers can be obtained from the generic algorithm of

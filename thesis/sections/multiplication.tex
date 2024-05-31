@@ -116,6 +116,7 @@ register. Hence, we arrive at the following definition:
 u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cdot v_j \right)B^{k}
 \end{equation}
 \end{definition}
+\bigskip
 
 A sequential algorithm is straightforward to construct from this definition. In
 contrast, we make three new observations to parallelize it:
@@ -124,8 +125,8 @@ contrast, we make three new observations to parallelize it:
   products of the inner sum in Equation (\ref{eq:clasmul}) have to be computed.
 \item The number of terms constituting a convolution (i.e.\ the work) is linear
   in $k$.
-\item The overflows can be added as a separate step after the convolutions
-  (e.g.\ using \textit{badd}).
+\item The overflows can be propagated as a separate step after computing the
+  convolutions (e.g.\ using \textit{badd}).
 \end{enumerate}
 
 For simplicity, let us assume we have $m$ threads available.\footnote{Since we
@@ -194,10 +195,11 @@ $O(m)$:
     \end{tabular}
   \end{tabular}
 \end{center}
-\end{definition}~
+\end{definition}
+\bigskip
 
-\begin{figure}[H]
-\begin{lstlisting}[language=pseudo,escapeinside={(*}{*)},frame=single]
+\begin{figure}
+\begin{lstlisting}[language=pseudo,escapeinside={(*}{*)}]
 fun CONV t = -- Parameter `t` represents current index of the m/2 threads
     k1 = t
     k2 = m - 1 - k1            -- The indices `k1` and `k2` represents the
@@ -226,6 +228,35 @@ w = ADD r c
 \end{lstlisting}
   \caption{\footnotesize Pseudocode of work balanced parallel algorithm for classical multiplication by convolution of big integers. \texttt{Input:} $u$ and $v$ of size $m$. \texttt{Output:} $w$ of size $m$. \texttt{Use:} Big integer addition function \texttt{ADD}.}
   \label{fig:mulparalg}
+\end{figure}
+
+\begin{figure}
+  \begin{center}
+  \small
+  \begin{tabular}{C{0.5cm}}
+  \Large{\color{Crimson} $t_0$}~)\\\\
+    \Large{\color{RoyalBlue} $t_1$}~)
+\end{tabular}
+  \begin{tabular}{cccccc}
+    \color{Crimson}$l_0$ & \color{Crimson}$h_0$ & \color{Crimson}$c_0$ & & & \\
+    & \color{Crimson}$l_1$ & \color{Crimson}$h_1$ & \color{Crimson}$c_1$ & & \\
+    & & \color{RoyalBlue}$l_2$ & \color{RoyalBlue}$h_2$ & \color{RoyalBlue}$c_2$ & \\
+    & & & \color{RoyalBlue}$l_3$ & \color{RoyalBlue}$h_3$ & \color{RoyalBlue}$c_3$
+  \end{tabular}
+$\xrightarrow{\text{combines to}}$
+\begin{tabular}{cccccc}
+     & $\xrightarrow{\scriptsize \text{\color{Crimson}carry}}$ & $\xrightarrow{\scriptsize \text{\color{Crimson}carry}}$ &  &  &  \\
+    \color{Crimson}$l_0$ & \color{Crimson}$h_0 + l_1$ & \color{Crimson}$c_0 + h_1$ & \color{Crimson}c$_1$ & & \\
+    & & \color{RoyalBlue}$l_2$ & \color{RoyalBlue}$h_2+l_3$ & \color{RoyalBlue}$c_2+h_3$ & \color{RoyalBlue} $c_3$\\
+  & & & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & \\
+\end{tabular}
+\end{center}
+~~~~$\vdots$\qquad\qquad\qquad\qquad\qquad $\ddots$ \qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad  $\ddots$
+\caption{\footnotesize Illustration of optimized memory layout of
+  \textit{convmul} with sequentialization factor of 4, where the left-hand-side
+  shows the low, high, and carry parts of the first four convolutions, and the
+  right-hand-side shows how to combine six parts to four on a thread-level.}
+  \label{fig:muloptmem}
 \end{figure}
 
 While we cannot optimize the asymptotics of the algorithm, we can eliminate one
@@ -281,37 +312,6 @@ beyond $q=4$, it is speculated wiser to stack this optimizations rather than
 combining all the consecutive sequential parts, as more combinations reduce the
 effectiveness of the final parallel addition.
 
-
-
-\begin{figure}
-  \begin{center}
-  \small
-  \begin{tabular}{C{0.5cm}}
-  \Large{\color{Crimson} $t_0$}~)\\\\
-    \Large{\color{RoyalBlue} $t_1$}~)
-\end{tabular}
-  \begin{tabular}{cccccc}
-    \color{Crimson}$l_0$ & \color{Crimson}$h_0$ & \color{Crimson}$c_0$ & & & \\
-    & \color{Crimson}$l_1$ & \color{Crimson}$h_1$ & \color{Crimson}$c_1$ & & \\
-    & & \color{RoyalBlue}$l_2$ & \color{RoyalBlue}$h_2$ & \color{RoyalBlue}$c_2$ & \\
-    & & & \color{RoyalBlue}$l_3$ & \color{RoyalBlue}$h_3$ & \color{RoyalBlue}$c_3$
-  \end{tabular}
-$\xrightarrow{\text{combines to}}$
-\begin{tabular}{cccccc}
-     & $\xrightarrow{\scriptsize \text{\color{Crimson}carry}}$ & $\xrightarrow{\scriptsize \text{\color{Crimson}carry}}$ &  &  &  \\
-    \color{Crimson}$l_0$ & \color{Crimson}$h_0 + l_1$ & \color{Crimson}$c_0 + h_1$ & \color{Crimson}c$_1$ & & \\
-    & & \color{RoyalBlue}$l_2$ & \color{RoyalBlue}$h_2+l_3$ & \color{RoyalBlue}$c_2+h_3$ & \color{RoyalBlue} $c_3$\\
-  & & & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & \\
-\end{tabular}
-\end{center}
-~~~~$\vdots$\qquad\qquad\qquad\qquad\qquad $\ddots$ \qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad  $\ddots$
-\caption{\footnotesize Illustration of optimized memory layout of
-  \textit{convmul} with sequentialization factor of 4, where the left-hand-side
-  shows the low, high, and carry parts of the first four convolutions, and the
-  right-hand-side shows how to combine six parts to four on a thread-level.}
-  \label{fig:muloptmem}
-\end{figure}
-
 \subsection{CUDA Implementation}
 \label{subsec:mulcud}
 
@@ -356,21 +356,22 @@ to compute the inner products of the convolutions, but it also allows the
 optimization of \texttt{V2}: The idea is to postpone the combining of the low
 and high parts of products until after the sequential loop. Then, the carries
 can be propagated once, rather than $i$ times for convolution $k_i$. The first
-two convolutions of Listing \ref{cudaconvs} shows the difference in storing
-intermediate values of the convolution in type \texttt{uint\_t} (by a low, high,
-and carry part) and in type \texttt{ubig\_t} (by a low and high part only).
+two convolutions of Listings \ref{cudaconvs} and \ref{cudaconvs1} shows the
+difference in storing intermediate values of the convolution in type
+\texttt{uint\_t} (by a low, high, and carry part) and in type \texttt{ubig\_t}
+(by a low and high part only).
 
-The third convolution of Listing \ref{cudaconvs} shows how to compute and
-combine two consecutive convolutions, used in the optimized version with
-sequentialization factor of 4. The CUDA listing also reveals another upside of
-this optimization; by combining the two consecutive convolutions into one
-loop-construct, we can reuse a digit of the multiplier $u$, and thus, reduce
-memory usage further.
+The third convolution of Listings \ref{cudaconvs} and \ref{cudaconvs1} shows how
+to compute and combine two consecutive convolutions, used in the optimized
+version with sequentialization factor of 4. The CUDA listing also reveals
+another upside of this optimization; by combining the two consecutive
+convolutions into one loop-construct, we can reuse a digit of the multiplier
+$u$, and thus, reduce memory usage further.
 
 The three presented convolutions are used to define \texttt{V1}, \texttt{V2},
 and \texttt{V4}, respectively.
 
-\begin{lstlisting}[language=CPP,escapeinside={(*}{*)},caption={\footnotesize The three convolutions used in the CUDA multiplication kernels of file \texttt{ker-mul.cu.h}.},label={cudaconvs}]
+\begin{lstlisting}[language=CPP,escapeinside={(*}{*)},caption={\footnotesize The three convolutions used in the CUDA multiplication kernels of file \texttt{ker-mul.cu.h}. The listing continues in Listing \ref{cudaconvs1} on the next page.},label={cudaconvs}]
 (*{\color{Crimson}$\bullet$ \texttt{Convolution over index k as described in Definition {\hypersetup{allcolors=Crimson}\ref{def:convmul}}}*)
     for (int i=0; i<=k; i++) {
         // compute high and low part of product
@@ -383,6 +384,10 @@ and \texttt{V4}, respectively.
         hs += h + (ls < l);
         cs += hs < (h + (ls < l));
     }
+(*{\red\hypersetup{allcolors=Crimson}\texttt{Continued in Listing \ref{cudaconvs1}} on next page $\ldots$}*)
+\end{lstlisting}
+\begin{lstlisting}[language=CPP,escapeinside={(*}{*)},caption={\footnotesize The three convolutions used in the CUDA multiplication kernels of file \texttt{ker-mul.cu.h}. Continuation of Listing \ref{cudaconvs} on the previous page.},label={cudaconvs1},firstnumber=14]
+(*{\red\hypersetup{allcolors=Crimson}\texttt{$\ldots$ Continuation of Listing \ref{cudaconvs}} from previous page.}*)
 
 (*{\color{Crimson}$\bullet$ \texttt{Convolution over index k optimized for data type ubig\_t}}*)
     ubig_t l = 0;
@@ -506,9 +511,9 @@ The two memory layouts are used to define \texttt{V1} \& \texttt{V2} and
 
 \paragraph{Multiple instances per block.}
 When handling multiple arithmetic instances in a CUDA block at the same time,
-the symmetrical pattern remains w.r.t.\ the work of convolutions. E.g.\ 4
-instances of size 4 have the following convolution pattern, where color denotes
-instance:
+the symmetrical pattern remains w.r.t.\ the work of convolutions. E.g.\ for four
+big integer instances that each consists of four digits, where each instance is
+denoted by a color, we have the following convolution pattern:
 \begin{center}
   \begin{tabular}{r}
     \begin{tabular}{|C{0.1cm}|C{0.1cm}|C{0.1cm}|C{0.1cm}|}

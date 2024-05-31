@@ -17,15 +17,15 @@ assume the following kernel structure: Fetch inputs from global memory
 coalesced; execute the function body; write results to global memory
 coalesced. From now on, we refer to the function body when discussing kernels.
 
-Given we optimize for block-level, the arithmetics are confined to run on at
-most 1024 threads.  Hence, the implementation is aimed at medium-sized big
-integers, as when the block-size exceeds 1024, the arithmetics are not able to
-run. This is an artificial barrier, as we can introduce sequentialization within
-each thread to allow bigger integer sizes. E.g.\ consider the example given in
-Figure \ref{fig:seqexa}. In the left illustration, each of the $512$ digits of
-the big integer is handled by a separate thread, giving a block size of
-$512$. In the right illustration, each thread handles two digits sequentially,
-giving a block size of $256$ instead.
+Given we optimize for block-level, the arithmetic operators are confined to run
+on at most 1024 threads. Hence, the implementation is aimed at medium-sized big
+integers, as when the input length creates block-sizes exceeding 1024, the
+operators are not able to run. This is an artificial barrier, as we can
+introduce sequentialization within each thread to allow bigger integer
+sizes. E.g.\ consider the example given in Figure \ref{fig:seqexa}. In the left
+illustration, each of the $512$ digits of the big integer is handled by a
+separate thread, giving a block size of $512$. In the right illustration, each
+thread handles two digits sequentially, giving a block size of $256$ instead.
 
 \begin{figure}
   \centering

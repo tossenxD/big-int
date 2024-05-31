@@ -103,10 +103,11 @@ $33\cdot10 = 330$. Now, since the inverse was shifted by 2, we must shift it by
 $-2$ (i.e.\ it was multiplied with $B^2$, so we multiply it by $B^{-2}$), and
 get $\mathtt{shift}_{-2}~330 = 3$.
 
-Before we show how to compute the shifted inverse, consider the following
-example:
+Before we define how to compute the shifted inverse, let us consider Example
+\ref{ex:bigintdiv}, showing the intuition behind the above process for big
+integer.\bigskip
 
-\begin{example}[big integer division by whole shifted inverse]
+\begin{example}[big integer division by whole shifted inverse]\label{ex:bigintdiv}
   Suppose we have the integer $u=\arr{1,2,3}$ in base $B=2^{32}$ and wish to
   divide it by the integer $v=\arr{1,1,0}$ in base $B$. Since $u$ is of
   precision $p=3$, we shift the inverse of $v$ by $3$ (using a calculator for
@@ -130,7 +131,7 @@ Now, since the fractional part of the inverse was "shifted into our domain" by
 The correct answer is $\arr{4294967295,2,0}$, so the method is off by one.
 \end{example}\bigskip
 
-In the last example, the result is not precise -- which is an accommodated
+In the given example, the result is not precise -- which is an accommodated
 byproduct of using the whole shifted inverse: The method approximates the result
 by a difference of one at most, allowing us to mechanically adjust the result.
 The formal definition given by Watt in Theorem 1 of his paper
@@ -201,7 +202,7 @@ fun REFINE v w h k l =
 \end{figure}
 \begin{figure}
 \begin{lstlisting}[language=pseudo,escapeinside={!}{!},firstnumber=32]
-!{\red\hypersetup{allcolors=Crimson}\texttt{$\ldots$ Continuation of Figure \ref{shinv}} from last page.}!
+!{\red\hypersetup{allcolors=Crimson}\texttt{$\ldots$ Continuation of Figure \ref{shinv}} from previous page.}!
 
 !{\red\hypersetup{allcolors=Crimson}$\bullet$ \texttt{Takes a Newton step for big integers $v$ and $w$, defined as $$\mathit{step}(h,v,w,n) \coloneq w\cdot B^n + \lfloor w \cdot (B^{h-n} - v \cdot w) \cdot B^{2n - h}\rfloor$$Here, $h$ is the parameter to shift the inverse, and $n$ the number of extra digits to refine in this step (since the last iteration does not double the correct precision). $l$ is the number of leading digits currently correct, and $g$ is the amount of guard digits added by the refinement method -- both of which are passed down to \texttt{POWDIFF} to enable optimizations (see below). \texttt{MUL} is a big integer multiplication method, \texttt{SUB}$_{\mathtt{abs}}$ an absolute subtraction method, and \texttt{ADD} an addition method.}}!
 fun STEP h v w n l g =
@@ -406,6 +407,8 @@ fun FINDH u =
   \label{div}
 \end{figure}
 
+\bigskip
+
 Thus, the function \texttt{DIV} defined in Figure \ref{div} gives us an exact
 division operator for big integers. It relies on the function \texttt{SHINV} of
 Figures \ref{shinv} and \ref{shinvcont} (sub-functions thereof), and on
@@ -430,6 +433,8 @@ method. From the analysis by Watt in \cite{watt2023efficient}, the total amount
 of digits multiplied from this method, gives us $O(M(m))$ work, where $M(m)$ is
 the work of the chosen multiplication operator and $m$ is the size of the input
 integers for the division.
+
+\pagebreak
 
 \subsection{General Reflections and Prototyping}
 \label{subsec:divproto}
@@ -532,6 +537,8 @@ sequentialization factor of the arithmetic of the greatest length input may
 exhaust registers and local memory, overall decreasing efficiency.\footnote{The
   current Futhark implementation (and C prototype) runs the arithmetics at
   padded full-size length.}
+
+\bigskip
 
 \paragraph{Shift Operator}
 Shifting a big integer in parallel is very efficient and equivalent to a map, as

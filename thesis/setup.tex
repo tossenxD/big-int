@@ -49,6 +49,9 @@
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[]
 \newtheorem{example}{Example}
+\newfloat{floatenv}{htbp}{lop}
+\floatname{floatenv}{Env}
+\def\lstfloatautorefname{Env}
 
 %% COMMANDS
 
@@ -171,9 +174,7 @@
   numbers=left,
 }
 
-\lstset{style=myStyle}  
-
-
+\lstset{style=myStyle}
 
 %%% Local Variables:
 %%% mode: LaTeX
