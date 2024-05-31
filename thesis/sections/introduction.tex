@@ -42,7 +42,7 @@ logarithmic in the input size, yielding a more suitable algorithm for
 GPGPU.\bigskip
 
 This thesis focuses on efficient parallel implementations of exact big integer
-arithmetic for GPGPU. It presents the algorithms for sub-linear addition,
+arithmetic for GPGPU. It presents the algorithms for an efficient addition,
 classical multiplication, and Watt's exact division by whole shifted
 inverse. Algorithmic, parallelization, and optimization efforts are kept
 general, but the implementations are narrowed to the Compute Unified Device
@@ -82,7 +82,7 @@ The contributions of this thesis are:
 \item A presentation of the high-level intuition and specialization for big
   integers of Watt's algorithm for exact division by whole shifted inverse,
   including a revision that extends the algorithm to an otherwise unconsidered
-  corner case.
+  cornercase.
 \item An inefficient sequential prototype of Watt's algorithm in a low-level
   language (C).
 \item A parallelization effort of Watt's algorithm that culminates in a

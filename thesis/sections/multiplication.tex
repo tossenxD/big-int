@@ -2,7 +2,7 @@
 \label{sec:mul}
 
 Multiplication is next of the basic arithmetic operators. It is more complex
-than addition and subtraction, clasically requiring each digit of the
+than addition and subtraction, classically requiring each digit of the
 multiplicand to be multiplied by all digits of the multiplier, which leading to
 asymptotically quadratic work. Other well known algorithms of sub-quadratic work
 exists, namely Karatsuba, Toom-Cook, and FFT-based multiplication, all mentioned
@@ -12,7 +12,7 @@ straightforward for GPGPU. FFT multiplication is an involved process consisting
 of multiple data structure conversions (and possibly leaving the domain of
 integers), but has shown to run fast on GPGPU \cite{Bantikyan2014BigIM,
   oancea2024gpu}. While classical multiplication has quadratic work, it is
-expected to run faster for smalller sized integers due to the complexities
+expected to run faster for smaller-sized integers due to the complexities
 involved with the sub-quadratic algorithms. This thesis focus on the classical
 approach.
 
@@ -259,7 +259,7 @@ $\xrightarrow{\text{combines to}}$
   \label{fig:muloptmem}
 \end{figure}
 
-While we cannot optimize the asymptotics of the algorithm, we can eliminate one
+While we cannot optimize the algorithm asymptotically, we can eliminate one
 of the additions, decreasing the amount of communication. The intuition is to
 compute two lower and two upper convolutions per thread -- four in total. This
 allows to prematurely compute half of the additions before the parts leave
@@ -361,7 +361,7 @@ difference in storing intermediate values of the convolution in type
 \texttt{uint\_t} (by a low, high, and carry part) and in type \texttt{ubig\_t}
 (by a low and high part only).
 
-The third convolution of Listings \ref{cudaconvs} and \ref{cudaconvs1} shows how
+The third convolution of Listing \ref{cudaconvs1} shows how
 to compute and combine two consecutive convolutions, used in the optimized
 version with sequentialization factor of 4. The CUDA listing also reveals
 another upside of this optimization; by combining the two consecutive
@@ -594,7 +594,8 @@ denoted by a color, we have the following convolution pattern:
       \cline{4-4}
     \end{tabular}
     \end{tabular}
-\end{center}
+  \end{center}\bigskip
+
 Hence, the work-balancing pattern still applies (i.e.\ indexing from both ends
 in a thread).
 

@@ -18,7 +18,7 @@ returns them as a pair.
 A common way to reason about division is to multiply the dividend with the
 inverse of the divisor, also called the reciprocal. GMP use reciprocals for
 division by single precision, but since reciprocals are expensive to compute,
-their base case division use Knuth's algorithm for long division, also known as
+their basecase division use Knuth's algorithm for long division, also known as
 \textit{grade-school} division \cite{GMP, knuth97}. This algorithm is inherently
 sequential: It iteratively produces the result by finding one correct digit per
 iteration, and thus, hints at a linear depth unfit for GPGPU. As a result, we
@@ -64,7 +64,7 @@ Before discussing the exact division algorithm, we introduce a new notation: The
 digits without leading zeroes. E.g.\ the integer $\arr{1,2,0}$ has size $m=3$
 and precision $p=2$.
 
-We will now give the intuition behind the algorithm defined by Watt in
+We now give the intuition behind the algorithm defined by Watt in
 \cite{watt2023efficient}, and refer to the original paper for proofs and a
 generic version. The foundation of the algorithm is a whole shift operator and a
 whole shifted inverse operator:
@@ -417,7 +417,7 @@ integers (such as \textit{badd}, \textit{bsub}, and \textit{convmul}), which, it
 can be parameterized over. Hence, it is possible to e.g.\ use different
 operators for different input sizes.
 
-The asymptotics is dominated by the choice of multiplication operator (given
+The division is asymptotically dominated by the choice of multiplication operator (given
 that the addition and subtraction is efficiently implemented). The iterative
 refinement process takes $\lceil \log (h-k) \rceil$ iterations, where $h$ depends on the
 precision of the dividend and $k$ on the precision of the divisor. This number
@@ -459,7 +459,7 @@ quint_t V = (quint_t) v[k-2];                        // V  = v[k-2]
 V +=       ((quint_t) v[k-1]) << bits;               // V += v[k-1] !$\green\cdot$! B!$\green ^{\texttt{1}}$!
 V +=       ((quint_t) v[k])   << (2*bits);           // V += v[k]   !$\green\cdot$! B!$\green ^{\texttt{2}}$!
 
-quint_t r = (((quint_t) 0) - V) / V + ((quint_t) 1); // r = (B!$\green ^\texttt{4}$! - V) / V + 1
+quint_t r = (((quint_t) 0) - V) / V + ((quint_t) 1); // r = (B!$\green ^\texttt{4}$!!$\,\,\,$!-!$\,\,\,$!V)!$\,\,\,$!/!$\,\,\,$!V!$\,\,\,$!+!$\,\,\,$!1
 
 w[0] = (uint_t) r;                                   // w = r 
 w[1] = (uint_t) (r >> bits);                         // (assuming w was 0)
@@ -494,7 +494,6 @@ doubling the memory regions of the operands. From the analysis in Watt's paper
 $2^i$. Since we have $\lceil \log (h-k) \rceil$ iterations, we get the maximum operand
 size $2^{\lceil \log (h-k) \rceil}$.
 
-
 \paragraph{Guard Digits}
 In order to get our prototype to validate, we adjusted the amount of guard
 digits in the refinement method from $2$ to $m$, with $m$ being the size of the
@@ -506,22 +505,23 @@ an error in the prototype.
 
 While section \ref{subsec:divproto} focused on general reflections, this section
 focuses on concerns and solutions regarding parallelization and Futhark
-implementation. The implementation we developed is not efficient and only
-partially validates, but it illustrates some of the complexities involved in a
-parallel adaptation of the algorithm -- which we will now present.
+implementation. Our implementation is not efficient and only partially
+validates, but it illustrates some of the complexities involved in a parallel
+adaptation of the algorithm -- which we now present.
 
 \paragraph{Multiple Instances per Block and Load Balancing}
-In our other arithmetics we incorporate multiple big integer instances per CUDA
-block, which are then handled by segmented operations. It allows to maintain the
-efficiency of the arithmetics when processing small integers. However, Watt's
-algorithm for computing \texttt{SHINV} (Figure \ref{shinv}) contains branching
-invariant to the precision of the inputs. The most apparent branching is the
-special cases of \texttt{SHINV}, directly returning from the function. Then we
-have the close product optimization in \texttt{POWDIFF}, which which will either
-do no multiplication, a full size multiplication, or a multiplication with
-truncated inputs. Lastly, the number of sequential Newton iterations in the
-refinement process directly depends on the precision of the inputs.  Hence, the
-division algorithm is not suitable to process multiple instances per block.
+In our other arithmetic operators, we incorporate multiple big integer instances
+per CUDA block, which are then handled by segmented operations. It allows to
+maintain the efficiency of the arithmetics when processing small
+integers. However, Watt's algorithm for computing \texttt{SHINV} (Figure
+\ref{shinv}) contains branching invariant to the precision of the inputs. The
+most apparent branching is the special cases of \texttt{SHINV}, directly
+returning from the function. Then we have the close product optimization in
+\texttt{POWDIFF}, which will either do no multiplication, a full size
+multiplication, or a multiplication with truncated inputs. Lastly, the number of
+sequential Newton iterations in the refinement process directly depends on the
+precision of the inputs.  Hence, the division algorithm is not suitable to
+process multiple instances per block.
 
 Furthermore, due to the shorter iterates, the number of digits being multiplied
 at each refinement step roughly doubles. In turn, mapping this division at
@@ -592,7 +592,7 @@ to us and beyond the scope of this thesis. Hence, we use approach
 \ref{divbysing3} for our parallel Futhark implementation.
 
 \paragraph{Assumptions, Comparisons, and Signed Subtraction}
-The algorithm features multiple comparisons of big integers, all of which
+The algorithm has various comparisons of big integers, all of which
 parallelizes to map-reduce compositions. First, consider the special cases of
 \texttt{SHINV}. As mentioned in section \ref{subsec:divproto}, they can be
 optimized to a unary comparison over the big integer. Following the example of

@@ -5,7 +5,7 @@ Addition is the simplest of the basic arithmetic operators. It is a cornerstone
 that can be used to define all other operations - an essential part of big
 integer arithmetic.
 
-Former work has been carried out for a paralllel addition oeprator in Futhark,
+Former work has been carried out for a parallel addition operator in Futhark,
 which will serve as a stepping stone for the algorithm and implementation of our
 addition \cite{DPPproject}. In essence, big integer addition formalizes to a
 \texttt{map}-\texttt{scan} composition, where the \texttt{scan} handles carry
@@ -363,7 +363,7 @@ parallelism in excess: Since the operation runs in sub-linear depth (with two of
 the three steps being a constant depth), we expect the threads to have an excess
 amount of parallelism spent on communication (waiting for memory and
 synchronizations). Increasing the sequentialization factor decrease the amount
-of communication, and, in this case, increase the performance. This optimization
+of communication, and in this case, increase the performance. This optimization
 comes with the added benefit of handling integers of size greater than a CUDA
 block.
 
@@ -381,7 +381,7 @@ experimentation in CUDA directly influence how we approach the implementations
 in Futhark.
 
 Generic \textit{ipb} is trivial, because it only serves to determine segment
-beginnings of segmented algorithms. Normally, a generic sequentialization factor
+beginnings of segmented algorithms. A generic sequentialization factor can
 impedes performance, as we achieve this by introducing \texttt{loop}-constructs
 invariant to $q$. However, a benefit of high-level languages like \cpp\ is
 compiler directives, allowing us to unroll loops as if they were hand-written
@@ -657,7 +657,7 @@ potential errors.
 
 Subtraction is also a basic of arithmetic. While we do not use signs in our
 underlying representation, we can define subtraction using the addition. In
-fact, it is easy to see that the complement of each sub-routine of the addition
+fact, it is easy to see that the complement of each subroutine of the addition
 gives us subtraction:
 
 \begin{definition}[big integer subtraction]
@@ -676,7 +676,7 @@ interested in the difference, we can check which input is the largest (by a
 \texttt{map}-\texttt{reduce} composition), and then subtract and return the sign
 accordingly.
 
-Since it is the same algorithm as addition, we will not benchmark or discuss it
+Since it is the same algorithm as addition, we does not benchmark or discuss it
 further.
 
 %%% Local Variables:

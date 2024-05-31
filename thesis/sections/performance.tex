@@ -8,7 +8,7 @@ optimizations, and in turn, reveals the overhead and inefficiencies of the
 Futhark implementations. We also run the benchmarks using the CGBN library
 described in section \ref{sec:rel}. It enlights the relative performance of our
 implementations against state of the art, in addition to the strong and weak
-points of the underlying algorithms and overaching implementations strategy
+points of the underlying algorithms and overarching implementations strategy
 (e.g.\ pros and cons of block-level versus warp-level processing of big
 integers).
 
@@ -42,7 +42,7 @@ instance of base 32-bit big integers of size $m=8$, or, run with $n=1$, $m=4$,
 and base 64-bit, or, run with $n=2$, $m=2$, and base 64-bit, etc.\ -- which all
 uses the same number of bits in total. We choose the fixed total amount of work
 to be $2^{32}$-bits, i.e.\ $2^{27}$ $\mathtt{u32}$-words or $2^{26}$
-$\mathtt{u64}$-words. We measure accross the sizes of
+$\mathtt{u64}$-words. We measure across the sizes of
 $\{2^9,2^{10},\ldots,2^{18}\}$-bits big integers, and adjust the number of instances
 accordingly.
 
@@ -259,7 +259,7 @@ tables:
 \subsubsection{Multiplication Results}
 \label{subsubsec:mulres}
 
-Tables \ref{mul1u64} and \ref{mul1u32} shows benchmarks for one multiplication
+Tables \ref{mul1u64} and \ref{mul1u32} shows the results for one multiplication
 in 64-bit and 32-bit base, respectively, while Tables \ref{mul6u64} and
 \ref{mul6u32} shows for six multiplications. We can gather from the tables:
 \begin{itemize}
@@ -267,12 +267,12 @@ in 64-bit and 32-bit base, respectively, while Tables \ref{mul6u64} and
 \item \textbf{Implementation versions} in CUDA agree that \texttt{V5} is best,
   both for one and six multiplications, as expected. The importance of
   processing multiple instances per block for sizes $2^9$ to $2^{11}$ bits is
-  very noticable on the two versions supporting this (\texttt{V3} and
+  very noticeable on the two versions supporting this (\texttt{V3} and
   \texttt{V5}). W.r.t.\ Futhark, the inefficiencies of \texttt{V2} and
   \texttt{V3} described in section \ref{subsec:mulfut} has a huge impact on the
   performance. E.g.\ in Table \ref{mul1u32} with $2^{12}$-bit integers,
   \texttt{V1} gives roughly 4$\times$ more Gu32ops than \texttt{V3}. However, we
-  still se the pattern that handling multiple instances per block is important
+  still see the pattern that handling multiple instances per block is important
   for efficiency at sizes $2^9$ to $2^{11}$ bits.
 \item \textbf{Choice of base for one multiplication} strongly favors running in
   64-bit base. The average increase in Gu32ops of using \texttt{u64} compared to
@@ -379,6 +379,7 @@ in 64-bit and 32-bit base, respectively, while Tables \ref{mul6u64} and
   \caption{\footnotesize Performance of six multiplications in base \texttt{u32} measured in Gu32ops (higher is better).}
   \label{mul6u32}
 \end{table}
+
 
 \subsubsection{Summary of Results}
 \label{subsubsec:sumres}
