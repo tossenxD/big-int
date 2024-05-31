@@ -142,12 +142,12 @@ Tables \ref{add1u64} and \ref{add1u32} shows benchmarks for one addition in
 tables:
 \begin{itemize}
   \renewcommand\labelitemi{--}
-\item \textbf{Implementation versions} agrees that \texttt{V3} is performing
-  best (i.e.\ the most optimized version). The only outliers are that for 10
-  additions, the segmented scan has a slight cost at around $2^{15}$-bits, with
-  biggest difference in bandwidth being 73\% and 65\% peak bandwidth in Table
-  \ref{add10u64} for $2^{16}$-bit integers of base \texttt{u64}. We only
-  consider \texttt{V3} in the following observations.
+\item \textbf{Implementation versions} agrees that \texttt{V3} has best
+  performance (which is also the most optimized version). The only outliers are
+  that for 10 additions, the segmented scan has a slight cost at around
+  $2^{15}$-bits, with biggest difference in bandwidth being 73\% and 65\% peak
+  bandwidth in Table \ref{add10u64} for $2^{16}$-bit integers of base
+  \texttt{u64}. We only consider \texttt{V3} in the following observations.
 \item \textbf{Choice of base for one addition} in CUDA is inconsequential until
   the inputs are of $2^{18}$-bits. This is where base \texttt{u32} results in
   sequentialization factor $q=8$, while \texttt{u64} remains at $q = 4$. In
@@ -380,30 +380,29 @@ in 64-bit and 32-bit base, respectively, while Tables \ref{mul6u64} and
   \label{mul6u32}
 \end{table}
 
-
 \subsubsection{Summary of Results}
 \label{subsubsec:sumres}
 Overall, the implementations we have produced are generally competitive in the
 integer size range of $2^{14}$ to $2^{16}$ bits. When only calling one
 arithmetic at a time, our implementations are consistently faster than
 CGBN. However, CGBN scales much better over the number of consecutive calls, and
-consistently performs better than ours, for sizes in the range $2^9$ to $2^{13}$
-w.r.t.\ ten additions and six multiplications. Comparing Futhark and CUDA, we
-see that CUDA scales better in the number of arithmetic calls -- especially
-noticeable when going from one to ten additions.
+consistently has better performance than ours for sizes in the range $2^9$ to
+$2^{13}$ w.r.t.\ ten additions and six multiplications. Comparing Futhark and
+CUDA, we see that CUDA scales better in the number of arithmetic calls --
+especially noticeable when going from one to ten additions.
 
 In regard to multiplication: The Futhark implementation suffers from the
 sub-optimal implementation described in \ref{subsec:mulfut}, but also from not
-supporting 128-bit integer arithmetics. The CUDA implementation generally seems
-to be performing good, and in line with the expected outcome of the
-optimizations (i.e.\ versions).
+supporting 128-bit integer arithmetics. The CUDA implementation generally has
+good performance, and in line with the expected outcome of the optimizations
+(i.e.\ versions).
 
-In regard to the addition: Both CUDA and Futhark performs roughly the same for
-one addition -- and they perform well, reaching 85\% of peak device
-bandwidth. However, Futhark suffers a significant performance loss when scaling
-to ten additions, while the CUDA versions sees a less significant performance
-loss. The optimal versions in both languages performs very consistently across
-integer sizes and number of instances.
+In regard to the addition: Both CUDA and Futhark have roughly the same
+performance for one addition -- and it is a good performance, reaching 85\% of
+peak device bandwidth. However, Futhark suffers a significant performance loss
+when scaling to ten additions, while the CUDA versions sees a less significant
+performance loss. The optimal versions in both languages have very consistently
+performance across integer sizes and number of instances.
 
 %%% Local Variables:
 %%% mode: LaTeX
