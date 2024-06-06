@@ -1,0 +1,49 @@
+\documentclass{beamer}
+\input{../thesis/setup.tex}
+
+%%% Front Page %%%
+\author{Thorbjørn Bülow Bringgaard}
+\title{Efficient Big Integer Arithmetic Using GPGPU}
+\subtitle{With focus on implementations of exact addition, division,\newline and multiplication in CUDA \cpp\ and Futhark}
+\institute{University of Copenhagen\newline Depertment of Computer Science}
+\logo{\includegraphics[height=2cm]{KU-logo}}
+\date{\today}
+
+%%%%% Main %%%%%
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\logo{}
+
+\begin{frame}
+    \frametitle{Outline}
+    \tableofcontents
+\end{frame}
+
+\include{introduction}
+
+\include{addition}
+
+\include{multiplication}
+
+\include{division}
+
+\include{evaluation}
+
+\include{conclusion}
+
+\section{References}
+\begin{frame}%[allowframebreaks]
+  \frametitle{References}
+    \bibliography{../thesis/sections/references}
+\end{frame}
+
+\end{document}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: t
+%%% End:
