@@ -245,7 +245,7 @@ assume their function inputs are $O(F_{w}(n))$ and $O(F_d(n))$.
 First we have the combinator \fun{map} of work $O(n\cdot F_w(n))$ and depth
 $O(F_d(n))$. It distributes a function over an array (known from other
 functional languages such as Haskell \cite{marlow2010haskell}) and can
-inherently be executed in parallel. The type signature and semantics is:
+inherently be executed in parallel. The type signature and semantics are:
 \begin{align}
   &\mathtt{map}:(\tau \to \tau') \to \arr{\tau} \to \arr{\tau'}\\
   &\mathtt{map}~f~[a_0,~a_1,\ldots,~a_{n-1}] \coloneq [f~a_0,~f~a_1,\ldots,~f~a_{n-1}]
@@ -255,7 +255,7 @@ Next we have the combinator \fun{reduce} of work $O(n\cdot F_w(n))$ and depth
 $O(\log n \cdot F_w(n))$.  The semantics is akin to a \fun{fold} from other
 functional languages, but with one big difference: The operator must be
 associative and have a left-associative neutral element, allowing the array to
-be accumulated in $O(\log n)$ steps. The type signature and semantics is:
+be accumulated in $O(\log n)$ steps. The type signature and semantics are:
 \begin{align}
   &\mathtt{reduce}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \tau\\
   & \mathtt{reduce} \oslash e~[a_0,~a_1,\ldots,~a_{n-1}] \coloneq e \oslash a_0 \oslash a_1 \oslash \ldots\oslash a_{n-1}
@@ -265,7 +265,7 @@ Similarly, we have the combinator \fun{scan} with work $O(n\cdot F_w(n))$ and de
 $O(\log n \cdot F_w(n))$. The semantics corresponds to an accumulated reduction over
 the input array (also called a prefix sum), and so the associativity and neutral
 element restrictions of the operator applies as well. The type signature and
-semantics is:
+semantics are:
 \begin{align}
   &\mathtt{scan}:(\tau \to \tau \to \tau) \to \tau \to \arr{\tau} \to \arr{\tau}\\
   & \mathtt{scan} \oslash e~[a_0,~a_1,\ldots, ~a_{n-1}] \coloneq [e \oslash a_0,~e \oslash a_0 \oslash a_1,\ldots,~e \oslash a_0 \oslash a_1 \oslash \ldots\oslash a_{n-1}]
