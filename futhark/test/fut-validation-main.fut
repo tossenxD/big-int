@@ -32,9 +32,9 @@ def add2D [n][m] (us: [n][m]ui) (vs: [n][m]ui) : bool =
 def mul1D [m] (u: [m]ui) (v: [m]ui) : bool =
   let (M2, M4) = (m/2, m/4)
   let validP = eq (test_mul u v)
-  let w1 = convMultV1 (u :> [2*M2]ui) (v :> [2*M2]ui) :> [m]ui
-  let w2 = convMultV2 (u :> [4*M4]ui) (v :> [4*M4]ui) :> [m]ui
-  let w3 = convMultV3 (u :> [1*(4*M4)]ui) (v :> [1*(4*M4)]ui) :> [m]ui
+  let w1 = convMulV1 (u :> [2*M2]ui) (v :> [2*M2]ui) :> [m]ui
+  let w2 = convMulV2 (u :> [4*M4]ui) (v :> [4*M4]ui) :> [m]ui
+  let w3 = convMulV3 (u :> [1*(4*M4)]ui) (v :> [1*(4*M4)]ui) :> [m]ui
   in validP w1 && validP w2 && validP w3
 
 def mul2D [n][m] (us: [n][m]ui) (vs: [n][m]ui) : bool =
