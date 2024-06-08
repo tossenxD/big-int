@@ -173,6 +173,26 @@ def baddV3 [ipb][m] (us: [ipb*(4*m)]ui) (vs: [ipb*(4*m)]ui) : [ipb*(4*m)]ui =
 
 
 --------------------------------------------------------------------------------
+-- V4: Run multiple instances of V1 addition per block
+--------------------------------------------------------------------------------
+
+def baddV4 [ipb][m] (us: [ipb*m]ui) (vs: [ipb*m]ui) : [ipb*m]ui =
+  -- 1. compute sums and carries
+  let (ws, cs) =
+    unzip <| map3 (\ u v i -> let w = u+v
+                              let c = (boolToCt (i%m == 0)) << 2 | carryAug w u
+                              in (w, c)
+                  ) us vs (0..<ipb*m)
+
+  -- 2. propagate carries
+  let pcs = scanExc carryPropSeg carryPropE cs
+
+  -- 3. add carries to sums
+  in map3 (\ w c i -> let c = if i % m == 0 then carryPropE else c
+                      in w + fromCt (c & 1)) ws pcs (0..<ipb*m)
+
+
+--------------------------------------------------------------------------------
 -- Callers
 --------------------------------------------------------------------------------
 
@@ -191,6 +211,12 @@ entry oneAddV3 [n][ipb] (m: i64) (usss: [n][ipb][4*m]ui) (vsss: [n][ipb][4*m]ui)
   let uss = map flatten usss :> [n][ipb*(4*m)]ui
   let vss = map flatten vsss :> [n][ipb*(4*m)]ui
   let wss = imap2Intra uss vss baddV3
+  in map unflatten wss
+
+entry oneAddV4 [n][ipb] (m: i64) (usss: [n][ipb][m]ui) (vsss: [n][ipb][m]ui) : [n][ipb][m]ui =
+  let uss = map flatten usss :> [n][ipb*m]ui
+  let vss = map flatten vsss :> [n][ipb*m]ui
+  let wss = imap2Intra uss vss baddV4
   in map unflatten wss
 
 -- callers for ten additions, computing `10*(a + b)` for input `a` and `b`
@@ -244,4 +270,19 @@ entry tenAddV3 [n][ipb] (m: i64) (usss: [n][ipb][4*m]ui) (vsss: [n][ipb][4*m]ui)
   let wss7 = imap2Intra wss6 wss0 baddV3
   let wss8 = imap2Intra wss7 wss0 baddV3
   let wss9 = imap2Intra wss8 wss0 baddV3
+  in map unflatten wss9
+
+entry tenAddV4 [n][ipb] (m: i64) (usss: [n][ipb][m]ui) (vsss: [n][ipb][m]ui) : [n][ipb][m]ui =
+  let uss = map flatten usss :> [n][ipb*m]ui
+  let vss = map flatten vsss :> [n][ipb*m]ui
+  let wss0 = imap2Intra uss  vss  baddV4
+  let wss1 = imap2Intra wss0 wss0 baddV4
+  let wss2 = imap2Intra wss1 wss0 baddV4
+  let wss3 = imap2Intra wss2 wss0 baddV4
+  let wss4 = imap2Intra wss3 wss0 baddV4
+  let wss5 = imap2Intra wss4 wss0 baddV4
+  let wss6 = imap2Intra wss5 wss0 baddV4
+  let wss7 = imap2Intra wss6 wss0 baddV4
+  let wss8 = imap2Intra wss7 wss0 baddV4
+  let wss9 = imap2Intra wss8 wss0 baddV4
   in map unflatten wss9

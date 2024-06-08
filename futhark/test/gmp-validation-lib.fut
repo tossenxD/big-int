@@ -21,7 +21,7 @@ entry test_mul [m] (u: [m]ui) (v: [m]ui) : [m]ui =
   let pz = replicate p 0
   let up = u ++ pz :> [4*((m+p)/4)]ui
   let vp = v ++ pz :> [4*((m+p)/4)]ui
-  in (convMultV2 up vp :> [m+p]ui) |> take m
+  in (convMulV2 up vp :> [m+p]ui) |> take m
 
 entry test_div [m] (u: [m]ui) (v: [m]ui) : [m]ui =
   div u v |> fst

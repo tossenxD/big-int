@@ -30,7 +30,7 @@ import "../add"
 
 -- Benchmarks with multiple instances per block and sequentialization factor 4
 -- ==
--- entry: oneAddV3Bench64 tenAddV3Bench64
+-- entry: oneAddV3Bench64 tenAddV3Bench64 oneAddV4Bench64 tenAddV4Bench64
 -- compiled random input { [16384][1][4096]u64 [16384][1][4096]u64 }
 -- compiled random input { [32768][1][2048]u64 [32768][1][2048]u64 }
 -- compiled random input { [65536][1][1024]u64 [65536][1][1024]u64 }
@@ -61,6 +61,10 @@ entry oneAddV3Bench64
   oneAddV3 (m/4) (usss :> [n][ipb][4*(m/4)]u64) (vsss :> [n][ipb][4*(m/4)]u64)
            :> [n][ipb][m]u64
 
+entry oneAddV4Bench64
+[n][ipb][m] (usss: [n][ipb][m]u64) (vsss: [n][ipb][m]u64) : [n][ipb][m]u64 =
+  oneAddV4 m usss vsss
+
 entry tenAddV0Bench64 [n][m] (uss: [n][m]u64) (vss: [n][m]u64) : [n][m]u64 =
   tenAddV0 uss vss
 
@@ -79,3 +83,7 @@ entry tenAddV3Bench64
 [n][ipb][m] (usss: [n][ipb][m]u64) (vsss: [n][ipb][m]u64) : [n][ipb][m]u64 =
   tenAddV3 (m/4) (usss :> [n][ipb][4*(m/4)]u64) (vsss :> [n][ipb][4*(m/4)]u64)
            :> [n][ipb][m]u64
+
+entry tenAddV4Bench64
+[n][ipb][m] (usss: [n][ipb][m]u64) (vsss: [n][ipb][m]u64) : [n][ipb][m]u64 =
+  tenAddV4 m usss vsss
