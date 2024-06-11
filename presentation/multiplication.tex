@@ -1,14 +1,258 @@
 \section{Multiplication}
-\begin{frame}
+\begin{frame}[fragile]
   \frametitle{Classical Multiplication}
-  \framesubtitle{foo}
-  bar
-        \begin{itemize}
-            \item baz
-                \pause
-              \item qux
-        \end{itemize}
+  \framesubtitle{Algorithm 1/2}
+  \begin{block}{Classical multiplication of big integers}
+    \scriptsize
+  Multiplying integer $u\in \mathbb{N}$ by $v \in \mathbb{N}$  in base $B$ and $m$ digits, is classically computed by:\vspace*{-0.8em}
+\begin{equation}
+u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cdot v_j \right)B^{k}
+\end{equation}
+\end{block}\phantom{~}\vspace{-1.8em}
+\begin{center}\scriptsize
+  \begin{tabular}{c}
+    \begin{tabular}{|C{0.8cm}|C{0.8cm}|C{0.8cm}|C{0.5cm}|C{0.8cm}|}
+      \hline
+      $w_0$ & $w_1$ & $w_2$ & $\ldots$ & $w_{m-1}$ \\
+      \hline
+    \end{tabular}\\
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+      $=$ & $=$ & $=$ &  & $=$
+    \end{tabular}\\[-2ex]
+    \begin{tabular}{C{0.2cm}C{0.2cm}C{0.2cm}C{0.2cm}C{0.2cm}C{0cm}C{0.7cm}C{0.2cm}C{0.2cm}C{0.2cm}C{0.2cm}}
+      & & $\diagonalarrowdown$ & & $\diagonalarrowdown$ & & $\diagonalarrowdown$ & $\diagonalarrowdown$ & &
+    \end{tabular}\\[-1.4ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+      $0$ & $c_0$ & $c_1$ & $\ldots$ & $c_{m-2}$
+    \end{tabular}\\[-0.7ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+      $+$ & $+$ & $+$ &  & $+$
+    \end{tabular}\\[-0.7ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+      $u_0 v_0$ & $u_0 v_1$ & $u_0 v_2$ & $\ldots$ & $u_0v_{m-1}$
+    \end{tabular}\\[-0.7ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+       & $+$ & $+$ &  & $+$
+    \end{tabular}\\[-0.7ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+       & $u_1v_0$ & $u_1v_1$ & $\ldots$ & $u_1v_{m-2}$
+    \end{tabular}\\[-0.7ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+       & & $+$ &  & $+$
+    \end{tabular}\\[-0.7ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+       & & $u_2v_0$ & $\ldots$ & $u_2v_{m-3}$
+    \end{tabular}\\[-0.7ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+       & & & \rotatebox[origin=c]{\numexpr10}{$\ddots$} & $\vdots$
+    \end{tabular}\\[-0.7ex]
+    \begin{tabular}{C{0.8cm}C{0.8cm}C{0.8cm}C{0.5cm}C{0.8cm}}
+       & & & & $u_{m-1}v_0$
+    \end{tabular}
+  \end{tabular}
+\end{center}
 \end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Classical Multiplication}
+  \framesubtitle{Algorithm 2/2}
+  \begin{block}{\textit{convmul} -- work-balanced classical multiplication by convolutions}\scriptsize
+    Represent each convolution (column) by a \textit{low}, \textit{high}, and \textit{carry} part.\\
+
+    \phantom{~}
+
+    Thread $k\in \{0,1,\ldots,(m/2)-1\}$ handles convolution $k_1=k$ and $k_2=m-1-k$.
+
+    \phantom{~}
+
+    The convolutions are added in the following pattern:
+
+    \phantom{~}
+
+  \begin{center}
+  \scriptsize
+  \begin{tabular}{c}
+    \begin{tabular}{|C{0.75cm}|C{0.75cm}|C{0.75cm}|C{0.75cm}|C{0.35cm}|C{0.75cm}|C{0.75cm}|C{0.75cm}|C{0.75cm}|}
+      \hline
+      \red $l^0_0$ & \blue $l^1_1$ & \green $l^2_2$ & \brown $l^3_3$ & $\ldots$ & \brown $l^3_{m-4}$ & \green $l^2_{m-3}$ & \blue $l^1_{m-2}$ & \red $l^0_{m-1}$\\
+      \hline
+    \end{tabular}\\
+    \begin{tabular}{C{0.76cm}C{0.76cm}C{0.76cm}C{0.76cm}C{0.36cm}C{0.76cm}C{0.76cm}C{0.76cm}C{0.76cm}}
+      $+$ & $+$ & $+$ & $+$ &  & $+$ & $+$ & $+$ & $+$
+    \end{tabular}\\
+    \begin{tabular}{|C{0.75cm}|C{0.75cm}|C{0.75cm}|C{0.75cm}|C{0.35cm}|C{0.75cm}|C{0.75cm}|C{0.75cm}|C{0.75cm}|}
+      \hline
+      $0$ & \red $h^0_0$ & \blue $h^1_1$ & \green $h^2_2$ & $\ldots$ & \color{magenta} $h^{4}_{m-5}$ & \brown $h^{3}_{m-4}$ & \green $h^{2}_{m-3}$ & \blue $h^1_{m-2}$\\
+      \hline
+    \end{tabular}\\
+    \begin{tabular}{C{0.76cm}C{0.76cm}C{0.76cm}C{0.76cm}C{0.36cm}C{0.76cm}C{0.76cm}C{0.76cm}C{0.76cm}}
+      $+$ & $+$ & $+$ & $+$ &  & $+$ & $+$ & $+$ & $+$
+    \end{tabular}\\
+    \begin{tabular}{|C{0.75cm}|C{0.75cm}|C{0.75cm}|C{0.75cm}|C{0.35cm}|C{0.75cm}|C{0.75cm}|C{0.75cm}|C{0.75cm}|}
+      \hline
+      $0$ & $0$ & \red $c^{0}_0$ & \blue $c^{1}_1$ & $\ldots$ & \color{cyan} $c^{5}_{m-6}$ & \color{magenta} $c^{4}_{m-5}$ & \brown $c^{3}_{m-4}$ & \green $c^{2}_{m-3}$\\
+      \hline
+    \end{tabular}
+  \end{tabular}
+\end{center}
+    \end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Classical Multiplication}
+  \framesubtitle{Implementation}
+  Optimizations boils down to:
+  \begin{itemize}
+  \item Double word-size arithmetics for digit multiplication.
+  \item Double word-size for intermediate convolution parts.
+  \item Less communication but more sequentialization.
+  \end{itemize}\pause
+  \begin{center}
+  \tiny
+  \begin{tabular}{cccccc}
+    \color{Crimson}$l_0$ & \color{Crimson}$h_0$ & \color{Crimson}$c_0$ & & & \\
+    & \color{Crimson}$l_1$ & \color{Crimson}$h_1$ & \color{Crimson}$c_1$ & & \\
+    & & \color{RoyalBlue}$l_2$ & \color{RoyalBlue}$h_2$ & \color{RoyalBlue}$c_2$ & \\
+    & & & \color{RoyalBlue}$l_3$ & \color{RoyalBlue}$h_3$ & \color{RoyalBlue}$c_3$
+  \end{tabular}
+\begin{tabular}{cccccc}
+     & $\xrightarrow{\scriptsize \text{\color{Crimson}carry}}$ & $\xrightarrow{\scriptsize \text{\color{Crimson}carry}}$ &  &  &  \\
+    \color{Crimson}$l_0$ & \color{Crimson}$h_0 + l_1$ & \color{Crimson}$c_0 + h_1$ & \color{Crimson}c$_1$ & & \\
+    & & \color{RoyalBlue}$l_2$ & \color{RoyalBlue}$h_2+l_3$ & \color{RoyalBlue}$c_2+h_3$ & \color{RoyalBlue} $c_3$\\
+  & & & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & $\xrightarrow[\scriptsize \text{\color{RoyalBlue}carry}]{}$ & \\
+\end{tabular}
+\end{center}\pause
+  \begin{center}
+  \tiny
+  \begin{tabular}{c}
+    \begin{tabular}{|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.43cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|}
+      \hline
+      \color{Crimson}$t^0_{00}$ & \color{Crimson}$t^0_{01}$ & \color{RoyalBlue}$t^1_{00}$ & \color{RoyalBlue}$t^1_{01}$  & \color{ForestGreen}$t^2_{00}$ & \color{ForestGreen}$t^2_{01}$  & $\ldots$ & \color{ForestGreen}$t^2_{10}$ & \color{ForestGreen}$t^2_{11}$  & \color{RoyalBlue}$t^1_{10}$ & \color{RoyalBlue}$t^1_{11}$ & \color{Crimson}$t^0_{10}$ & \color{Crimson}$t^0_{11}$ \\
+      \hline
+    \end{tabular}\\
+    \begin{tabular}{C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.44cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}C{0.31cm}}
+      $+$ & $+$ & $+$ & $+$  & $+$ & $+$ & & $+$ & $+$  & $+$ & $+$ & $+$ & $+$
+    \end{tabular}\\
+    \begin{tabular}{|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.43cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|C{0.3cm}|}
+      \hline
+      0 & 0 & \color{Crimson}$t^0_{02}$ & \color{Crimson}$t^0_{03}$  & \color{RoyalBlue}$t^1_{02}$ & \color{RoyalBlue}$t^1_{03}$ & $\ldots$ & \color{Chocolate}$t^3_{12}$ & \color{Chocolate}$t^3_{13}$ & \color{ForestGreen}$t^2_{12}$ & \color{ForestGreen}$t^2_{13}$ & \color{RoyalBlue}$t^1_{12}$ & \color{RoyalBlue}$t^1_{13}$ \\
+      \hline
+    \end{tabular}
+  \end{tabular}
+\end{center}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+  \frametitle{Classical Multiplication}
+  \framesubtitle{CUDA 1/3}
+\begin{lstlisting}[language=CPP,basicstyle=\scriptsize,gobble=8]
+        ubig_t lh0[2]; lh0[0] = 0; lh0[1] = 0;
+        ubig_t lh1[2]; lh1[0] = 0; lh1[1] = 0;
+
+        int k1 = threadIdx.x*2;
+        int k1_start = (k1/m) * m;
+
+        for (int i=k1_start; i<=k1; i++) {
+            int j = k1 - i + k1_start;
+            uint_t a = shmem_as[i];
+            iterate<B>(a, shmem_bs[j], lh0);
+            iterate<B>(a, shmem_bs[j+1], lh1);
+        }
+        iterate<B>(shmem_as[k1+1], shmem_bs[k1_start], lh1);
+
+        combine2<B>(lh0, lh1, lhck1);
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Classical Multiplication}
+  \framesubtitle{CUDA 2/3}
+\begin{lstlisting}[language=CPP,basicstyle=\scriptsize,gobble=2]
+  // iterate(uint_t a, uint_t b, ubig_t* lh)
+    ubig_t ab = ((ubig_t) a) * ((ubig_t) b);
+    lh[0] += ab & ((ubig_t) B::HIGHEST);
+    lh[1] += ab >> B::bits;
+
+  // combine2(ubig_t* lh0, ubig_t* lh1, uint_t* lhc)
+    uint_t h0t = (uint_t) lh0[1];
+    uint_t h0  = h0t + ((uint_t) (lh0[0] >> B::bits));
+    uint_t c0  = ((uint_t) (lh0[1] >> B::bits)) + (h0 < h0t);
+
+    uint_t h1t = (uint_t) lh1[1];
+    uint_t h1  = h1t + ((uint_t) (lh1[0] >> B::bits));
+    uint_t c1  = ((uint_t) (lh1[1] >> B::bits)) + (h1 < h1t);
+
+    lhc[0] = (uint_t) lh0[0];
+    lhc[1] = h0 + ((uint_t) lh1[0]);
+    lhc[2] = c0 + h1 + (lhc[1] < h0);
+    lhc[3] = c1 + (lhc[2] < h1);
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Classical Multiplication}
+  \framesubtitle{CUDA 3/3}
+  \begin{center}
+  \scriptsize
+  \begin{tabular}{c}
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      \color{Crimson}$\,t^0_{00}$ & \blue $\,t^1_{00}$ & \color{RoyalBlue}$\,t^1_{10}$ & \red $\,t^0_{10}$ & \color{Crimson}$\,t^0_{01}$ & \blue $\,t^1_{01}$ & \color{RoyalBlue}$\,t^1_{11}$ & \red$\,t^0_{11}$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$
+    \end{tabular}\\
+    \begin{tabular}{|C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}?C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}|}
+      \hline
+      $l_{0}$ & $l_{2}$ & $l_{3}$ & $l_{4}$ & $\mathit{lh}_{0}$ & $\mathit{lh}_{1}$ & $\mathit{lh}_{2}$ & $\mathit{lh}_{3}$ \\
+      \hline
+    \end{tabular}\\
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      $\,~\shortuparrow_r$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$ & $\,~\shortuparrow_{r}$  & $\,~\shortuparrow_{r}$
+    \end{tabular}\\
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      \color{Crimson}$t^0_{00}$ & \color{Crimson}$t^0_{12}$ & \color{RoyalBlue}$t^1_{00}$ & \color{RoyalBlue}$t^1_{12}$ & \color{Crimson}$t^0_{01}$ & \color{Crimson}$t^0_{13}$ & \color{RoyalBlue}$t^1_{01}$ & \color{RoyalBlue}$t^1_{13}$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{3.2cm}C{3.2cm}}
+      \upbracefill & \upbracefill \\[-0.3ex]
+      $\mathit{ls}$ & $\mathit{hls}$
+    \end{tabular}
+  \end{tabular}
+\end{center}
+  \begin{center}
+  \scriptsize
+  \begin{tabular}{c}
+    \begin{tabular}{C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      \color{Crimson}$\,t^0_{02}$ & \color{RoyalBlue}$\,t^1_{02}$ & \color{RoyalBlue}$\,t^1_{12}$ & \red $\,t^0_{12}$ & \color{Crimson}$\,t^0_{03}$ & \color{RoyalBlue}$\,t^1_{03}$ & \color{RoyalBlue}$\,t^1_{13}$ & \red $\,t^0_{13}$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ & $\,~\shortdownarrow_w$ &$\,~\shortdownarrow_w$
+    \end{tabular}\\
+    \begin{tabular}{|C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}?C{0.45cm}|C{0.45cm}|C{0.45cm}|C{0.45cm}|}
+      \hline
+      $\mathit{hc}_{0}$ & $\mathit{hc}_{1}$ & $\mathit{hc}_{2}$ & $\mathit{hc}_{3}$ & $\mathit{cc}_{0}$ & $\mathit{cc}_{1}$ & $\mathit{cc}_{2}$ & $\mathit{cc}_{3}$ \\
+      \hline
+    \end{tabular}\\
+    \begin{tabular}{C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.5cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      \tiny $0_{r}$ & $\diagonalarrowleftup_{r}$ & $\diagonalarrowleftup_{r}$  & $\diagonalarrowleftup_{r}$  & \tiny $0_{r}$ & $\diagonalarrowleftup_{r}$  & $\diagonalarrowleftup_{r}$ & $\diagonalarrowleftup_{r}$
+    \end{tabular}\\
+    \begin{tabular}{C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}C{0.46cm}}
+      \color{Crimson}$t^0_{10}$ & \color{Crimson}$t^0_{02}$ & \color{RoyalBlue}$t^1_{10}$ & \color{RoyalBlue}$t^1_{02}$ & \color{Crimson}$t^0_{11}$ & \color{Crimson}$t^0_{03}$ & \color{RoyalBlue}$t^1_{11}$ & \color{RoyalBlue}$t^1_{03}$
+    \end{tabular}\\[-0.5ex]
+    \begin{tabular}{C{3.2cm}C{3.2cm}}
+      \upbracefill & \upbracefill\\[-0.3ex]
+      $\mathit{chs}$ & $\mathit{ccs}$
+    \end{tabular}
+  \end{tabular}
+\end{center}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Classical Multiplication}
+  \framesubtitle{Futhark}
+\end{frame}
+
 %%% Local Variables:
 %%% mode: LaTeX
 %%% TeX-master: "main"
