@@ -1,13 +1,65 @@
 \section{Evaluation}
-\begin{frame}
+\begin{frame}[fragile]
   \frametitle{Evaluation}
-  \framesubtitle{foo}
-  bar
-        \begin{itemize}
-            \item baz
-                \pause
-              \item qux
-        \end{itemize}
+  \framesubtitle{Addition}
+  One addition and ten additions in base \texttt{uint64\_t}:\newline
+  \begin{center}\scriptsize
+  \begin{tabular}{|c|c||c|c|c||c|c|c|}\hline
+    Bits & I{\tiny nsts} & CGBN1 & CUDA1 & Fut1 & CGBN10 & CUDA10 & Fut10 \\\hline\hline
+    $2^{18}$ & $2^{14}$ & 62  & 161 & --   & 25  & 92  & --  \\\hline
+    $2^{17}$ & $2^{15}$ & 67  & 163 & --   & 60  & 109 & --  \\\hline
+    $2^{16}$ & $2^{16}$ & 19  & 166 & 146 & 73  & 124 & 24 \\\hline
+    $2^{15}$ & $2^{17}$ & 19  & 166 & 168 & 45  & 124 & 29 \\\hline
+    $2^{14}$ & $2^{18}$ & 84  & 166 & 168 & 97  & 124 & 29 \\\hline
+    $2^{13}$ & $2^{19}$ & 164 & 165 & 168 & 162 & 123 & 29 \\\hline
+    $2^{12}$ & $2^{20}$ & 165 & 166 & 168 & 164 & 123 & 29 \\\hline
+    $2^{11}$ & $2^{21}$ & 164 & 166 & 168 & 161 & 124 & 29 \\\hline
+    $2^{10}$ & $2^{22}$ & 156 & 166 & 168 & 152 & 124 & 29 \\\hline
+    $2^{9}$  & $2^{23}$ & 118 & 167 & 168 & 113 & 124 & 29 \\\hline
+  \end{tabular}
+  \end{center}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Evaluation}
+  \framesubtitle{Multiplication 1/2}
+  One multiplication in base \texttt{uint64\_t}:\newline
+  \begin{center}\scriptsize
+  \begin{tabular}{|c|c||c?c?c|c?c|c|}\hline
+    Bits & I{\tiny nsts} & CGBN & CUDA & F{\tiny utOldQ2} & F{\tiny utOldQ4} & F{\tiny utNewQ4} & F{\tiny utNewQ2} \\\hline\hline
+    $2^{18}$ & $2^{14}$ & --   & --     & --    & --    & --    & --    \\\hline
+    $2^{17}$ & $2^{15}$ & 1   & 1150  & --    & --    & --    & --    \\\hline
+    $2^{16}$ & $2^{16}$ & 35  & 2039  & 974  & --    & 1263 & 1453 \\\hline
+    $2^{15}$ & $2^{17}$ & 116 & 3471  & 1674 & 482  & 2108 & 2423 \\\hline
+    $2^{14}$ & $2^{18}$ & 217 & 5515  & 2671 & 693  & 3264 & 3697 \\\hline
+    $2^{13}$ & $2^{19}$ & 340 & 8082  & 3880 & 984  & 4559 & 4947 \\\hline
+    $2^{12}$ & $2^{20}$ & 526 & 10475 & 4931 & 1281 & 5467 & 5786 \\\hline
+    $2^{11}$ & $2^{21}$ & 793 & 15745 & 3836 & 1899 & 6946 & 5990 \\\hline
+    $2^{10}$ & $2^{22}$ & 822 & 16554 & 2352 & 2492 & 7830 & 6203 \\\hline
+    $2^{9}$  & $2^{23}$ & 496 & 16888 & 1122 & 2798 & 8134 & 5646 \\\hline
+  \end{tabular}
+  \end{center}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Evaluation}
+  \framesubtitle{Multiplication 2/2}
+  Six multiplications in base \texttt{uint64\_t}:\newline
+  \begin{center}\scriptsize
+  \begin{tabular}{|c|c||c?c?c|c?c|c|}\hline
+    Bits & I{\tiny nsts} & CGBN & CUDA & F{\tiny utOldQ2} & F{\tiny utOldQ4} & F{\tiny utNewQ4} & F{\tiny utNewQ2}\\\hline\hline
+    $2^{18}$ & $2^{14}$ & --     & --     & --    & --    & --    & --    \\\hline
+    $2^{17}$ & $2^{15}$ & 11    & --     & --    & --    & --    & --    \\\hline
+    $2^{16}$ & $2^{16}$ & 888   & 1747  & 921  & --    & --    & --    \\\hline
+    $2^{15}$ & $2^{17}$ & 2832  & 2602  & 1595 & 350  & --    & --    \\\hline
+    $2^{14}$ & $2^{18}$ & 4960  & 2696  & 1656 & 513  & 1211 & 1609 \\\hline
+    $2^{13}$ & $2^{19}$ & 8625  & 4961  & 1872 & 778  & 1264 & 2194 \\\hline
+    $2^{12}$ & $2^{20}$ & 13924 & 8981  & 3307 & 1029 & 1507 & 2616 \\\hline
+    $2^{11}$ & $2^{21}$ & 23424 & 13717 & 3028 & 1505 & 2068 & 2681 \\\hline
+    $2^{10}$ & $2^{22}$ & 37500 & 17513 & 2180 & 1946 & 2452 & 2859 \\\hline
+    $2^{9}$  & $2^{23}$ & 70093 & 17079 & 1225 & 2156 & 2626 & 2678 \\\hline
+  \end{tabular}
+\end{center}
 \end{frame}
 %%% Local Variables:
 %%% mode: LaTeX

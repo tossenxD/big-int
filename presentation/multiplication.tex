@@ -265,10 +265,10 @@ u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cd
      (k1, k1+1, k2-1, k2), (s1|k1+2, s1|k1+3, s2|k2+1, s2|k2+2))
    \end{lstlisting}\pause
 
-   However, the operator is still slow.
+   However, the operator is still slow for larger integers.
 
-   Inspired by \cite{oancea2024gpu}, the shared memory is cast to an opaque data
-   type.\pause
+   Inspired by \cite{oancea2024gpu}, the shared memory is piped to
+   \texttt{opaque}-function.\pause
 
    Significant speedup, but still slower than the basic version.
 \end{frame}
@@ -302,12 +302,9 @@ u \cdot v = \sum_{k=0}^{m-1} \left( \sum_{\substack{0\leq i,j < m\\i+j=k}}u_i\cd
 \begin{frame}[fragile]
   \frametitle{Classical Multiplication}
   \framesubtitle{Futhark 3/3}
-  \begin{lstlisting}[language=futhark,basicstyle=\scriptsize,gobble=2]
-  let (uss, vss) = map cp2sh (0..<ipb*m) |> unzip
-  let (u1s, u2s) = unzip2 uss
-  let (v1s, v2s) = unzip2 vss
-  let ush = u1s ++ u2s |> opaque
-  let vsh = v1s ++ v2s |> opaque
+\begin{lstlisting}[language=futhark,basicstyle=\scriptsize,gobble=2]
+  let ush = map (\i -> us[i]) (0..<ipb*(2*m))
+  let vsh = map (\i -> vs[i]) (0..<ipb*(2*m))
 
   let (lhcs1, lhcs2) = map (CONV ush vsh) (0..<ipb*m) |> unzip
   let (ls1, hs1, cs1) = unzip3 lhcs1
