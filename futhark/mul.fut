@@ -228,17 +228,9 @@ def convMulV4 [ipb][m] (us: [ipb*(2*m)]ui) (vs: [ipb*(2*m)]ui) : [ipb*(2*m)]ui =
                               let j = k2 - i in iterate lhc us[i+k2_start] vs[j]
     in (lhc1, lhc2)
 
-  -- COPY TO SHARED MEMORY
-  let cp2sh (i : i32) = #[unsafe]
-    let str = i32.i64 (ipb*m)
-    in ( (us[i], us[str + i]), (vs[i], vs[str + i]) )
-
-  -- 1. copy to shared memory coalesced
-  let (uss, vss) = (0..<ipb*m) |> map i32.i64 |> map cp2sh |> unzip
-  let (u1s, u2s) = unzip2 uss
-  let (v1s, v2s) = unzip2 vss
-  let ush = u1s ++ u2s |> opaque
-  let vsh = v1s ++ v2s |> opaque
+  -- -- 1. copy to shared memory
+  let ush = map (\i -> us[i]) (0..<ipb*(2*m))
+  let vsh = map (\i -> vs[i]) (0..<ipb*(2*m))
 
   -- 2. find two low, high, and carry parts for each thread
   let (lhcs1, lhcs2) = map (CONV ush vsh) (0..<ipb*m) |> unzip
