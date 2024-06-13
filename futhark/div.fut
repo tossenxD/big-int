@@ -25,25 +25,22 @@ def bpow (m: i64) (n: i64) : [m]ui =
 def ltBpow [m] (u: [m]ui) (i: i64) : bool =
   map2 (\ x j -> x == 0 || j < i ) u (iota m) |> reduce (&&) true
 
--- Checks whether `u > B^i`.
-def gtBpow [m] (u: [m]ui) (i: i64) : bool =
-  map2 (\ x j -> (x > 1 && j == i) || (x > 0 && j > i) ) u (iota m)
-  |> reduce (||) false
-
 -- Checks whether `u == B^i`.
 def eqBpow [m] (u: [m]ui) (i: i64) : bool =
-  map2 (\ x j -> (x == 0 || j != i) || (x == 1 || j == i) ) u (iota m)
+  map2 (\ x j -> (x == 0 && j != i) || (x == 1 && j == i) ) u (iota m)
   |> reduce (&&) true |> (&&) (m > i)
+
+-- Checks whether `u > B^i`.
+def gtBpow [m] (u: [m]ui) (i: i64) : bool =
+  not (eqBpow u i || ltBpow u i)
 
 -- Index of most significant nonzero digit in `u`, i.e.  `B^k <= u < B^(k+1)`.
 def findk [m] (u: [m]ui) : i64 =
-  map2 (\ x i -> if x != 0 then i else 0 ) u (iota m)
-  |> reduce (\ acc i -> if i != 0 then i else acc ) 0
+  map2 (\ x i -> if x != 0 then i else 0 ) u (iota m) |> reduce i64.max 0
 
--- Index `i` such that `u <= B^i`.
-def findh [m] (u: [m]ui) : i64 =
-  -- let i = findk u in if eqBpow u i then i else i + 1
-  findk u + 1 -- NOTE this holds, but ignores the equality - use above if needed
+-- Index `i` such that `u <= B^i`.   Note: `findk u + 1` is more efficient,
+def findh [m] (u: [m]ui) : i64 =        -- but may introduce another iteration.
+  let i = findk u in if eqBpow u i then i else i + 1
 
 -- Precision of `u` (i.e. number of digits minus leading zeroes).
 def prec [m] (u: [m]ui) : i64 =
@@ -148,9 +145,9 @@ def shinv [m] (k: i64) (v: [m]ui) (h: i64) : [m]ui =
   else if eqBpow v k then bpow m (h - k)
   -- form initial approximation
   else let l = 2
-       let V = (toQi v[k-2]) + (toQi v[k-1] << 32) + (toQi v[k] << 64)
+       let V = (toQi v[k-2]) + (toQi v[k-1] << 16) + (toQi v[k] << 32)
        let W = ((0 - V) / V) + 1 -- `(B^4 - V) / V + 1`
-       let w = map (\ i -> fromQi (W >> i64ToQi i) ) (iota m)
+       let w = map (\ i -> fromQi (W >> (16 * (i64ToQi i))) ) (iota m)
        -- either return or refine initial approximation
        in if h - k <= l then shift (h - k - l) w
           else refine3 v w h k l
@@ -165,11 +162,11 @@ def div [m] (u: [m]ui) (v: [m]ui) : ([m]ui, [m]ui) =
   let vp = map (\ i -> if i < m then v[i] else 0 ) (iota (m*4))
   -- if `k <= 1`, we shift the inputs to fit the algorithm
   let (h, k, up, vp) = if k == 1 then (h+1, k+1, shift 1 up, shift 1 vp)
-                       else if k == 2 then (h+2, k+2, shift 2 up, shift 2 vp)
+                       else if k == 0 then (h+2, k+2, shift 2 up, shift 2 vp)
                        else (h, k, up, vp)
   -- compute quotient using Theorem 1. in [1]
   let q = shinv k vp h |> mul up |> shift (-h) |> take m
   -- compute remainder
   let r = mul v q |> sub u |> fst
-  -- handle delta (i.e. if `r >= v` then `delta = 1` else `delta = 0`
+  -- handle delta (i.e. if `r >= v` then `delta = 1` else `delta = 0`)
   in if not (lt r v) then (add q (singleton m 1), fst (sub r v)) else (q, r)
