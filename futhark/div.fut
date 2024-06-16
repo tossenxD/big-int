@@ -141,8 +141,8 @@ def shinv [m] (k: i64) (v: [m]ui) (h: i64) : [m]ui =
   else let V = (toQi v[k-2]) + (toQi v[k-1] << (i64ToQi bits))
                + (toQi v[k] << (i64ToQi (2*bits)))
        let W = ((0 - V) / V) + 1 -- `(B^4 - V) / V + 1`
-       let w = [fromQi W, fromQi (W >> (i64ToQi (bits))),
-                fromQi (W >> (i64ToQi (2*bits)))] ++ (replicate (m-3) 0) :>[m]ui
+       let w = map (\i -> if i <= 1 then fromQi (W >> (i64ToQi (bits * i)))
+                          else 0) (iota m)
        -- either return or refine initial approximation
        in if h - k <= 2 then shift (h - k - 2) w else refine1 v w h k )
 
@@ -151,7 +151,7 @@ def div [m] (u: [m]ui) (v: [m]ui) : ([m]ui, [m]ui) =
   -- compute `h` and `k` in the assumptions `u <= B^h` and 'B^k <= v < B^(k+1)'
   let h = findh u
   let k = findk v
-  -- pad big integers in advance for multiplications (excessive factor)
+  -- pad big integers in advance for multiplications
   let p = 2*(m + (i64.bool (k <= 1)) + (i64.bool (k == 0)))
   let up = map (\ i -> if i < m then u[i] else 0 ) (iota p)
   let vp = map (\ i -> if i < m then v[i] else 0 ) (iota p)
@@ -166,8 +166,13 @@ def div [m] (u: [m]ui) (v: [m]ui) : ([m]ui, [m]ui) =
   -- handle delta (i.e. if `r >= v` then `delta = 1` else `delta = 0`)
   in if not (lt r v) then (add q (singleton m 1), fst (sub r v)) else (q, r)
 
+
+--------------------------------------------------------------------------------
+-- Callers
+--------------------------------------------------------------------------------
+
 -- Process a batch of divisions.
-def divs [n][m] (us:[n] [m]ui) (vs: [n][m]ui) : [n]([m]ui, [m]ui) =
+def oneDiv [n][m] (us: [n][m]ui) (vs: [n][m]ui) : [n]([m]ui, [m]ui) =
   #[sequential_outer] map2 div us vs
 
 -- `refine2` and `refine3` contains a bug that shows rarely, but can be
