@@ -35,7 +35,7 @@
 \end{equation}\pause
 It is modified in \cite{watt2023efficient} w.r.t.\ three aspects:
 \begin{itemize}\footnotesize
-\item It is discretized to integers, so we compute $w\in\mathbb{Z}$ rather than $x\in\mathbb{N}$.\pause
+\item It is discretized to integers, so we compute $w\in\mathbb{Z}$ rather than $x\in\mathbb{R}$.\pause
 \item $u$ is specialized to $B^h$ (where $B$ is the base and $u \leq B^h$).\pause
 \item Use a shift rather than a division since $v/(B^h)=v\cdot B^{-h}\geq \mathtt{shift}_{-h}~v$.
 \end{itemize}\pause
@@ -82,7 +82,7 @@ The Newton iteration becomes:\vspace*{-0.5em}
 
   Instead, define $v > B^h$ as {\footnotesize $\neg(v < B^h \lor v = B^h)$}.
 
-  Define $v < B^h$ as {\footnotesize $\forall i\in \mathbb{N}.~i < h \lor v[i] = 0$}.
+  Define $v < B^h$ as {\footnotesize $\forall i\in \mathbb{N}.~i \geq h \lor v[i] = 0$}.
 
   Define $v = B^h$ as {\footnotesize $\forall i\in \mathbb{N}.~(i=h \land v[i] = 1) \lor (i \neq h \land v[i] = 0)$}.
     \end{itemize}
@@ -117,7 +117,7 @@ def div [m] (u: [m]ui) (v: [m]ui) : ([m]ui, [m]ui) =
   \framesubtitle{Implementation 3/5}
 \begin{lstlisting}[language=futhark,basicstyle=\scriptsize,escapeinside=@@,firstnumber=18,frame=single]
 def shinv [m] (k: i64) (v: [m]ui) (h: i64) : [m]ui =
-  assert (k != 0) (
+  assert (k > 1) (
        if gtBpow v h          then new m
   else if gtBpow (muld v 2) h then singleton m 1
   else if eqBpow v k          then bpow m (h - k)
@@ -208,6 +208,26 @@ def multmod [m] (v: [m]ui) (w: [m]ui) (e: i64) : [m]ui =
 \begin{frame}[fragile]
   \frametitle{Division}
   \framesubtitle{Evaluation 2/2}
+  However, the implementation has no problems compiling to C code.
+
+  Hence, using the \texttt{multicore} backend, it is compared to GMP\cite{GMP}.\pause
+  
+  % One division and three divisions in base \texttt{uint16\_t}:\newline
+  % \begin{center}\scriptsize
+  % \begin{tabular}{|c|c||c|c|c||c|c|c|}\hline
+  %   Bits & I{\tiny nsts} & CGBN1 & CUDA1 & Fut1 & CGBN10 & CUDA10 & Fut10 \\\hline\hline
+  %   $2^{18}$ & $2^{14}$ & 62  & 161 & --   & 25  & 92  & --  \\\hline
+  %   $2^{17}$ & $2^{15}$ & 67  & 163 & --   & 60  & 109 & --  \\\hline
+  %   $2^{16}$ & $2^{16}$ & 19  & 166 & 146 & 73  & 124 & 24 \\\hline
+  %   $2^{15}$ & $2^{17}$ & 19  & 166 & 168 & 45  & 124 & 29 \\\hline
+  %   $2^{14}$ & $2^{18}$ & 84  & 166 & 168 & 97  & 124 & 29 \\\hline
+  %   $2^{13}$ & $2^{19}$ & 164 & 165 & 168 & 162 & 123 & 29 \\\hline
+  %   $2^{12}$ & $2^{20}$ & 165 & 166 & 168 & 164 & 123 & 29 \\\hline
+  %   $2^{11}$ & $2^{21}$ & 164 & 166 & 168 & 161 & 124 & 29 \\\hline
+  %   $2^{10}$ & $2^{22}$ & 156 & 166 & 168 & 152 & 124 & 29 \\\hline
+  %   $2^{9}$  & $2^{23}$ & 118 & 167 & 168 & 113 & 124 & 29 \\\hline
+  % \end{tabular}
+  % \end{center}
 \end{frame}
 
 %%% Local Variables:
