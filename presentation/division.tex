@@ -1,14 +1,215 @@
 \section{Division}
-\begin{frame}
+\begin{frame}[fragile]
   \frametitle{Division}
-  \framesubtitle{foo}
-  bar\cite{watt2023efficient}
-        \begin{itemize}
-            \item baz
+  \framesubtitle{Algorithm 1/3}
+  The intuition behind the division algorithm:
+        \begin{itemize}\footnotesize
+            \item Multiply the dividend with the of inverse divisor.
                 \pause
-              \item qux
-        \end{itemize}
+              \item Use shifts to represent the inverse as a big integer.
+                \pause
+              \item Approximate the shifted inverse by Newton's Method using \cite{watt2023efficient}.
+                \pause
+              \item Compute quotient and remainder to adjust approximation.
+              \end{itemize}\vspace*{0.6em}\pause
+
+              \begin{block}{Quotient of big integers by shifted inverse}\scriptsize
+              We define the quotient of big integers $u$ and $v$ in base $B$ using \cite{watt2023efficient} as:\vspace*{-0.3em}
+              \begin{equation}
+    \scriptsize
+    u~\mathtt{quo}~v = \mathtt{shift}_{-h}~ (u \cdot \mathtt{shinv}_h~v) + \delta,\quad \textbf{where~} \delta \in \{0,1\}
+  \end{equation}\vspace*{-1.5em}
+              \begin{equation}\scriptsize
+    \mathtt{shift}_{n\in\mathbb{Z}}~u = \lfloor u \cdot B^n \rfloor \qquad \qquad \quad ~\,\, \mathtt{shinv}_{n\in\mathbb{N}}~v = \lfloor B^{n}/ v \rfloor
+  \end{equation}
+  \end{block}
+      \end{frame}
+
+      
+\begin{frame}[fragile]
+  \frametitle{Division}
+  \framesubtitle{Algorithm 2/3}
+  The algorithm of \cite{watt2023efficient} is based on the Netwon iteration:\vspace*{-0.5em}
+  \begin{equation}\scriptsize
+  x_{i+1} = x_i - \dfrac{f(x_i)}{f'(x_i)} = x_i + \left( x_i - \dfrac{v}{u}x^2_i \right),\quad \textbf{where}~x\in \mathbb{R}~ \textbf{and}~ f(x) = \dfrac{u}{x} - v
+\end{equation}\pause
+It is modified in \cite{watt2023efficient} w.r.t.\ three aspects:
+\begin{itemize}\footnotesize
+\item It is discretized to integers, so we compute $w\in\mathbb{Z}$ rather than $x\in\mathbb{N}$.\pause
+\item $u$ is specialized to $B^h$ (where $B$ is the base and $u \leq B^h$).\pause
+\item Use a shift rather than a division since $v/(B^h)=v\cdot B^{-h}\geq \mathtt{shift}_{-h}~v$.
+\end{itemize}\pause
+The Newton iteration becomes:\vspace*{-0.5em}
+\begin{equation}\scriptsize
+  w_{i+1} =  w_i + \mathit{shift}_{-h}\left( \mathit{shift}_{h}~w_i - v\cdot w^2_i \right) =  w_i + \lfloor w_i\cdot B^h - v\cdot w^2_i \rfloor B^{-h}
+\end{equation}
 \end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Division}
+  \framesubtitle{Algorithm 3/3}
+
+  Instead of showing the algorithm for computing the division and the shifted
+  inverse, let us look at the Futhark implementation.\vspace*{0.75em}\pause
+
+  In the thesis, the Futhark implementation was {\red invalid}.
+
+  Now it {\green validates}!
+
+  (Without the divisor prefixes and shorter iterates optimizations.)\vspace*{0.75em}\pause
+
+  Hence all arithmetics are in full length.
+
+  The analysis in \cite{watt2023efficient} gives work $O(\log (h-k)(M(h)+M(|h/2 - k|)))$.
+
+  If we assume $h=m+k$, we get $O(\log (m)M(m))$.
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{Division}
+  \framesubtitle{Implementation 1/5}
+  Revisions to section 9.2 and section 9.3 of the thesis:
+  \begin{itemize}
+  \item $2$ guard digits are sufficient.\newline
+    (Likely needed $m$ in the prototype due
+    to a memory bug.)\pause
+  \item The thesis states that $v > B^h$ corresponds to:
+    \begin{equation}\footnotesize
+    \exists i\in \mathbb{N}.~(h<i<m \land v[i] \neq 0) \lor (h = i<m \land v[i] > 1)
+  \end{equation}
+  This is not true. E.g.\ it fails on $\arr{1,0,0,1} > B^3$.\pause
+
+  Instead, define $v > B^h$ as {\footnotesize $\neg(v < B^h \lor v = B^h)$}.
+
+  Define $v < B^h$ as {\footnotesize $\forall i\in \mathbb{N}.~i < h \lor v[i] = 0$}.
+
+  Define $v = B^h$ as {\footnotesize $\forall i\in \mathbb{N}.~(i=h \land v[i] = 1) \lor (i \neq h \land v[i] = 0)$}.
+    \end{itemize}
+  \end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Division}
+  \framesubtitle{Implementation 2/5}
+\begin{lstlisting}[language=futhark,basicstyle=\scriptsize,escapeinside=!!,frame=single]
+def div [m] (u: [m]ui) (v: [m]ui) : ([m]ui, [m]ui) =
+  let h = findh u !\green \texttt{-}\texttt{-} $u\leq B^{h}$!
+  let k = findk v !\green \texttt{-}\texttt{-} $B^k \leq v < B^{k+1}$!
+
+  let p = 2*(m + (i64.bool (k <= 1)) + (i64.bool (k == 0)))
+  let up = map (\ i -> if i < m then u[i] else 0 ) (iota p)
+  let vp = map (\ i -> if i < m then v[i] else 0 ) (iota p)
+
+  let (h, k, up, vp) =
+         if k == 1 then (h+1, k+1, shift 1 up, shift 1 vp)
+    else if k == 0 then (h+2, k+2, shift 2 up, shift 2 vp)
+    else                (h,   k,   up,         vp)
+
+  let q = shinv k vp h |> mul up |> shift (-h) |> take m
+  let r = mul v q |> sub u |> fst
+  in if not (lt r v)
+     then (add q (singleton m 1), fst (sub r v)) else (q, r)
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Division}
+  \framesubtitle{Implementation 3/5}
+\begin{lstlisting}[language=futhark,basicstyle=\scriptsize,escapeinside=@@,firstnumber=18,frame=single]
+def shinv [m] (k: i64) (v: [m]ui) (h: i64) : [m]ui =
+  assert (k != 0) (
+       if gtBpow v h          then new m
+  else if gtBpow (muld v 2) h then singleton m 1
+  else if eqBpow v k          then bpow m (h - k)
+  else
+    let V = (toQi v[k-2])
+            + (toQi v[k-1] << (i64ToQi bits))
+            + (toQi v[k]   << (i64ToQi (2*bits)))
+    let W = ((0 - V) / V) + 1
+    let w = map (\i -> if i <= 1
+                       then fromQi (W >> (i64ToQi (bits*i)))
+                       else 0) (iota m)
+
+    in if h - k <= 2 then shift (h - k - 2) w
+                     else refine v w h k     )
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Division}
+  \framesubtitle{Implementation 4/5}
+\begin{lstlisting}[language=futhark,basicstyle=\scriptsize,escapeinside=@@,firstnumber=34,frame=single]
+def refine [m] (v:[m]ui) (w:[m]ui) (h:i64) (k:i64) : [m]ui =
+  let g = 1
+  let h = h + g
+  let (w, _) =
+    loop (w, l) = (shift (h-k-2) w, 2) while h - k > l do
+    let w = step h v w 0 l 0
+    let l = i64.min (2*l-1) (h-k)
+    in (w, l)
+  in shift (-g) w
+\end{lstlisting}\vspace*{0.5em}
+
+\begin{lstlisting}[language=futhark,basicstyle=\scriptsize,escapeinside=@@,firstnumber=43,frame=single]
+def step [m] (h: i64) (v: [m]ui) (w: [m]ui)
+             (n: i64) (l: i64)   (g:i64)   : [m]ui =
+  let (pwd, sign) = powdiff v w (h-n) (l-g)
+  let wpwdS = shift (2*n - h) (mul w pwd)
+  let wS = shift n w
+  in if sign then fst (sub wS wpwdS) else add wS wpwdS
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Division}
+  \framesubtitle{Implementation 5/5}
+\begin{lstlisting}[language=futhark,basicstyle=\scriptsize,escapeinside=@@,firstnumber=49,frame=single]
+def powdiff [m] (v: [m]ui) (w: [m]ui)
+                (h: i64)   (l: i64)  : ([m]ui, bool) =
+  let L = (prec v) + (prec w) - l + 1
+  in if (ez v) || (ez w) then (bpow m h, false)
+     else if L >= h then sub (bpow m h) (mul v w)
+     else let P = multmod v w L
+          in if ez P then (P, false)
+             else if P[L-1] == 0 then (P, true)
+             else sub (bpow m L) P
+\end{lstlisting}\vspace*{0.5em}
+
+\begin{lstlisting}[language=futhark,basicstyle=\scriptsize,escapeinside=@@,firstnumber=58,frame=single]
+def multmod [m] (v: [m]ui) (w: [m]ui) (e: i64) : [m]ui =
+  let vw = mul (take e v) (take e w)
+  in map (\ i -> if i < e then vw[i] else 0 ) (iota m)
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Division}
+  \framesubtitle{Evaluation 1/2}
+  The implementation is not efficient:
+  \begin{itemize}\footnotesize
+  \item Batch processing results in error:
+
+    "Known compiler limitation encountered. Sorry."
+
+    Can be circumvented with attribute \texttt{\#[sequential\_outer]}.\pause
+
+  \item It succeeds in generating intra-block version when run with
+    \texttt{\#[incremental\_flattening(only\_intra)]}.
+
+    It runs significantly slower in comparison to omitting the attribute (for
+    sizes greater than 256 digits).
+  \end{itemize}\vspace*{0.5em}\pause
+
+  Furthermore, runtimes depend on precision rather than size.
+
+  Thus, incomparable to the evaluation method for other arithmetics.
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Division}
+  \framesubtitle{Evaluation 2/2}
+\end{frame}
+
 %%% Local Variables:
 %%% mode: LaTeX
 %%% TeX-master: "main"
