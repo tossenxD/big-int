@@ -14,7 +14,7 @@
               \end{itemize}\vspace*{0.6em}\pause
 
               \begin{block}{Quotient of big integers by shifted inverse}\scriptsize
-              We define the quotient of big integers $u$ and $v$ in base $B$ using \cite{watt2023efficient} as:\vspace*{-0.3em}
+              We define the quotient of big integers $u\leq B^{h\in \mathbb{N}}$ and $v$ in base $B$ using \cite{watt2023efficient} as:\vspace*{-0.3em}
               \begin{equation}
     \scriptsize
     u~\mathtt{quo}~v = \mathtt{shift}_{-h}~ (u \cdot \mathtt{shinv}_h~v) + \delta,\quad \textbf{where~} \delta \in \{0,1\}
@@ -41,7 +41,7 @@ It is modified in \cite{watt2023efficient} w.r.t.\ three aspects:
 \end{itemize}\pause
 The Newton iteration becomes:\vspace*{-0.5em}
 \begin{equation}\scriptsize
-  w_{i+1} =  w_i + \mathit{shift}_{-h}\left( \mathit{shift}_{h}~w_i - v\cdot w^2_i \right) =  w_i + \lfloor w_i\cdot B^h - v\cdot w^2_i \rfloor B^{-h}
+  w_{i+1} =  w_i + \mathit{shift}_{-h}\left( \mathit{shift}_{h}~w_i - v\cdot w^2_i \right) =  w_i + w_i\lfloor B^h - v\cdot w_i \rfloor B^{-h}
 \end{equation}
 \end{frame}
 
@@ -193,41 +193,32 @@ def multmod [m] (v: [m]ui) (w: [m]ui) (e: i64) : [m]ui =
 
     Can be circumvented with attribute \texttt{\#[sequential\_outer]}.\pause
 
-  \item It succeeds in generating intra-block version when run with
-    \texttt{\#[incremental\_flattening(only\_intra)]}.
+  \item It succeeds in generating intra-block version when run with:
 
-    It runs significantly slower in comparison to omitting the attribute (for
-    sizes greater than 256 digits).
-  \end{itemize}\vspace*{0.5em}\pause
+    \texttt{\#[incremental\_flattening(only\_intra)]}
 
-  Furthermore, runtimes depend on precision rather than size.
-
-  Thus, incomparable to the evaluation method for other arithmetics.
+    It runs significantly slower for sizes greater than 256 digits.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]
   \frametitle{Division}
   \framesubtitle{Evaluation 2/2}
+  Furthermore, runtimes depend on precision rather than size.
+
+  Thus, incomparable to the evaluation method for other arithmetics.\pause
+
+  \phantom{~}
+
   However, the implementation has no problems compiling to C code.
 
-  Hence, using the \texttt{multicore} backend, it is compared to GMP\cite{GMP}.\pause
-  
-  % One division and three divisions in base \texttt{uint16\_t}:\newline
-  % \begin{center}\scriptsize
-  % \begin{tabular}{|c|c||c|c|c||c|c|c|}\hline
-  %   Bits & I{\tiny nsts} & CGBN1 & CUDA1 & Fut1 & CGBN10 & CUDA10 & Fut10 \\\hline\hline
-  %   $2^{18}$ & $2^{14}$ & 62  & 161 & --   & 25  & 92  & --  \\\hline
-  %   $2^{17}$ & $2^{15}$ & 67  & 163 & --   & 60  & 109 & --  \\\hline
-  %   $2^{16}$ & $2^{16}$ & 19  & 166 & 146 & 73  & 124 & 24 \\\hline
-  %   $2^{15}$ & $2^{17}$ & 19  & 166 & 168 & 45  & 124 & 29 \\\hline
-  %   $2^{14}$ & $2^{18}$ & 84  & 166 & 168 & 97  & 124 & 29 \\\hline
-  %   $2^{13}$ & $2^{19}$ & 164 & 165 & 168 & 162 & 123 & 29 \\\hline
-  %   $2^{12}$ & $2^{20}$ & 165 & 166 & 168 & 164 & 123 & 29 \\\hline
-  %   $2^{11}$ & $2^{21}$ & 164 & 166 & 168 & 161 & 124 & 29 \\\hline
-  %   $2^{10}$ & $2^{22}$ & 156 & 166 & 168 & 152 & 124 & 29 \\\hline
-  %   $2^{9}$  & $2^{23}$ & 118 & 167 & 168 & 113 & 124 & 29 \\\hline
-  % \end{tabular}
-  % \end{center}
+  Hence, we could use \texttt{multicore} backend and compare to GMP.
+
+  The difference in runtimes are so big that results are meaningless.\pause
+
+  \phantom{~}
+
+  Conclusion: It is inefficient and not comparable to GMP or CGBN.
 \end{frame}
 
 %%% Local Variables:
