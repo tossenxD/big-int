@@ -133,7 +133,7 @@ def refine3 [m] (v: [m]ui) (w: [m]ui) (h: i64) (k: i64) : [m]ui =
 -- Whole shifted inverse of big integer `v` by coefficient `h`.
 def shinv [m] (k: i64) (v: [m]ui) (h: i64) : [m]ui =
   -- handle the four special cases
-  assert (k != 0) ( -- assumed handled (by a shift) beforehand
+  assert (k > 1) ( -- assumed handled (by a shift) beforehand
        if gtBpow v h          then new m
   else if gtBpow (muld v 2) h then singleton m 1
   else if eqBpow v k          then bpow m (h - k)
@@ -171,9 +171,13 @@ def div [m] (u: [m]ui) (v: [m]ui) : ([m]ui, [m]ui) =
 -- Callers
 --------------------------------------------------------------------------------
 
--- Process a batch of divisions.
-def oneDiv [n][m] (us: [n][m]ui) (vs: [n][m]ui) : [n]([m]ui, [m]ui) =
-  #[sequential_outer] map2 div us vs
+-- Process a batch of divisions meant for the GPU.
+def oneDivGPU [n][m] (us: [n][m]ui) (vs: [n][m]ui) : [n]([m]ui, [m]ui) =
+  #[sequential_outer] imap2Intra us vs div
+
+-- Process a batch of divisions meant for the CPU.
+def oneDivCPU [n][m] (us: [n][m]ui) (vs: [n][m]ui) : [n]([m]ui, [m]ui) =
+  map2 div us vs
 
 -- `refine2` and `refine3` contains a bug that shows rarely, but can be
 -- replicated by the function below. It is supposed to give `[5764, 41927, 1]`
