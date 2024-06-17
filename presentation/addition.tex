@@ -20,12 +20,21 @@ w = map2 (!$\lambda$! w c !$\to$! w + (c & 1) ) ws pcs
 
 \begin{frame}[fragile]
   \frametitle{Addition}
-  \framesubtitle{Implementation}
+  \framesubtitle{Implementation 1/2}
   Optimizations boils down to:
   \begin{itemize}
-    \item Sequentialize the parallelism in excess.
+    \item Sequentialize the parallelism in excess.\pause
     \item Segmented scan with flags integrated in the bitwise carry-overflow representation.
     \end{itemize}
+  \end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Addition}
+  \framesubtitle{Implementation 2/2}
+  Implementation revolves around a scan:
+  \begin{center}
+    \includegraphics[width=0.875\textwidth]{../thesis/img/warp-level-scan.png}
+    \end{center}
 \end{frame}
 
 \begin{frame}[fragile]

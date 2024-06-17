@@ -71,9 +71,7 @@ The Newton iteration becomes:\vspace*{-0.5em}
   \framesubtitle{Implementation 1/5}
   Revisions to section 9.2 and section 9.3 of the thesis:
   \begin{itemize}
-  \item $2$ guard digits are sufficient.\newline
-    (Likely needed $m$ in the prototype due
-    to a memory bug.)\pause
+  \item $2$ guard digits are sufficient.\pause
   \item The thesis states that $v > B^h$ corresponds to:
     \begin{equation}\footnotesize
     \exists i\in \mathbb{N}.~(h<i<m \land v[i] \neq 0) \lor (h = i<m \land v[i] > 1)
