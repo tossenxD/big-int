@@ -19,31 +19,28 @@ import "mul"
 
 -- Constructs `B^n` as a big integer of size `m`.
 def bpow (m: i64) (n: i64) : [m]ui =
-  map (\ i -> if i+1 == n then 1 else 0 ) (iota m)
+  map (\ i -> if i == n then 1 else 0 ) (iota m)
 
 -- Checks whether `u < B^i`.
 def ltBpow [m] (u: [m]ui) (i: i64) : bool =
   map2 (\ x j -> x == 0 || j < i ) u (iota m) |> reduce (&&) true
 
--- Checks whether `u > B^i`.
-def gtBpow [m] (u: [m]ui) (i: i64) : bool =
-  map2 (\ x j -> (x > 1 && j == i) || (x > 0 && j > i) ) u (iota m)
-  |> reduce (||) false
-
 -- Checks whether `u == B^i`.
 def eqBpow [m] (u: [m]ui) (i: i64) : bool =
-  map2 (\ x j -> (x == 0 || j != i) || (x == 1 || j == i) ) u (iota m)
+  map2 (\ x j -> (x == 0 && j != i) || (x == 1 && j == i) ) u (iota m)
   |> reduce (&&) true |> (&&) (m > i)
 
--- Index of most significant nonzero digit in `u`, i.e.  `B^k <= u < B^(k+1)`.
-def findk [m] (u: [m]ui) : i64 =
-  map2 (\ x i -> if x != 0 then i else 0 ) u (iota m)
-  |> reduce (\ acc i -> if i != 0 then i else acc ) 0
+-- Checks whether `u > B^i`.
+def gtBpow [m] (u: [m]ui) (i: i64) : bool =
+  not (eqBpow u i || ltBpow u i)
 
--- Index `i` such that `u <= B^i`.
-def findh [m] (u: [m]ui) : i64 =
-  -- let i = findk u in if eqBpow u i then i else i + 1
-  findk u + 1 -- NOTE this holds, but ignores the equality - use above if needed
+-- Index of most significant nonzero digit in `u`, i.e. `B^k <= u < B^(k+1)`.
+def findk [m] (u: [m]ui) : i64 =
+  map2 (\ x i -> if x != 0 then i else 0 ) u (iota m) |> reduce i64.max 0
+
+-- Index `i` such that `u <= B^i`.   Note: `findk u + 1` is more efficient,
+def findh [m] (u: [m]ui) : i64 =        -- but may introduce another iteration.
+  let i = findk u in if eqBpow u i then i else i + 1
 
 -- Precision of `u` (i.e. number of digits minus leading zeroes).
 def prec [m] (u: [m]ui) : i64 =
@@ -56,12 +53,6 @@ def add [m] (u: [m]ui) (v: [m]ui) : [m]ui =
 -- Subtraction of `u` and `v` (false is `+` and true is `-`).
 def sub [m] (u: [m]ui) (v: [m]ui) : ([m]ui, bool) =
   bsub u v
-
--- Division of `u` by a single digit `d`.
--- def quod [m] (u: [m]ui) (d: ui) : [m]ui =
--- NOTE this can be done using a scan (I think) - parallel algorithms seems to
--- exist. However, for simplicity, we shift `u` and `v` by `2` if `k==1`, in
--- order to avoid this case. (It is part of the sequential prototype `div.c`.)
 
 -- Multiplication by single precision.
 def muld [m] (u: [m]ui) (d: ui) : [m]ui =
@@ -85,7 +76,7 @@ def mul [m] (u: [m]ui) (v: [m]ui) : [m]ui =
 -- Computes `(v * w) rem (B^e)` of big integers `v` and `w` and exponent `e`.
 def multmod [m] (v: [m]ui) (w: [m]ui) (e: i64) : [m]ui =
   -- corresponds the product of `v` and `w` truncated to size `e`
-  let vw = mul v w
+  let vw = mul (take e v) (take e w)
   in map (\ i -> if i < e then vw[i] else 0 ) (iota m)
 
 -- Computes `B^h - (v * w)` with signs (false is `+` and true is `-`).
@@ -98,78 +89,98 @@ def powdiff [m] (v: [m]ui) (w: [m]ui) (h: i64) (l: i64) : ([m]ui, bool) =
              else if P[L-1] == 0 then (P, true)
              else sub (bpow m L) P
 
--- Takes an iterative refinement step (see [1] for details).
-def step [m] (v: [m]ui) (w: [m]ui) (h: i64) (n: i64) (l: i64) (g:i64): [m]ui =
-  let (pd, sign) = powdiff v w (h-n) (l-g)
-  let pdwS = mul pd w |> shift (2*n-h)
+-- Takes an iterative refinement step (see [1] or the thesis for details).
+def step [m] (h: i64) (v: [m]ui) (w: [m]ui) (n: i64) (l: i64) (g:i64): [m]ui =
+  let (pwd, sign) = powdiff v w (h-n) (l-g)
+  let wpwdS = shift (2*n - h) (mul w pwd)
   let wS = shift n w
-  in if sign then fst (sub pdwS wS) else add pdwS wS
+  in if sign then fst (sub wS wpwdS) else add wS wpwdS
 
--- Refinement strategy 1 (see [1] for details); DOES NOT WORK, USE ANOTHER.
-def refine1 [m] (v: [m]ui) (w: [m]ui) (h: i64) (k: i64) (l: i64) : [m]ui =
-  let g = 1
+-- Refinement strategy 1 (see [1] or the thesis for details);
+def refine1 [m] (v: [m]ui) (w: [m]ui) (h: i64) (k: i64) : [m]ui =
+  let g = 1 -- guard digits
   let h = h + g
   let (w, _) = -- scale initial value to full length
-    loop (w, l) = (shift (h-k-l) w, l) while h - k > l do
-    let w = step v w h 0 l 0
-    let l = i64.min (2*l-1) (h-k) -- number of correct digits
+    loop (w, l) = (shift (h-k-2) w, 2) while h - k > l do
+    let w = step h v w 0 l 0
+    let l = i64.min (2*l-1) (h-k) -- number of correct leading digits
     in (w, l)
   in shift (-g) w
 
--- Refinement strategy 2 (see [1] for details).
-def refine2 [m] (v: [m]ui) (w: [m]ui) (h: i64) (k: i64) (l: i64) : [m]ui =
-  let g = m / 4 -- `m` guard digits; NOTE `m/4` because padding is factor '4'
+-- Refinement strategy 2 (see [1] or the thesis for details).
+def refine2 [m] (v: [m]ui) (w: [m]ui) (h: i64) (k: i64) : [m]ui =
+  let g = 2 -- guard digits
   let (w, _) =
-    loop (w, l) = (shift g w, l) while h - k > l do
-    let n = i64.min l (h-k+1-l) -- how much to grow
-    let w = shift (-1) <| step v w (k+l+n+g) n l g
-    let l = l + n - 1 -- number of correct digits
+    loop (w, l) = (shift g w, 2) while h - k > l do
+    let n = i64.min l (h - k + 1 - l) -- how much to grow `w` in this iteration
+    let w = shift (-1) <| step (k + l + n + g) v w n l g
+    let l = l + n - 1 -- number of correct leading digits
     in (w, l)
   in shift (-g) w
 
--- Refinement strategy 3 (see [1] for details).
-def refine3 [m] (v: [m]ui) (w: [m]ui) (h: i64) (k: i64) (l: i64) : [m]ui =
-  let g = m / 4 -- `m` guard digits; NOTE `m/4` because padding is factor '4'
+-- Refinement strategy 3 (see [1] or the thesis for details).
+def refine3 [m] (v: [m]ui) (w: [m]ui) (h: i64) (k: i64) : [m]ui =
+  let g = 2 -- guard digits
   let (w, _) =
-    loop (w, l) = (shift g w, l) while h - k > l do
-    let n = i64.min l (h-k+1-l) -- how much to grow
-    let s = i64.max 0 (k-2*l+1-g) -- how to scale v
-    let w = shift (-1) <| step (shift (-s) v) w (k+l+n-s+g) n l g
-    let l = l + n - 1 -- number of correct digits
+    loop (w, l) = (shift g w, 2) while h - k > l do
+    let n = i64.min l (h - k + 1 - l) -- how much to grow `w` in this iteration
+    let s = i64.max 0 (k - 2*l + 1 - g) -- how to scale v to get a prefix
+    let w = shift (-1) <| step (k + l + n - s + g) (shift (-s) v) w n l g
+    let l = l + n - 1 -- number of correct leading digits
     in (w, l)
   in shift (-g) w
 
 -- Whole shifted inverse of big integer `v` by coefficient `h`.
 def shinv [m] (k: i64) (v: [m]ui) (h: i64) : [m]ui =
   -- handle the four special cases
-  if ltBpow v 1 then new m -- incorrect, but assumed handled beforehand
-  else if gtBpow v h then new m
+  assert (k > 1) ( -- assumed handled (by a shift) beforehand
+       if gtBpow v h          then new m
   else if gtBpow (muld v 2) h then singleton m 1
-  else if eqBpow v k then bpow m (h - k)
+  else if eqBpow v k          then bpow m (h - k)
   -- form initial approximation
-  else let l = 2
-       let V = (toQi v[k-2]) + (toQi v[k-1] << 32) + (toQi v[k] << 64)
+  else let V = (toQi v[k-2]) + (toQi v[k-1] << (i64ToQi bits))
+               + (toQi v[k] << (i64ToQi (2*bits)))
        let W = ((0 - V) / V) + 1 -- `(B^4 - V) / V + 1`
-       let w = map (\ i -> fromQi (W >> i64ToQi i) ) (iota m)
+       let w = map (\i -> if i <= 1 then fromQi (W >> (i64ToQi (bits * i)))
+                          else 0) (iota m)
        -- either return or refine initial approximation
-       in if h - k <= l then shift (h - k - l) w
-          else refine3 v w h k l
+       in if h - k <= 2 then shift (h - k - 2) w else refine1 v w h k )
 
 -- Main division function.
 def div [m] (u: [m]ui) (v: [m]ui) : ([m]ui, [m]ui) =
   -- compute `h` and `k` in the assumptions `u <= B^h` and 'B^k <= v < B^(k+1)'
   let h = findh u
   let k = findk v
-  -- pad big integers in advance for multiplications (excessive factor)
-  let up = map (\ i -> if i < m then u[i] else 0 ) (iota (m*4))
-  let vp = map (\ i -> if i < m then v[i] else 0 ) (iota (m*4))
+  -- pad big integers in advance for multiplications
+  let p = 2*(m + (i64.bool (k <= 1)) + (i64.bool (k == 0)))
+  let up = map (\ i -> if i < m then u[i] else 0 ) (iota p)
+  let vp = map (\ i -> if i < m then v[i] else 0 ) (iota p)
   -- if `k <= 1`, we shift the inputs to fit the algorithm
   let (h, k, up, vp) = if k == 1 then (h+1, k+1, shift 1 up, shift 1 vp)
-                       else if k == 2 then (h+2, k+2, shift 2 up, shift 2 vp)
+                       else if k == 0 then (h+2, k+2, shift 2 up, shift 2 vp)
                        else (h, k, up, vp)
   -- compute quotient using Theorem 1. in [1]
   let q = shinv k vp h |> mul up |> shift (-h) |> take m
   -- compute remainder
   let r = mul v q |> sub u |> fst
-  -- handle delta (i.e. if `r >= v` then `delta = 1` else `delta = 0`
+  -- handle delta (i.e. if `r >= v` then `delta = 1` else `delta = 0`)
   in if not (lt r v) then (add q (singleton m 1), fst (sub r v)) else (q, r)
+
+
+--------------------------------------------------------------------------------
+-- Callers
+--------------------------------------------------------------------------------
+
+-- Process a batch of divisions meant for the GPU.
+def oneDivGPU [n][m] (us: [n][m]ui) (vs: [n][m]ui) : [n]([m]ui, [m]ui) =
+  #[sequential_outer] imap2Intra us vs div
+
+-- Process a batch of divisions meant for the CPU.
+def oneDivCPU [n][m] (us: [n][m]ui) (vs: [n][m]ui) : [n]([m]ui, [m]ui) =
+  map2 div us vs
+
+-- `refine2` and `refine3` contains a bug that shows rarely, but can be
+-- replicated by the function below. It is supposed to give `[5764, 41927, 1]`
+-- (and does so for `refine1`) but `refine2` and `refine3` are off by one.
+def replicateRefine2And3Bug =
+  div [33986,5952,61904,0,0,0,0,0] [37752,0,0,0,0,0,0,0] |> fst

@@ -1,6 +1,6 @@
 import "../mul"
 
--- Benchmarks with one instance per block and sequentialization factor of 1
+-- Benchmarks with one instance per block and sequentialization factor of 2
 -- ==
 -- entry: oneMulV1Bench64 sixMulV1Bench64
 -- compiled random input { [16384][2][2048]u64 [16384][2][2048]u64 }
@@ -28,9 +28,9 @@ import "../mul"
 -- compiled random input { [4194304][4][4]u64  [4194304][4][4]u64  }
 -- compiled random input { [8388608][4][2]u64  [8388608][4][2]u64  }
 
--- Benchmarks with multiple instances per block and sequentialization factor 4
+-- Benchmarks with multiple instances per block
 -- ==
--- entry: oneMulV3Bench64 sixMulV3Bench64
+-- entry: oneMulV3Bench64 sixMulV3Bench64 oneMulV4Bench64 sixMulV4Bench64
 -- compiled random input { [16384][1][4096]u64 [16384][1][4096]u64 }
 -- compiled random input { [32768][1][2048]u64 [32768][1][2048]u64 }
 -- compiled random input { [65536][1][1024]u64 [65536][1][1024]u64 }
@@ -63,6 +63,11 @@ entry oneMulV3Bench64
   oneMulV3 (m/4) (usss :> [n][ipb][4*(m/4)]u64) (vsss :> [n][ipb][4*(m/4)]u64)
            :> [n][ipb][m]u64
 
+entry oneMulV4Bench64
+[n][ipb][m] (usss: [n][ipb][m]u64) (vsss: [n][ipb][m]u64) : [n][ipb][m]u64 =
+  oneMulV4 (m/2) (usss :> [n][ipb][2*(m/2)]u64) (vsss :> [n][ipb][2*(m/2)]u64)
+           :> [n][ipb][m]u64
+
 entry sixMulV1Bench64
 [n][m] (usss: [n][2][m]u64) (vsss: [n][2][m]u64) : [n][2*m]u64 =
   -- this looks a bit wierd compared to a size-coercien, but I could not get it
@@ -82,4 +87,9 @@ entry sixMulV2Bench64
 entry sixMulV3Bench64
 [n][ipb][m] (usss: [n][ipb][m]u64) (vsss: [n][ipb][m]u64) : [n][ipb][m]u64 =
   sixMulV3 (m/4) (usss :> [n][ipb][4*(m/4)]u64) (vsss :> [n][ipb][4*(m/4)]u64)
+           :> [n][ipb][m]u64
+
+entry sixMulV4Bench64
+[n][ipb][m] (usss: [n][ipb][m]u64) (vsss: [n][ipb][m]u64) : [n][ipb][m]u64 =
+  sixMulV4 (m/2) (usss :> [n][ipb][2*(m/2)]u64) (vsss :> [n][ipb][2*(m/2)]u64)
            :> [n][ipb][m]u64

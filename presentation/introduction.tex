@@ -1,0 +1,143 @@
+\section{Introduction}
+\begin{frame}
+  \frametitle{Introduction}
+  \framesubtitle{Big Integers}
+  \begin{block}{Positional number system}\scriptsize
+      An integer $u \in \mathbb{N}$ can be expressed in base $B \in \mathbb{N}>1$ with
+  $m$ digits $u_{i\in \{0,1,\ldots,m-1\}}\in\{0,1,\ldots,B-1\}$ by the sum:\vspace*{-0.5em}
+  \begin{equation}
+u = \sum_{i=0}^{m-1}u_i\cdot B^{i}
+\end{equation}
+\end{block}
+\pause
+E.g.\ the number 256 in base $B=10$ is $\arr{6, 5, 2}$.
+
+\pause
+Big integers in the positional number system maps to an array of unsigned machine words.
+
+\pause
+E.g.\ the number 4294967298 in base $B=2^{32}$ is $\arr{2,1}$.
+\end{frame}
+
+
+
+\begin{frame}
+  \frametitle{Introduction}
+  \framesubtitle{Implementation}
+  The idea is to process integers at CUDA block-level\pause , requiring:
+  \begin{itemize}
+  \item Sequentialization factor.
+  \end{itemize}\vspace*{-0.4em}
+  \begin{center}
+  {\tiny
+  \begin{minipage}{0.45\textwidth}
+    \centering
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $t_0$ & $t_1$ & $\cdots$ & & \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $\shortdownarrow$ & $\shortdownarrow$ & & & \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|}
+        \hline
+        $w_0$ & $w_1$ & $\cdots$ & $w_{2046}$ & $w_{2047}$\\
+        \hline
+      \end{tabular}\\
+    \end{minipage}\qquad
+    \begin{minipage}{0.45\textwidth}
+      \centering
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $t_0$ & & $\cdots$ & $t_{1023}$ & \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}}
+        $\shortdownarrow$ & $\diagonalarrowdown$ &  &  &  &  &  & $\shortdownarrow$ & $\diagonalarrowdown$ & \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|}
+        \hline
+        $w_0$ & $w_1$ & $\cdots$ & $w_{2046}$ & $w_{2047}$\\
+        \hline
+      \end{tabular}\\
+    \end{minipage}
+  }
+\end{center}
+\pause
+  \begin{itemize}
+  \item Coalesced transactions to global memory.
+  \end{itemize}\vspace*{-0.4em}
+  \begin{center}
+  {\tiny
+    \begin{minipage}{0.45\textwidth}
+      \centering
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $t_0$ & & $\cdots$ & $t_{1023}$ & \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}C{0.02cm}}
+        $\shortdownarrow$ & $\diagonalarrowdown$ &  &  &  &  &  & $\shortdownarrow$ & $\diagonalarrowdown$ & \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|}
+        \hline
+        $w_0$ & $w_1$ & $\cdots$ & $w_{2046}$ & $w_{2047}$\\
+        \hline
+      \end{tabular}\\
+    \end{minipage}\qquad
+  \begin{minipage}{0.45\textwidth}
+    \centering
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $t_0$ & $t_1$ & $\cdots$ & $t_{1022}$ & $t_{1023}$ \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $\shortdownarrow$ & $\shortdownarrow$ & & $\shortdownarrow$ & $\shortdownarrow$ \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|}
+        \hline
+        $w_0$ & $w_1$ & $\cdots$ & $w_{2046}$ & $w_{2047}$\\
+        \hline
+      \end{tabular}\\
+    \end{minipage}
+  }
+\end{center}
+  \pause
+  \begin{itemize}
+  \item Multiple instances per block.
+  \end{itemize}\vspace*{-0.4em}
+  \begin{center}
+  {\tiny
+  \begin{minipage}{0.45\textwidth}
+    \centering
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $t_0$ & $t_1$ & $\cdots$ & $t_{14}$ & $t_{15}$ \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $\shortdownarrow$ & $\shortdownarrow$ & & $\shortdownarrow$ & $\shortdownarrow$ \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|}
+        \hline
+        $w_0$ & $w_1$ & $\cdots$ & $w_{14}$ & $w_{15}$\\
+        \hline
+      \end{tabular}\\
+    \end{minipage}\qquad
+  \begin{minipage}{0.45\textwidth}
+    \centering
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $t_0$ & $t_1$ & $\cdots$ & $t_{30}$ & $t_{31}$ \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}C{0.6cm}}
+        $\shortdownarrow$ & $\shortdownarrow$ & & $\shortdownarrow$ & $\shortdownarrow$ \\
+      \end{tabular}\\[-0.5ex]
+      \begin{tabular}{|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|C{0.59cm}|}
+        \hline
+        $w_0$ & $w_1$ & $\cdots$ & $u_{14}$ & $u_{15}$\\
+        \hline
+      \end{tabular}\\
+    \end{minipage}
+  }
+  \end{center}
+\end{frame}
+
+
+
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "main"
+%%% End:

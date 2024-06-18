@@ -375,10 +375,10 @@ We keep the sequentialization factor ($q$) and number of instances per block
 ($\mathit{ipb}$) parametric using \cpp\ templates. First of all, this allows us
 to handle all input sizes generically rather than relying on multiple
 hand-written versions, but more importantly, it allows us to experiment with
-optimal parameters. A purpose of the CUDA implementation is to determine how
-much performance is possible to achieve using our designated algorithms. Hence,
-experimentation in CUDA directly influence how we approach the implementations
-in Futhark.
+optimal parameters. A purpose of the CUDA implementation is to determine the
+optimal performance achievable using our designated algorithms. Hence,
+experimentation in CUDA directly influence the approach of the Futhark
+implementations.
 
 Generic \textit{ipb} is trivial, because it only serves to determine segment
 beginnings of segmented algorithms. A generic sequentialization factor can

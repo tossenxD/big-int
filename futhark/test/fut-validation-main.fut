@@ -16,7 +16,8 @@ def add1D [m] (u: [m]ui) (v: [m]ui) : bool =
   let w1 = baddV1 u v
   let w2 = baddV2 (u :> [4*M]ui) (v :> [4*M]ui) :> [m]ui
   let w3 = baddV3 (u :> [1*(4*M)]ui) (v :> [1*(4*M)]ui) :> [m]ui
-  in validP w0 && validP w1 && validP w2 && validP w3
+  let w4 = baddV4 (u :> [1*m]ui) (v :> [1*m]ui) :> [m]ui
+  in validP w0 && validP w1 && validP w2 && validP w3 && validP w4
 
 def add2D [n][m] (us: [n][m]ui) (vs: [n][m]ui) : bool =
   let (N, M) = (n/4, m/4)
@@ -27,7 +28,10 @@ def add2D [n][m] (us: [n][m]ui) (vs: [n][m]ui) : bool =
   let usV3 = unflatten (us :> [N*4][4*M]ui) :> [N][4][4*M]ui
   let vsV3 = unflatten (vs :> [N*4][4*M]ui) :> [N][4][4*M]ui
   let ws3 = (oneAddV3 M usV3 vsV3 |> flatten) :> [n][m]ui
-  in validP ws0 && validP ws1 && validP ws2 && validP ws3
+  let usV4 = unflatten (us :> [N*4][m]ui) :> [N][4][m]ui
+  let vsV4 = unflatten (vs :> [N*4][m]ui) :> [N][4][m]ui
+  let ws4 = (oneAddV4 m usV4 vsV4 |> flatten) :> [n][m]ui
+  in validP ws0 && validP ws1 && validP ws2 && validP ws3 && validP ws4
 
 def mul1D [m] (u: [m]ui) (v: [m]ui) : bool =
   let (M2, M4) = (m/2, m/4)
@@ -35,14 +39,18 @@ def mul1D [m] (u: [m]ui) (v: [m]ui) : bool =
   let w1 = convMulV1 (u :> [2*M2]ui) (v :> [2*M2]ui) :> [m]ui
   let w2 = convMulV2 (u :> [4*M4]ui) (v :> [4*M4]ui) :> [m]ui
   let w3 = convMulV3 (u :> [1*(4*M4)]ui) (v :> [1*(4*M4)]ui) :> [m]ui
-  in validP w1 && validP w2 && validP w3
+  let w4 = convMulV4 (u :> [1*(2*M2)]ui) (v :> [1*(2*M2)]ui) :> [m]ui
+  in validP w1 && validP w2 && validP w3 && validP w4
 
 def mul2D [n][m] (us: [n][m]ui) (vs: [n][m]ui) : bool =
-  let (N, M2, M4) = (n/4, m/2, m/4)
+  let (N2, N4, M2, M4) = (n/2, n/4, m/2, m/4)
   let validP = (\ws -> map2 eq (map2 test_mul us vs) ws |> reduce (&&) true)
   let ws1 = oneMulV1 M2 (us :> [n][2*M2]ui) (vs :> [n][2*M2]ui) :>[n][m]ui
   let ws2 = oneMulV2 M4 (us :> [n][4*M4]ui) (vs :> [n][4*M4]ui) :>[n][m]ui
-  let usV3 = unflatten (us :> [N*4][4*M4]ui) :> [N][4][4*M4]ui
-  let vsV3 = unflatten (vs :> [N*4][4*M4]ui) :> [N][4][4*M4]ui
+  let usV3 = unflatten (us :> [N4*4][4*M4]ui) :> [N4][4][4*M4]ui
+  let vsV3 = unflatten (vs :> [N4*4][4*M4]ui) :> [N4][4][4*M4]ui
   let ws3 = (oneMulV3 M4 usV3 vsV3 |> flatten) :> [n][m]ui
-  in validP ws1 && validP ws2 && validP ws3
+  let usV4 = unflatten (us :> [N2*2][2*M2]ui) :> [N2][2][2*M2]ui
+  let vsV4 = unflatten (vs :> [N2*2][2*M2]ui) :> [N2][2][2*M2]ui
+  let ws4 = (oneMulV4 M2 usV4 vsV4 |> flatten) :> [n][m]ui
+  in validP ws1 && validP ws2 && validP ws3 && validP ws4

@@ -162,9 +162,9 @@ $O(m)$:
   \textit{mul}tiplication by \textit{conv}olution
   (\textit{convmul})]\label{def:convmul}
   We parallelize Definition \ref{def:clasmul} according to the pseudocode in
-  Figure \ref{fig:mulparalg}. Lines 1-18 describes the main function that, given
+  Figure \ref{fig:mulparalg}. Lines 1-18 describe the main function that, given
   a thread index ${t\in \{0,..,(m/2)-1\}}$, computes a low, high, and carry part
-  of both convolution $t$ and convolution $m-1-t$. Lines 20-25 calls the main
+  of both convolution $t$ and convolution $m-1-t$. Lines 20-25 call the main
   function on each thread and adds the convolution parts according to following
   memory layout, where color and superscript denotes the thread that has
   computed the part, and subscript denotes the convolution that the part
